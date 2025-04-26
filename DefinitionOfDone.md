@@ -1,6 +1,6 @@
 # Definition of Done
 
-- All acceptance criteria in the ticket are met
+- All specified criteria in the ticket are met
 - Code has been reviewed and approved by at least one team member
 - The code is documented as well as possible
 - No known bugs remain at the time of pushing
