@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Steganography & Hash Generator</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.rawgit.com/h2non/jsHashes/master/hashes.js"></script>
+    <script src="steganography.js"></script>
+    <script src="script.js" defer></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Image Steganography & Hash Generator</h1>
+        <div class="upload-section">
+            <input type="file" id="imageInput" accept="image/*">
+        </div>
+        <div class="stego-section">
+            <textarea id="messageInput" placeholder="Enter your secret message here..."></textarea>
+            <div class="button-group">
+                <button id="encodeMessage">Encode Message</button>
+                <button id="decodeMessage">Decode Message</button>
+                <button id="downloadImage">Download Image</button>
+                <button id="generateHash">Generate Hash</button>
+            </div>
+        </div>
+        <div class="preview-section">
+            <img id="imagePreview" src="" alt="Image Preview">
+        </div>
+        <div class="result-section">
+            <div class="message-result">
+                <h2>Decoded Message:</h2>
+                <p id="decodedMessage"></p>
+            </div>
+            <div class="hash-section">
+                <h2>Hash Result:</h2>
+                <div class="hash-results">
+                    <p>SHA256: <span id="sha256Result"></span></p>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html> 
