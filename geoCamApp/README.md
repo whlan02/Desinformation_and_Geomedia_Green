@@ -21,6 +21,8 @@ Before you begin, ensure you have met the following requirements:
   npm install -g expo-cli
   ```
 - A mobile device with Expo Go installed ([iOS App Store](https://apps.apple.com/app/expo-go/id982107779) | [Android Play Store](https://play.google.com/store/apps/details?id=host.exp.exponent))
+- Android: an Android device with USB debugging enabled and the Android SDK path set in `android/local.properties`
+- iOS: macOS with Xcode installed and a valid provisioning profile or Apple Developer account (or use the iOS simulator)
 
 
 ## Installation
@@ -53,14 +55,33 @@ These will be requested automatically when needed.
 
 ## Development（testing）
 
-1. Start the development server:
+1. Change into the project directory:
    ```bash
-   npx expo start
+   cd Desinformation_and_Geomedia_Green/geoCamApp
    ```
 
-2. Use Expo Go(your physical device):
-   - Download and open the Expo Go app on your mobile device
-   - Scan the QR code with your mobile device's camera
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+3. (Classic Expo Go) Start Metro and launch in Expo Go:
+   ```bash
+   npm run start  # or expo start
+   ```
+   - In the Expo CLI UI, under "Connected Devices", click "Run on Android device/emulator" or "Run on iOS simulator"
+   - Or open Expo Go on your phone and scan the "Expo Go" QR code
+
+4. (Custom Dev Client) Build & install the development client on your device:
+   ```bash
+   npm run android  # builds and installs dev client on Android
+   npm run ios      # builds and installs dev client on iOS
+   ```
+   - After installation, scan the "Dev Client" QR code in the Expo CLI UI to launch the app
+
+5. Connect a physical device:
+   - Android: enable USB debugging and connect with USB (or via `adb connect <ip>`)
+   - iOS: open the workspace in Xcode and select your device as the run destination, or enable network debugging
 
 
 

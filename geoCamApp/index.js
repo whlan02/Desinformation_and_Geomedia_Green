@@ -1,9 +1,10 @@
-import { registerRootComponent } from 'expo';
-import { ExpoRoot } from 'expo-router';
+// Polyfill secure random API before any crypto operations
+import 'react-native-get-random-values';
+import { Base64 } from 'js-base64';
 
-export function App() {
-    const ctx = require.context('./app');
-    return <ExpoRoot context={ctx} />;
-}
+// Polyfill base64 functions required by metadata signing
+if (typeof global.atob !== 'function') global.atob = (str) => Base64.decode(str);
+if (typeof global.btoa !== 'function') global.btoa = (str) => Base64.encode(str);
 
-registerRootComponent(App); 
+// Expo Router entry point (handles root component registration)
+import 'expo-router/entry';

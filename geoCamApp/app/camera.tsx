@@ -9,6 +9,7 @@ import * as Device from 'expo-device';
 import * as Location from 'expo-location';
 import * as FileSystem from 'expo-file-system';
 import { saveImageToGallery } from '../utils/galleryStorage';
+import { signImage } from '../utils/metadataSigner';
 
 const steganographyLib = `
 /*
@@ -361,8 +362,11 @@ export default function CameraScreen() {
     setIsEncoding(true);
     try {
       const photo = await cameraRef.current.takePictureAsync({
-        quality: 1,
+        quality: 0.8,
         base64: true,
+        imageType: 'jpg',
+        exif: false,
+        skipProcessing: true,
       });
 
       if (!photo.base64) {
@@ -379,8 +383,10 @@ export default function CameraScreen() {
 
       const infoToEncode = JSON.stringify({
         deviceModel: Device.modelName,
-        Time: new Date().toLocaleString(),
+        Time: new Date().toISOString(),
         location: locData ? { latitude: locData.latitude, longitude: locData.longitude } : null,
+        signed: true,
+        signatureVersion: '1.0'
       });
 
       // Store the encoded info for later use in gallery
@@ -429,7 +435,7 @@ export default function CameraScreen() {
 
     if (messageData.type === 'encodedImage') {
       const base64EncodedImage = messageData.data;
-      const filename = FileSystem.cacheDirectory + `encoded-${Date.now()}.jpg`;
+      const filename = FileSystem.cacheDirectory + `geocam-${Date.now()}.jpg`;
       try {
         const base64Data = base64EncodedImage.split(',')[1];
         if (!base64Data) {
@@ -438,24 +444,20 @@ export default function CameraScreen() {
         await FileSystem.writeAsStringAsync(filename, base64Data, {
           encoding: FileSystem.EncodingType.Base64,
         });
-        await MediaLibrary.saveToLibraryAsync(filename);
+        // Run operations in parallel for speed
+        await Promise.all([
+          MediaLibrary.saveToLibraryAsync(filename),
+          signImage(filename).then(() => console.log('Image digitally signed')).catch(signError => console.error('Failed to sign image:', signError)),
+          currentEncodedInfo ? saveImageToGallery({
+            uri: filename,
+            encodedInfo: currentEncodedInfo,
+            timestamp: Date.now(),
+          }).then(() => console.log('Image saved to gallery storage')).catch(galleryError => console.error('Failed to save to gallery storage:', galleryError)) : Promise.resolve()
+        ]);
+        
         setLastPhoto(filename);
         
-        // Save to gallery storage
-        if (currentEncodedInfo) {
-          try {
-            await saveImageToGallery({
-              uri: filename,
-              encodedInfo: currentEncodedInfo,
-              timestamp: Date.now(),
-            });
-            console.log('Image saved to gallery storage');
-          } catch (galleryError) {
-            console.error('Failed to save to gallery storage:', galleryError);
-          }
-        }
-        
-        console.log('Encoded image saved to library:', filename);
+        console.log('Encoded and signed image saved to library:', filename);
       } catch (e) {
         console.error('Failed to save encoded image:', e);
         if (lastPhoto) await MediaLibrary.saveToLibraryAsync(lastPhoto); 
@@ -511,7 +513,7 @@ export default function CameraScreen() {
       {isEncoding && (
         <View style={StyleSheet.absoluteFill}>
           <ActivityIndicator size="large" color="#ffffff" style={styles.loadingIndicator} />
-          <Text style={styles.loadingText}>Encoding info...</Text>
+          <Text style={styles.loadingText}>Encoding & signing...</Text>
         </View>
       )}
 

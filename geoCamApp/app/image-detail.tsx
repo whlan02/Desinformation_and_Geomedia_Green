@@ -1,9 +1,11 @@
 import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, Alert, ActivityIndicator, Platform, Dimensions } from 'react-native';
+import { signImage } from '../utils/metadataSigner';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useState, useEffect } from 'react';
 import { getGalleryImages, type GalleryImage } from '../utils/galleryStorage';
 import * as Sharing from 'expo-sharing';
-import MapView, { Marker, UrlTile } from 'react-native-maps';
+// Use platform-specific map components (stubs on web)
+import { MapView, Marker, UrlTile } from '../utils/MapComponents';
 
 const { width } = Dimensions.get('window');
 const MAP_HEIGHT = 200;
@@ -14,6 +16,7 @@ export default function ImageDetail() {
   const [image, setImage] = useState<GalleryImage | null>(null);
   const [loading, setLoading] = useState(true);
   const [sharing, setSharing] = useState(false);
+  const [signing, setSigning] = useState(false);
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
 
   useEffect(() => {
@@ -64,6 +67,21 @@ export default function ImageDetail() {
       Alert.alert('Error', 'Failed to share image');
     } finally {
       setSharing(false);
+    }
+  };
+  
+  const handleSign = async () => {
+    if (!image) return;
+    setSigning(true);
+    try {
+      const signedUri = await signImage(image.uri);
+      setImage({ ...image, uri: signedUri });
+      Alert.alert('Success', 'Image signed and metadata updated.');
+    } catch (error) {
+      console.error('Error signing image:', error);
+      Alert.alert('Error', 'Failed to sign image.');
+    } finally {
+      setSigning(false);
     }
   };
 
@@ -174,6 +192,15 @@ export default function ImageDetail() {
 
       <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent}>
         <Image source={{ uri: image.uri }} style={styles.fullImage} />
+        <View style={styles.signContainer}>
+          <TouchableOpacity style={styles.signButton} onPress={handleSign} disabled={signing}>
+            {signing ? (
+              <ActivityIndicator size="small" color="#ffffff" />
+            ) : (
+              <Text style={styles.signButtonText}>Sign Metadata</Text>
+            )}
+          </TouchableOpacity>
+        </View>
         
         <View style={styles.metaContainer}>
           <Text style={styles.timestamp}>
@@ -280,6 +307,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace',
     lineHeight: 20,
+  },
+  signContainer: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  signButton: {
+    backgroundColor: '#03DAC5',
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  signButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: 'white',
   },
   centerContainer: {
     flex: 1,

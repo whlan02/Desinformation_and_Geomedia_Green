@@ -38,6 +38,8 @@
       "package": "com.princeob.geocam"
     },
     "plugins": [
+      // Enable custom development client builds
+      "expo-dev-client",
       [
         "expo-camera",
         {
