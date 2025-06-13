@@ -54,8 +54,14 @@ These will be requested automatically when needed.
 ## Development（testing）
 
 1. Start the development server:
+
+ under a same wifi
    ```bash
    npx expo start
+   ```
+not under a same wifi
+   ```bash
+   npx expo start --tunnel
    ```
 
 2. Use Expo Go(your physical device):
