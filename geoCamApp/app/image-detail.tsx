@@ -72,19 +72,32 @@ export default function ImageDetail() {
       const parsed = JSON.parse(encodedInfo);
       let formatted = '';
       
+      // Only show user-friendly information, hide technical details
+      const userFriendlyFields = ['deviceModel', 'Time', 'location'];
+      
       for (const key in parsed) {
-        if (parsed.hasOwnProperty(key)) {
+        if (parsed.hasOwnProperty(key) && userFriendlyFields.includes(key)) {
           if (key === 'location' && parsed[key]) {
-            formatted += `Location:\n  Lat: ${parsed[key].latitude}\n  Lon: ${parsed[key].longitude}\n\n`;
-          } else {
-            formatted += `${key.charAt(0).toUpperCase() + key.slice(1)}: ${parsed[key]}\n\n`;
+            formatted += `Location:\n  Lat: ${parsed[key].latitude.toFixed(6)}\n  Lon: ${parsed[key].longitude.toFixed(6)}\n\n`;
+          } else if (key === 'deviceModel') {
+            formatted += `Device: ${parsed[key]}\n\n`;
+          } else if (key === 'Time') {
+            formatted += `Captured: ${parsed[key]}\n\n`;
           }
         }
       }
       
+      // Add signature status if available
+      if (parsed.signature) {
+        formatted += `🔐 Digitally Signed: Yes\n`;
+        formatted += `🔑 Authentication: Hardware-secured\n`;
+      } else {
+        formatted += `🔐 Digitally Signed: No\n`;
+      }
+      
       return formatted.trim();
     } catch (e) {
-      return encodedInfo;
+      return 'Unable to read photo information';
     }
   };
 

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 import { WebView } from 'react-native-webview';
+import { verifySignatureWithDeviceKey, generateDataHash } from '../utils/cryptoUtils';
 
 const steganographyLib = `
 /*
@@ -284,11 +285,13 @@ export default function Verify() {
   const [webViewHtml, setWebViewHtml] = useState<string | null>(null);
   const [isDecoding, setIsDecoding] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
+  const [signatureVerification, setSignatureVerification] = useState<{valid: boolean, message: string} | null>(null);
 
   const pickImage = async () => {
     setSelectedImage(null);
     setDecodedInfo(null);
     setErrorText(null);
+    setSignatureVerification(null);
     setIsDecoding(true);
 
     let result = await ImagePicker.launchImageLibraryAsync({
@@ -330,6 +333,7 @@ export default function Verify() {
                 imageMimeType = 'image/png';
             }
 
+            // 使用WebView仅用于steganography解码，签名验证在React Native端进行
             const htmlContent = `
               <html>
               <head>
@@ -348,15 +352,25 @@ export default function Verify() {
                     try {
                       statusP.innerText = "Decoding...";
                       const decodedMessage = steg.decode(image);
-                      window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'decodedInfo', data: decodedMessage }));
+                      
+                      window.ReactNativeWebView.postMessage(JSON.stringify({ 
+                        type: 'decodedMessage', 
+                        data: decodedMessage || ''
+                      }));
                     } catch (e) {
                       statusP.innerText = "Error during decoding: " + e.toString();
-                      window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'error', data: 'Error decoding image: ' + e.toString() + ' Stack: ' + e.stack}));
+                      window.ReactNativeWebView.postMessage(JSON.stringify({ 
+                        type: 'error', 
+                        data: 'Error decoding image: ' + e.toString() + ' Stack: ' + e.stack
+                      }));
                     }
                   };
                   image.onerror = function() {
                      statusP.innerText = "Image failed to load in WebView.";
-                    window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'error', data: 'Image failed to load in WebView for decoding.' }));
+                    window.ReactNativeWebView.postMessage(JSON.stringify({ 
+                      type: 'error', 
+                      data: 'Image failed to load in WebView for decoding.' 
+                    }));
                   };
                   image.src = base64Photo;
                 </script>
@@ -379,41 +393,102 @@ export default function Verify() {
     }
   };
 
-  const handleWebViewMessage = (event: any) => {
+  const handleWebViewMessage = async (event: any) => {
     setWebViewHtml(null); // Hide WebView after processing
-    setIsDecoding(false);
     const messageData = JSON.parse(event.nativeEvent.data);
 
-    if (messageData.type === 'decodedInfo') {
-      if (messageData.data && messageData.data.trim() !== '') {
+    if (messageData.type === 'decodedMessage') {
+      const decodedMessage = messageData.data;
+      
+      if (!decodedMessage || decodedMessage.trim() === '') {
+        setErrorText("No hidden information found in the image, or it was empty.");
+        setDecodedInfo(null);
+        setSignatureVerification(null);
+        setIsDecoding(false);
+        return;
+      }
+
+      // Perform signature verification on the React Native side
+      let parsedData;
+      let isSignatureValid = false;
+      let verificationMessage = 'No signature found';
+      
+      try {
+        parsedData = JSON.parse(decodedMessage);
+        
+        // Check if signature information is included
+        if (parsedData.signature && parsedData.publicKey && parsedData.dataHash) {
+          console.log('🔍 Found signature data in image');
+          console.log('🔑 Public key structure:', JSON.stringify(parsedData.publicKey, null, 2));
+          
+          // Reconstruct original data (excluding signature-related fields)
+          const { signature, publicKey, dataHash, ...originalData } = parsedData;
+          const originalDataStr = JSON.stringify(originalData);
+          
+          console.log('📝 Original data for verification:', originalDataStr);
+          console.log('🔐 Stored data hash:', dataHash);
+          
+          // Recalculate hash
+          const recalculatedHash = await generateDataHash(originalDataStr);
+          console.log('🔍 Recalculated hash:', recalculatedHash);
+          
+          if (recalculatedHash === dataHash) {
+            console.log('✅ Data hash verification passed');
+            // Verify signature
+            isSignatureValid = await verifySignatureWithDeviceKey(dataHash, signature, publicKey);
+            verificationMessage = isSignatureValid ? 
+              'Digital signature is valid - Image is authentic' : 
+              'Digital signature is invalid - Image may have been tampered with';
+          } else {
+            console.log('❌ Data hash verification failed');
+            verificationMessage = 'Data hash mismatch - Image has been modified';
+          }
+        } else {
+          console.log('❌ Missing signature components');
+          verificationMessage = 'No digital signature found - Image authenticity cannot be verified';
+        }
+      } catch (parseError) {
+        // If parsing fails, it may be an old version of the data
+        verificationMessage = 'Legacy format detected - No signature verification available';
+      }
+      
+      // Set signature verification result
+      setSignatureVerification({
+        valid: isSignatureValid,
+        message: verificationMessage
+      });
+
+      // Format display data
+      if (parsedData) {
         try {
-            const parsedData = JSON.parse(messageData.data);
-             // Format the JSON data for display
-            let formattedString = '';
-            for (const key in parsedData) {
-                if (parsedData.hasOwnProperty(key)) {
-                    if (key === 'location' && parsedData[key]) {
-                        formattedString += `Location:\nLat: ${parsedData[key].latitude}\nLon: ${parsedData[key].longitude}\n`;
-                    } else {
-                        formattedString += `${key.charAt(0).toUpperCase() + key.slice(1)}: ${parsedData[key]}\n`;
-                    }
-                }
-            }
-            setDecodedInfo(formattedString.trim());
+          // Format the JSON data for display, excluding signature-related fields for readability
+          let formattedString = '';
+          for (const key in parsedData) {
+              if (parsedData.hasOwnProperty(key) && !['signature', 'publicKey', 'dataHash'].includes(key)) {
+                  if (key === 'location' && parsedData[key]) {
+                      formattedString += `Location:\nLat: ${parsedData[key].latitude}\nLon: ${parsedData[key].longitude}\n`;
+                  } else {
+                      formattedString += `${key.charAt(0).toUpperCase() + key.slice(1)}: ${parsedData[key]}\n`;
+                  }
+              }
+          }
+          setDecodedInfo(formattedString.trim());
         } catch (e) {
-            // If JSON.parse fails, it might be a simple string or malformed JSON
-            setDecodedInfo("Decoded (raw): " + messageData.data);
+          // If JSON.parse fails, it might be a simple string or malformed JSON
+          setDecodedInfo("Decoded (raw): " + decodedMessage);
         }
         setErrorText(null);
       } else {
-        setErrorText("No hidden information found in the image, or it was empty.");
-        setDecodedInfo(null);
+        setDecodedInfo("Decoded (raw): " + decodedMessage);
+        setErrorText(null);
       }
     } else if (messageData.type === 'error') {
       console.error('WebView decoding error:', messageData.data);
       setErrorText(`Decoding failed: ${messageData.data.substring(0, 200)}...`);
       setDecodedInfo(null);
+      setSignatureVerification(null);
     }
+    setIsDecoding(false);
   };
 
   return (
@@ -431,6 +506,17 @@ export default function Verify() {
 
       {selectedImage && !isDecoding && (
         <Image source={{ uri: selectedImage }} style={styles.imagePreview} />
+      )}
+
+      {signatureVerification && !isDecoding && (
+        <View style={[styles.infoBox, signatureVerification.valid ? styles.validSignatureBox : styles.invalidSignatureBox]}>
+          <Text style={styles.infoTitle}>
+            {signatureVerification.valid ? '✓ Signature Verification' : '✗ Signature Verification'}
+          </Text>
+          <Text style={[styles.infoText, signatureVerification.valid ? styles.validSignatureText : styles.invalidSignatureText]}>
+            {signatureVerification.message}
+          </Text>
+        </View>
       )}
 
       {decodedInfo && !isDecoding && (
@@ -548,6 +634,24 @@ const styles = StyleSheet.create({
   errorText: {
       fontSize: 16,
       color: '#ffcccc',
+  },
+  validSignatureBox: {
+    backgroundColor: '#2d5c2d',
+    borderColor: '#4caf50',
+    borderWidth: 2,
+  },
+  invalidSignatureBox: {
+    backgroundColor: '#5c2d2d',
+    borderColor: '#f44336',
+    borderWidth: 2,
+  },
+  validSignatureText: {
+    color: '#90ee90',
+    fontWeight: 'bold',
+  },
+  invalidSignatureText: {
+    color: '#ffb3b3',
+    fontWeight: 'bold',
   },
   hiddenWebViewContainer: {
     position: 'absolute',
