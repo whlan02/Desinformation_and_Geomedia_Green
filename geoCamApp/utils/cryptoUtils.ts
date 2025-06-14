@@ -74,7 +74,6 @@ const getDeviceSpecificKeyNames = async () => {
 
 /**
  * Generate a simplified key pair (using expo-crypto and random numbers)
- * This is a simplified version for demonstration purposes
  */
 export const generateDeviceKeyPair = async () => {
   try {
