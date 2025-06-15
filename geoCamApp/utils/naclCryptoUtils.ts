@@ -1,7 +1,7 @@
 import * as SecureStore from 'expo-secure-store';
 import * as Device from 'expo-device';
 import * as Crypto from 'expo-crypto';
-const nacl = require('tweetnacl');
+import * as nacl from 'tweetnacl';
 
 // Configure TweetNaCl with Expo's random number generator
 nacl.setPRNG((x: Uint8Array, n: number) => {

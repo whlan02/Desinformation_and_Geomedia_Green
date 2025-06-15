@@ -355,10 +355,6 @@ export const verifyImageWithBackend = async (imageUri: string): Promise<ImageVer
     }
 
     console.log('🚀 Sending request to:', buildApiUrl(BACKEND_CONFIG.ENDPOINTS.VERIFY_IMAGE));
-    console.log('📦 FormData contents:', {
-      hasImage: formData.has ? formData.has('image') : 'FormData.has not available',
-      hasInstallationId: formData.has ? formData.has('installation_id') : 'FormData.has not available',
-    });
 
     const response = await fetch(buildApiUrl(BACKEND_CONFIG.ENDPOINTS.VERIFY_IMAGE), {
       method: 'POST',
@@ -367,7 +363,6 @@ export const verifyImageWithBackend = async (imageUri: string): Promise<ImageVer
     });
 
     console.log('📨 Response status:', response.status);
-    console.log('📨 Response headers:', Object.fromEntries(response.headers.entries()));
 
     // Check if response is ok first
     if (!response.ok) {
@@ -399,11 +394,11 @@ export const verifyImageWithBackend = async (imageUri: string): Promise<ImageVer
     
     // Transform backend response to match our interface
     const transformedResult: ImageVerificationResponse = {
-      success: result.success || false,
+      success: result.success !== false, // Default to true unless explicitly false
       message: result.signature_verification?.message || result.error || 'Verification completed',
       verification_result: {
         is_authentic: result.signature_verification?.valid || false,
-        decoded_data: result.decoded_info || null,
+        decoded_data: result.decoded_info || null, // Use decoded_info from backend
         signature_valid: result.signature_verification?.valid || false,
         device_info: result.device_info,
       }

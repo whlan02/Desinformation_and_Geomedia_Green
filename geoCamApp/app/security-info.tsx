@@ -2,7 +2,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'rea
 import { useRouter } from 'expo-router';
 import { useState, useEffect } from 'react';
 import { generateSecuritySummary, getSecurityRecommendations, supportsHardwareSecurity } from '../utils/deviceSecurityInfo';
-import { deleteDeviceKeys } from '../utils/cryptoUtils';
+import { deleteNaClKeys } from '../utils/naclCryptoUtils';
 
 export default function SecurityInfo() {
   const router = useRouter();
@@ -42,7 +42,7 @@ export default function SecurityInfo() {
           text: 'Reset Keys',
           style: 'destructive',
           onPress: async () => {
-            const success = await deleteDeviceKeys();
+            const success = await deleteNaClKeys();
             if (success) {
               Alert.alert('✅ Success', 'Device keys have been reset. New keys will be generated on next photo.');
               loadSecurityInfo(); // Refresh the display

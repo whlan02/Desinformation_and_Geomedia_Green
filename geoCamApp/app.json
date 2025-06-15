@@ -57,7 +57,8 @@
         {
           "locationAlwaysAndWhenInUsePermission": "Allow $(PRODUCT_NAME) to use your location."
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "extra": {
       "router": {},

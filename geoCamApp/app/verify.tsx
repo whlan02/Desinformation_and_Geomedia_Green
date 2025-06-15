@@ -3,289 +3,15 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
-import { WebView } from 'react-native-webview';
-import { verifySignatureWithDeviceKey, generateDataHash } from '../utils/cryptoUtils';
-
-const steganographyLib = `
-/*
- * steganography.js v1.0.3 2017-09-22
- *
- * Copyright (C) 2012 Peter Eigenschink (http://www.peter-eigenschink.at/)
- * Dual-licensed under MIT and Beerware license.
-*/
-;(function (name, context, factory) {
-
-  // Supports UMD. AMD, CommonJS/Node.js and browser context
-  if (typeof module !== "undefined" && module.exports) {
-    module.exports = factory();
-  } else if (typeof define === "function" && define.amd) {
-    define(factory);
-  } else {
-    context[name] = factory();
-  }
-
-})(\"steg\", this, function () {
-var Cover = function Cover() {};
-var util = {
-  "isPrime" : function(n) {
-    if (isNaN(n) || !isFinite(n) || n%1 || n<2) return false;
-    if (n%2===0) return (n===2);
-    if (n%3===0) return (n===3);
-    var m=Math.sqrt(n);
-    for (var i=5;i<=m;i+=6) {
-      if (n%i===0) return false;
-      if (n%(i+2)===0) return false;
-    }
-    return true;
-  },
-  "findNextPrime" : function(n) {
-    for(var i=n; true; i+=1)
-      if(util.isPrime(i)) return i;
-  },
-  "sum" : function(func, end, options) {
-    var sum = 0;
-    options = options || {};
-    for(var i = options.start || 0; i < end; i+=(options.inc||1))
-      sum += func(i) || 0;
-
-    return (sum === 0 && options.defValue ? options.defValue : sum);
-  },
-  "product" : function(func, end, options) {
-    var prod = 1;
-    options = options || {};
-    for(var i = options.start || 0; i < end; i+=(options.inc||1))
-      prod *= func(i) || 1;
-
-    return (prod === 1 && options.defValue ? options.defValue : prod);
-  },
-  "createArrayFromArgs" : function(args,index,threshold) {
-    var ret = new Array(threshold-1);
-    for(var i = 0; i < threshold; i+=1)
-      ret[i] = args(i >= index ? i+1:i);
-
-    return ret;
-  },
-  "loadImg\": function(url) {
-    var image = new Image();
-    image.src = url;
-    return image;
-  }
-};
-
-Cover.prototype.config = {
-  "t": 3,
-  "threshold": 1,
-  "codeUnitSize": 16,
-  "args\": function(i) { return i+1; },
-  "messageDelimiter\": function(modMessage,threshold) {
-            var delimiter = new Array(threshold*3);
-            for(var i = 0; i < delimiter.length; i+=1)
-              delimiter[i] = 255;
-            
-            return delimiter;
-          },
-  "messageCompleted\": function(data, i, threshold) {
-            var done = true;
-            for(var j = 0; j < 16 && done; j+=1) {
-              done = done && (data[i+j*4] === 255);
-            }
-            return done;
-          }
-};
-Cover.prototype.getHidingCapacity = function(image, options) {
-  options = options || {};
-  var config = this.config;
-
-  var width = options.width || image.width,
-    height = options.height || image.height,
-    t = options.t || config.t,
-    codeUnitSize = options.codeUnitSize || config.codeUnitSize;
-  return t*width*height/codeUnitSize >> 0;
-};
-Cover.prototype.encode = function(message, image, options) {
-  if(typeof image === \'string\' && image.length) {
-    image = util.loadImg(image);
-  } else if(image.src) {
-    image = util.loadImg(image.src);
-  } else if(!(image instanceof HTMLImageElement)) {
-    throw new Error(\'IllegalInput: The input image is neither an URL string nor an image instance.\');
-  }
-
-  options = options || {};
-  var config = this.config;
-
-  var t = options.t || config.t,
-    threshold = options.threshold || config.threshold,
-    codeUnitSize = options.codeUnitSize || config.codeUnitSize,
-    prime = util.findNextPrime(Math.pow(2,t)),
-    args = options.args || config.args,
-    messageDelimiter = options.messageDelimiter || config.messageDelimiter;
-
-  if(!t || t < 1 || t > 7) throw new Error(\'IllegalOptions: Parameter t = \' + t + \' is not valid: 0 < t < 8\');
-
-  var shadowCanvas = document.createElement(\'canvas\'),
-    shadowCtx = shadowCanvas.getContext(\'2d\');
-
-  shadowCanvas.style.display = \'none\';
-  shadowCanvas.width = options.width || image.naturalWidth || image.width;
-  shadowCanvas.height = options.height || image.naturalHeight || image.height;
-  
-  if(options.height && options.width) {
-    shadowCtx.drawImage(image, 0, 0, options.width, options.height );
-  } else {
-    shadowCtx.drawImage(image, 0, 0, shadowCanvas.width, shadowCanvas.height);
-  }
-
-  var imageData = shadowCtx.getImageData(0, 0, shadowCanvas.width, shadowCanvas.height),
-    data = imageData.data;
-
-  var bundlesPerChar = codeUnitSize/t >> 0,
-    overlapping = codeUnitSize%t,
-    modMessage = [],
-    decM, oldDec, oldMask, left, right,
-    dec, curOverlapping, mask;
-
-  var i, j;
-  for(i=0; i<=message.length; i+=1) {
-    dec = message.charCodeAt(i) || 0;
-    curOverlapping = (overlapping*i)%t;
-    if(curOverlapping > 0 && oldDec) {
-      mask = Math.pow(2,t-curOverlapping) - 1;
-      oldMask = Math.pow(2, codeUnitSize) * (1 - Math.pow(2, -curOverlapping));
-      left = (dec & mask) << curOverlapping;
-      right = (oldDec & oldMask) >> (codeUnitSize - curOverlapping);
-      modMessage.push(left+right);
-
-      if(i<message.length) {
-        mask = Math.pow(2,2*t-curOverlapping) * (1 - Math.pow(2, -t));
-        for(j=1; j<bundlesPerChar; j+=1) {
-          decM = dec & mask;
-          modMessage.push(decM >> (((j-1)*t)+(t-curOverlapping)));
-          mask <<= t;
-        }
-        if((overlapping*(i+1))%t === 0) {
-          mask = Math.pow(2, codeUnitSize) * (1 - Math.pow(2,-t));
-          decM = dec & mask;
-          modMessage.push(decM >> (codeUnitSize-t));
-        }
-        else if(((((overlapping*(i+1))%t) + (t-curOverlapping)) <= t)) {
-          decM = dec & mask;
-          modMessage.push(decM >> (((bundlesPerChar-1)*t)+(t-curOverlapping)));
-        }
-      }
-    }
-    else if(i<message.length) {
-      mask = Math.pow(2,t) - 1;
-      for(j=0; j<bundlesPerChar; j+=1) {
-        decM = dec & mask;
-        modMessage.push(decM >> (j*t));
-        mask <<= t;
-      }
-    }
-    oldDec = dec;
-  }
-
-  var offset, index, subOffset, delimiter = messageDelimiter(modMessage,threshold),
-    q, qS;
-  for(offset = 0; (offset+threshold)*4 <= data.length && (offset+threshold) <= modMessage.length; offset += threshold) {
-    qS=[];
-    for(i=0; i<threshold && i+offset < modMessage.length; i+=1) {
-      q = 0;
-      for(j=offset; j<threshold+offset && j<modMessage.length; j+=1)
-        q+=modMessage[j]*Math.pow(args(i),j-offset);
-      qS[i] = (255-prime+1)+(q%prime);
-    }
-    for(i=offset*4; i<(offset+qS.length)*4 && i<data.length; i+=4)
-      data[i+3] = qS[(i/4)%threshold];
-
-    subOffset = qS.length;
-  }
-  for(index = (offset+subOffset); index-(offset+subOffset)<delimiter.length && (offset+delimiter.length)*4<data.length; index+=1)
-    data[(index*4)+3]=delimiter[index-(offset+subOffset)];
-  for(i=((index+1)*4)+3; i<data.length; i+=4) data[i] = 255;
-
-  imageData.data = data;
-  shadowCtx.putImageData(imageData, 0, 0);
-
-  return shadowCanvas.toDataURL();
-};
-
-Cover.prototype.decode = function(image, options) {
-  if(typeof image === \'string\' && image.length) {
-    image = util.loadImg(image);
-  } else if(image.src) {
-    image = util.loadImg(image.src);
-  } else if(!(image instanceof HTMLImageElement)) {
-    throw new Error(\'IllegalInput: The input image is neither an URL string nor an image instance.\');
-  }
-
-  options = options || {};
-  var config = this.config;
-
-  var t = options.t || config.t,
-    threshold = options.threshold || config.threshold,
-    codeUnitSize = options.codeUnitSize || config.codeUnitSize,
-    prime = util.findNextPrime(Math.pow(2, t)),
-    args = options.args || config.args,
-    messageCompleted = options.messageCompleted || config.messageCompleted;
-
-  if(!t || t < 1 || t > 7) throw new Error(\'IllegalOptions: Parameter t = \' + t + \' is not valid: 0 < t < 8\');
-
-  var shadowCanvas = document.createElement(\'canvas\'),
-    shadowCtx = shadowCanvas.getContext(\'2d\');
-
-  shadowCanvas.style.display = \'none\';
-  shadowCanvas.width = options.width || image.naturalWidth || image.width;
-  shadowCanvas.height = options.height || image.naturalHeight || image.height;
-  
-  if(options.height && options.width) {
-    shadowCtx.drawImage(image, 0, 0, options.width, options.height );
-  } else {
-    shadowCtx.drawImage(image, 0, 0, shadowCanvas.width, shadowCanvas.height);
-  }
-
-  var imageData = shadowCtx.getImageData(0, 0, shadowCanvas.width, shadowCanvas.height),
-    data = imageData.data,
-    modMessage = [],
-    q;
-
-  var i, k, done;
-  if (threshold === 1) {
-    for(i=3, done=false; !done && i<data.length && !done; i+=4) {
-      done = messageCompleted(data, i, threshold);
-      if(!done) modMessage.push(data[i]-(255-prime+1));
-    }
-  } else {
-    console.warn("Decoding for threshold > 1 is not fully implemented in this version of the library copy.");
-  }
-
-  var message = "", charCode = 0, bitCount = 0, mask = Math.pow(2, codeUnitSize)-1;
-  for(i = 0; i < modMessage.length; i+=1) {
-    charCode += modMessage[i] << bitCount;
-    bitCount += t;
-    if(bitCount >= codeUnitSize) {
-      message += String.fromCharCode(charCode & mask);
-      bitCount %= codeUnitSize;
-      charCode = modMessage[i] >> (t-bitCount);
-    }
-  }
-  if(charCode !== 0) message += String.fromCharCode(charCode & mask);
-
-  return message;
-};
-
-return new Cover();
-});
-`;
+import { verifyImageWithBackend } from '../utils/backendService';
 
 export default function Verify() {
   const router = useRouter();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [decodedInfo, setDecodedInfo] = useState<string | null>(null);
-  const [webViewHtml, setWebViewHtml] = useState<string | null>(null);
-  const [isDecoding, setIsDecoding] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
   const [signatureVerification, setSignatureVerification] = useState<{valid: boolean, message: string} | null>(null);
+  const [isDecoding, setIsDecoding] = useState(false);
 
   const pickImage = async () => {
     setSelectedImage(null);
@@ -298,7 +24,6 @@ export default function Verify() {
       mediaTypes: 'images',
       allowsEditing: false,
       quality: 1,
-      base64: true, // Request base64 directly
     });
 
     if (result.canceled) {
@@ -309,185 +34,73 @@ export default function Verify() {
     if (result.assets && result.assets.length > 0) {
       const asset = result.assets[0];
       if (asset.uri) {
-        setSelectedImage(asset.uri); // For display
+        setSelectedImage(asset.uri);
         
-        // Use base64 from picker if available, otherwise read from URI
-        let base64ImageData = asset.base64;
-        if (!base64ImageData) {
-          try {
-            base64ImageData = await FileSystem.readAsStringAsync(asset.uri, {
-              encoding: FileSystem.EncodingType.Base64,
-            });
-          } catch (e) {
-            console.error("Failed to read image as base64", e);
-            setErrorText("Failed to load image data. Please try another image.");
-            setIsDecoding(false);
-            return;
-          }
-        }
+        console.log('🔍 Starting backend verification for image:', asset.uri);
         
-        if (base64ImageData) {
-            // Determine image type (jpeg or png). Default to jpeg if unknown.
-            let imageMimeType = 'image/jpeg';
-            if (asset.uri.endsWith('.png')) {
-                imageMimeType = 'image/png';
-            }
-
-            // 使用WebView仅用于steganography解码，签名验证在React Native端进行
-            const htmlContent = `
-              <html>
-              <head>
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <script>${steganographyLib}</script>
-              </head>
-              <body>
-                <img id="sourceImage" />
-                <p id="status">Loading image for decoding...</p>
-                <script>
-                  const image = document.getElementById('sourceImage');
-                  const statusP = document.getElementById('status');
-                  const base64Photo = "data:${imageMimeType};base64,${base64ImageData}";
-                  
-                  image.onload = function() {
-                    try {
-                      statusP.innerText = "Decoding...";
-                      const decodedMessage = steg.decode(image);
-                      
-                      window.ReactNativeWebView.postMessage(JSON.stringify({ 
-                        type: 'decodedMessage', 
-                        data: decodedMessage || ''
-                      }));
-                    } catch (e) {
-                      statusP.innerText = "Error during decoding: " + e.toString();
-                      window.ReactNativeWebView.postMessage(JSON.stringify({ 
-                        type: 'error', 
-                        data: 'Error decoding image: ' + e.toString() + ' Stack: ' + e.stack
-                      }));
+        try {
+          // 使用后端服务进行验证
+          const verificationResult = await verifyImageWithBackend(asset.uri);
+          
+          console.log('📥 Backend verification result:', verificationResult);
+          
+          if (verificationResult.success) {
+            // 处理成功的验证结果
+            if (verificationResult.verification_result?.decoded_data) {
+              // 格式化解码的数据
+              const decodedData = verificationResult.verification_result.decoded_data;
+              let formattedString = '';
+              
+              if (typeof decodedData === 'object') {
+                for (const key in decodedData) {
+                  if (decodedData.hasOwnProperty(key)) {
+                    if (key === 'location' && decodedData[key]) {
+                      formattedString += `Location:\nLat: ${decodedData[key].latitude}\nLon: ${decodedData[key].longitude}\n`;
+                    } else {
+                      formattedString += `${key.charAt(0).toUpperCase() + key.slice(1)}: ${decodedData[key]}\n`;
                     }
-                  };
-                  image.onerror = function() {
-                     statusP.innerText = "Image failed to load in WebView.";
-                    window.ReactNativeWebView.postMessage(JSON.stringify({ 
-                      type: 'error', 
-                      data: 'Image failed to load in WebView for decoding.' 
-                    }));
-                  };
-                  image.src = base64Photo;
-                </script>
-              </body>
-              </html>
-            `;
-            setWebViewHtml(htmlContent);
-        } else {
-            setErrorText("Could not get base64 data for the image.");
-            setIsDecoding(false);
+                  }
+                }
+                setDecodedInfo(formattedString.trim());
+              } else {
+                setDecodedInfo(`Decoded data: ${decodedData}`);
+              }
+            } else {
+              setDecodedInfo('No hidden information found in the image');
+            }
+            
+            // 设置签名验证结果
+            setSignatureVerification({
+              valid: verificationResult.verification_result?.signature_valid || false,
+              message: verificationResult.message || 'Verification completed via backend'
+            });
+            
+            setErrorText(null);
+          } else {
+            // 处理验证失败
+            setErrorText(verificationResult.error || verificationResult.message || 'Backend verification failed');
+            setDecodedInfo(null);
+            setSignatureVerification({
+              valid: false,
+              message: 'Backend verification failed'
+            });
+          }
+        } catch (error) {
+          console.error('❌ Backend verification error:', error);
+          setErrorText(`Verification error: ${error instanceof Error ? error.message : String(error)}`);
+          setDecodedInfo(null);
+          setSignatureVerification({
+            valid: false,
+            message: 'Network or backend error'
+          });
         }
-
       } else {
         setErrorText("Selected image has no URI.");
-        setIsDecoding(false);
       }
     } else {
       setErrorText("No image selected or an error occurred.");
-      setIsDecoding(false);
     }
-  };
-
-  const handleWebViewMessage = async (event: any) => {
-    setWebViewHtml(null); // Hide WebView after processing
-    const messageData = JSON.parse(event.nativeEvent.data);
-
-    if (messageData.type === 'decodedMessage') {
-      const decodedMessage = messageData.data;
-      
-      if (!decodedMessage || decodedMessage.trim() === '') {
-        setErrorText("No hidden information found in the image, or it was empty.");
-        setDecodedInfo(null);
-        setSignatureVerification(null);
-        setIsDecoding(false);
-        return;
-      }
-
-      // Perform signature verification on the React Native side
-      let parsedData;
-      let isSignatureValid = false;
-      let verificationMessage = 'No signature found';
-      
-      try {
-        parsedData = JSON.parse(decodedMessage);
-        
-        // Check if signature information is included
-        if (parsedData.signature && parsedData.publicKey && parsedData.dataHash) {
-          console.log('🔍 Found signature data in image');
-          console.log('🔑 Public key structure:', JSON.stringify(parsedData.publicKey, null, 2));
-          
-          // Reconstruct original data (excluding signature-related fields)
-          const { signature, publicKey, dataHash, ...originalData } = parsedData;
-          const originalDataStr = JSON.stringify(originalData);
-          
-          console.log('📝 Original data for verification:', originalDataStr);
-          console.log('🔐 Stored data hash:', dataHash);
-          
-          // Recalculate hash
-          const recalculatedHash = await generateDataHash(originalDataStr);
-          console.log('🔍 Recalculated hash:', recalculatedHash);
-          
-          if (recalculatedHash === dataHash) {
-            console.log('✅ Data hash verification passed');
-            // Verify signature
-            isSignatureValid = await verifySignatureWithDeviceKey(dataHash, signature, publicKey);
-            verificationMessage = isSignatureValid ? 
-              'Digital signature is valid - Image is authentic' : 
-              'Digital signature is invalid - Image may have been tampered with';
-          } else {
-            console.log('❌ Data hash verification failed');
-            verificationMessage = 'Data hash mismatch - Image has been modified';
-          }
-        } else {
-          console.log('❌ Missing signature components');
-          verificationMessage = 'No digital signature found - Image authenticity cannot be verified';
-        }
-      } catch (parseError) {
-        // If parsing fails, it may be an old version of the data
-        verificationMessage = 'Legacy format detected - No signature verification available';
-      }
-      
-      // Set signature verification result
-      setSignatureVerification({
-        valid: isSignatureValid,
-        message: verificationMessage
-      });
-
-      // Format display data
-      if (parsedData) {
-        try {
-          // Format the JSON data for display, excluding signature-related fields for readability
-          let formattedString = '';
-          for (const key in parsedData) {
-              if (parsedData.hasOwnProperty(key) && !['signature', 'publicKey', 'dataHash'].includes(key)) {
-                  if (key === 'location' && parsedData[key]) {
-                      formattedString += `Location:\nLat: ${parsedData[key].latitude}\nLon: ${parsedData[key].longitude}\n`;
-                  } else {
-                      formattedString += `${key.charAt(0).toUpperCase() + key.slice(1)}: ${parsedData[key]}\n`;
-                  }
-              }
-          }
-          setDecodedInfo(formattedString.trim());
-        } catch (e) {
-          // If JSON.parse fails, it might be a simple string or malformed JSON
-          setDecodedInfo("Decoded (raw): " + decodedMessage);
-        }
-        setErrorText(null);
-      } else {
-        setDecodedInfo("Decoded (raw): " + decodedMessage);
-        setErrorText(null);
-      }
-    } else if (messageData.type === 'error') {
-      console.error('WebView decoding error:', messageData.data);
-      setErrorText(`Decoding failed: ${messageData.data.substring(0, 200)}...`);
-      setDecodedInfo(null);
-      setSignatureVerification(null);
-    }
+    
     setIsDecoding(false);
   };
 
@@ -500,7 +113,7 @@ export default function Verify() {
       {isDecoding && (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#ffffff" />
-          <Text style={styles.loadingText}>Decoding...</Text>
+          <Text style={styles.loadingText}>Verifying with backend...</Text>
         </View>
       )}
 
@@ -511,7 +124,7 @@ export default function Verify() {
       {signatureVerification && !isDecoding && (
         <View style={[styles.infoBox, signatureVerification.valid ? styles.validSignatureBox : styles.invalidSignatureBox]}>
           <Text style={styles.infoTitle}>
-            {signatureVerification.valid ? '✓ Signature Verification' : '✗ Signature Verification'}
+            {signatureVerification.valid ? '✓ Backend Verification' : '✗ Backend Verification'}
           </Text>
           <Text style={[styles.infoText, signatureVerification.valid ? styles.validSignatureText : styles.invalidSignatureText]}>
             {signatureVerification.message}
@@ -530,26 +143,6 @@ export default function Verify() {
         <View style={[styles.infoBox, styles.errorBox]}>
             <Text style={styles.infoTitle}>Error:</Text>
             <Text style={styles.errorText}>{errorText}</Text>
-        </View>
-      )}
-
-      {webViewHtml && (
-        <View style={styles.hiddenWebViewContainer}> 
-          <WebView
-            originWhitelist={['*']}
-            source={{ html: webViewHtml, baseUrl: '' }}
-            onMessage={handleWebViewMessage}
-            style={styles.webViewContent}
-            javaScriptEnabled={true}
-            domStorageEnabled={true}
-            onError={(syntheticEvent) => {
-              const {nativeEvent} = syntheticEvent;
-              console.warn('WebView error (verify screen): ', nativeEvent);
-              setErrorText(`WebView initialization failed: ${nativeEvent.description}`);
-              setIsDecoding(false);
-              setWebViewHtml(null);
-            }}
-          />
         </View>
       )}
 
@@ -608,12 +201,36 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#ddd',
   },
+  loadingContainer: {
+    alignItems: 'center',
+    marginVertical: 20,
+  },
+  loadingText: {
+    color: 'white',
+    marginTop: 10,
+    fontSize: 16,
+  },
   infoBox: {
     marginTop: 20,
     padding: 15,
     backgroundColor: '#373c40',
     borderRadius: 8,
     width: '90%',
+  },
+  validSignatureBox: {
+    backgroundColor: '#1b4d3e',
+    borderColor: '#4caf50',
+    borderWidth: 1,
+  },
+  invalidSignatureBox: {
+    backgroundColor: '#4d1b1b',
+    borderColor: '#f44336',
+    borderWidth: 1,
+  },
+  errorBox: {
+    backgroundColor: '#4d1b1b',
+    borderColor: '#f44336',
+    borderWidth: 1,
   },
   infoTitle: {
     fontSize: 18,
@@ -623,57 +240,16 @@ const styles = StyleSheet.create({
   },
   infoText: {
     fontSize: 16,
-    color: '#e0e0e0',
-    fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace',
-  },
-  errorBox: {
-    backgroundColor: '#5c2323',
-    borderColor: '#ff4c4c',
-    borderWidth: 1,
-  },
-  errorText: {
-      fontSize: 16,
-      color: '#ffcccc',
-  },
-  validSignatureBox: {
-    backgroundColor: '#2d5c2d',
-    borderColor: '#4caf50',
-    borderWidth: 2,
-  },
-  invalidSignatureBox: {
-    backgroundColor: '#5c2d2d',
-    borderColor: '#f44336',
-    borderWidth: 2,
+    color: '#ccc',
   },
   validSignatureText: {
-    color: '#90ee90',
-    fontWeight: 'bold',
+    color: '#81c784',
   },
   invalidSignatureText: {
-    color: '#ffb3b3',
-    fontWeight: 'bold',
+    color: '#e57373',
   },
-  hiddenWebViewContainer: {
-    position: 'absolute',
-    width: 0,
-    height: 0,
-    opacity: 0,
-    top: -3000,
-    left: -3000,
-    overflow: 'hidden',
-  },
-  webViewContent: {
-    flex: 1,
-    width: '100%', 
-    height: '100%',
-  },
-  loadingContainer: {
-    marginVertical: 20,
-    alignItems: 'center',
-  },
-  loadingText: {
-    color: 'white',
+  errorText: {
     fontSize: 16,
-    marginTop: 10,
-  }
+    color: '#e57373',
+  },
 }); 

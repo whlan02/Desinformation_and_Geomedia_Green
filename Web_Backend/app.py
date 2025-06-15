@@ -148,6 +148,7 @@ def verify_image():
         
         # Get device public key if installation_id provided
         public_key_data = None
+        device_info = None
         if installation_id:
             device_info = get_device_by_installation_id(installation_id)
             if device_info and device_info.get('public_key_data'):
@@ -177,6 +178,7 @@ def verify_image():
             if response.status_code != 200:
                 logger.error(f"❌ Steganography service error: {response.status_code}")
                 return jsonify({
+                    'success': False,
                     'error': 'Steganography service error',
                     'details': response.text
                 }), 500
@@ -186,37 +188,38 @@ def verify_image():
         except requests.exceptions.RequestException as e:
             logger.error(f"❌ Failed to connect to steganography service: {e}")
             return jsonify({
+                'success': False,
                 'error': 'Failed to connect to steganography service',
                 'details': str(e)
             }), 500
         
         # Process verification result
+        verification_result = {}
+        
         if not steg_result.get('success', False):
+            # Failed to decode steganography
             verification_result = {
                 'success': False,
                 'error': steg_result.get('error', 'Unknown error'),
-                'verification_result': {
-                    'is_authentic': False,
+                'signature_verification': {
+                    'valid': False,
                     'message': 'No hidden information found in image'
-                }
+                },
+                'decoded_info': None
             }
         else:
-            # Parse the decoded data to extract information
-            decoded_data = None
-            try:
-                import json
-                raw_data = steg_result.get('rawData', '')
-                if raw_data:
-                    parsed_data = json.loads(raw_data)
-                    # Extract the original data (excluding signature-related fields)
-                    decoded_data = {
-                        'deviceModel': parsed_data.get('deviceModel'),
-                        'Time': parsed_data.get('Time'),
-                        'location': parsed_data.get('location')
-                    }
-            except:
-                decoded_data = None
+            # Successfully decoded steganography
+            decoded_data = steg_result.get('decodedInfo')
             
+            # Clean up decoded data for display
+            if decoded_data and isinstance(decoded_data, dict):
+                clean_data = {}
+                for key, value in decoded_data.items():
+                    if key not in ['signature', 'publicKey', 'dataHash', 'signatureAlgorithm', 'keyId', 'timestamp']:
+                        clean_data[key] = value
+                decoded_data = clean_data
+            
+            # Get signature verification result
             signature_verification = steg_result.get('signatureVerification', {
                 'valid': False,
                 'message': 'No signature verification performed'
@@ -228,22 +231,20 @@ def verify_image():
                     'valid': signature_verification.get('valid', False),
                     'message': signature_verification.get('message', 'Unknown verification status')
                 },
-                'decoded_info': decoded_data,  # Return parsed JSON data instead of string
+                'decoded_info': decoded_data,
                 'raw_data': steg_result.get('rawData', '')
             }
         
-        # Update device activity if installation_id provided
+        # Add device info if available
         device_id = None
-        if installation_id:
+        if installation_id and device_info:
             try:
                 update_device_activity(installation_id)
-                device_info = get_device_by_installation_id(installation_id)
-                if device_info:
-                    device_id = device_info['id']
-                    verification_result['device_info'] = {
-                        'geocam_name': f"GeoCam{device_info['geocam_sequence']}",
-                        'device_model': device_info['device_model']
-                    }
+                device_id = device_info['id']
+                verification_result['device_info'] = {
+                    'geocam_name': f"GeoCam{device_info['geocam_sequence']}",
+                    'device_model': device_info['device_model']
+                }
             except Exception as e:
                 logger.warning(f"⚠️ Could not update device activity: {e}")
         
@@ -259,7 +260,7 @@ def verify_image():
         except Exception as e:
             logger.warning(f"⚠️ Could not log verification: {e}")
         
-        # Add timestamp to response
+        # Add metadata to response
         verification_result['timestamp'] = datetime.now().isoformat()
         verification_result['image_hash'] = image_hash
         
@@ -269,7 +270,13 @@ def verify_image():
         
     except Exception as e:
         logger.error(f"❌ Image verification failed: {e}")
-        return jsonify({'error': 'Image verification failed', 'details': str(e)}), 500
+        import traceback
+        logger.error(f"❌ Traceback: {traceback.format_exc()}")
+        return jsonify({
+            'success': False,
+            'error': 'Image verification failed', 
+            'details': str(e)
+        }), 500
 
 @app.route('/api/device/<installation_id>', methods=['GET'])
 def get_device_info(installation_id):
