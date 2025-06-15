@@ -17,4 +17,9 @@ class Config:
     MAX_CONTENT_LENGTH = 20 * 1024 * 1024  # 20MB limit
     
     # CORS configuration
-    CORS_ORIGINS = ["http://localhost:3000", "http://localhost:3002","https://geocam-web-frontend.onrender.com/"]  # React frontend and other services 
+    CORS_ORIGINS = [
+        "http://localhost:3000", 
+        "http://localhost:3002",
+        "http://localhost:5173",  # Vue dev server
+        "https://geocam-web-frontend.onrender.com"  # Vue production site
+    ] 
