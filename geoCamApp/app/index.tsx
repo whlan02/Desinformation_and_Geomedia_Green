@@ -20,6 +20,16 @@ export default function MainMenu() {
   const [isInitializingKeys, setIsInitializingKeys] = useState(true);
 
   useEffect(() => {
+    (async () => {
+      const { privateKey, publicKey } = await getStoredKeyPair();
+      if (!privateKey || !publicKey) {
+        const keys = await generateDeviceKeyPair();
+        await storeKeyPair(keys.privateKey, keys.publicKey);
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
     initializeAppKeys();
   }, []);
 

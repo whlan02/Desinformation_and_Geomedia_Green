@@ -3,13 +3,15 @@ import { StyleSheet, Text, View, TouchableOpacity, Image, ActivityIndicator } fr
 import { CameraView, CameraType, FlashMode, useCameraPermissions } from 'expo-camera';
 import { useRef, useState, useEffect } from 'react';
 import * as MediaLibrary from 'expo-media-library';
-import { useRouter } from 'expo-router';
 import { WebView } from 'react-native-webview';
 import * as Device from 'expo-device';
 import * as Location from 'expo-location';
 import * as FileSystem from 'expo-file-system';
 import { saveImageToGallery } from '../utils/galleryStorage';
 import { signDataWithDeviceKey, generateDataHash, getStoredKeyPair } from '../utils/cryptoUtils';
+import { Ionicons } from '@expo/vector-icons';
+import Icon from 'react-native-vector-icons/MaterialIcons';
+import { useRouter } from 'expo-router';
 
 const steganographyLib = `
 /*
@@ -297,7 +299,19 @@ export default function CameraScreen() {
   
   const [webViewHtml, setWebViewHtml] = useState<string | null>(null);
   const [isEncoding, setIsEncoding] = useState(false);
-  const [keyPair, setKeyPair] = useState<any>(null);
+  type KeyMetadata = {
+    fingerprint?: string;
+    [key: string]: any;
+  };
+
+  type KeyPair = {
+    publicKey: any;
+    privateKey: any;
+    metadata?: KeyMetadata;
+    [key: string]: any;
+  };
+
+  const [keyPair, setKeyPair] = useState<KeyPair | null>(null);
   const [isLoadingKeys, setIsLoadingKeys] = useState(true);
 
   useEffect(() => {
@@ -325,7 +339,9 @@ export default function CameraScreen() {
       if (storedKeyPair) {
         setKeyPair(storedKeyPair);
         console.log('🔑 Loaded existing keys from storage');
-        console.log('🔑 Key fingerprint:', storedKeyPair.metadata?.fingerprint);
+        if ('metadata' in storedKeyPair && storedKeyPair.metadata && typeof storedKeyPair.metadata === 'object' && 'fingerprint' in storedKeyPair.metadata) {
+          console.log('🔑 Key fingerprint:', (storedKeyPair.metadata as KeyMetadata).fingerprint);
+        }
       } else {
         console.error('❌ No keys found! Keys should have been generated in main menu.');
         console.log('🔄 Try returning to main menu to reinitialize keys');
@@ -534,44 +550,83 @@ export default function CameraScreen() {
         flash={flash}
       />
 
-      <TouchableOpacity 
-        style={styles.backButton} 
-        onPress={() => router.back()}
-      >
-        <Text style={styles.backButtonText}>← Back</Text>
-      </TouchableOpacity>
-
-      <View style={styles.buttonContainer}>
-        <TouchableOpacity style={styles.button} onPress={toggleFlash}>
-          <Text style={styles.buttonText}>
-            Flash: {flash.charAt(0).toUpperCase() + flash.slice(1)}
-          </Text>
-        </TouchableOpacity>
-
+      {/* Top Bar */}
+      <View style={styles.topBar}>
         <TouchableOpacity 
-          style={[styles.button, (!keyPair || isLoadingKeys) && styles.disabledButton]} 
-          onPress={takePicture}
-          disabled={!keyPair || isLoadingKeys}
+          style={styles.topBarButton} 
+          onPress={() => router.back()}
         >
-          <Text style={styles.buttonText}>
-            {isLoadingKeys ? 'Loading...' : keyPair ? 'Take Signed Photo' : 'Keys Loading...'}
-          </Text>
+          <Ionicons name="arrow-back" size={28} color="white" />
         </TouchableOpacity>
-
-        <TouchableOpacity style={styles.button} onPress={toggleCameraType}>
-          <Text style={styles.buttonText}>Flip Camera</Text>
+        
+        <TouchableOpacity 
+          style={styles.topBarButton} 
+          onPress={toggleFlash}
+        >
+          <Ionicons 
+            name={
+              flash === 'on'
+                ? 'flash'
+                : flash === 'auto'
+                ? 'flash-outline'
+                : 'flash-off'
+            }
+            size={28}
+            color="white"
+          />
+          {flash === 'auto' && (
+            <Text style={{ color: 'white', fontSize: 10, position: 'absolute', bottom: 2, right: 2 }}>A</Text>
+          )}
         </TouchableOpacity>
       </View>
 
+      {/* Bottom Bar */}
+      <View style={styles.bottomBar}>
+        {/* Gallery Icon */}
+        <TouchableOpacity
+          style={styles.sideIconButton}
+          onPress={() => router.push('/gallery')}
+        >
+          <Icon name="photo-library" size={34} color="#fff" />
+        </TouchableOpacity>
+
+        {/* Take Photo Button */}
+        <TouchableOpacity 
+          style={styles.takePhotoButton} 
+          onPress={takePicture}
+          disabled={!keyPair || isLoadingKeys || isEncoding}
+        >
+          <View style={styles.captureButtonOuter}>
+            <View style={styles.captureButtonInner} />
+          </View>
+        </TouchableOpacity>
+
+        {/* Camera Flip Button in Dark Circle */}
+        <TouchableOpacity 
+          style={styles.flipButton} 
+          onPress={toggleCameraType}
+        >
+          <Ionicons name="camera-reverse" size={28} color="white" />
+        </TouchableOpacity>
+      </View>
+
+      {/* Preview Image */}
       {lastPhoto && (
-        <View style={styles.preview}>
+        <TouchableOpacity 
+          style={styles.preview}
+          onPress={() => {
+            // Optional: Implement preview functionality
+            console.log('Preview pressed');
+          }}
+        >
           <Image
             source={{ uri: lastPhoto }}
             style={styles.previewImage}
           />
-        </View>
+        </TouchableOpacity>
       )}
 
+      {/* Loading Indicator */}
       {isEncoding && (
         <View style={StyleSheet.absoluteFill}>
           <ActivityIndicator size="large" color="#ffffff" style={styles.loadingIndicator} />
@@ -579,6 +634,7 @@ export default function CameraScreen() {
         </View>
       )}
 
+      {/* WebView */}
       {webViewHtml && (
         <View style={styles.hiddenWebViewContainer}>
           <WebView
@@ -607,73 +663,92 @@ const styles = StyleSheet.create({
     backgroundColor: 'black',
   },
   camera: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    flex: 1,
   },
-  buttonContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    margin: 20,
+  topBar: {
     position: 'absolute',
-    bottom: 0,
+    top: 50,
     left: 0,
     right: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
     zIndex: 1,
   },
-  button: {
+  topBarButton: {
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bottomBar: {
+    position: 'absolute',
+    bottom: 40,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 30,
+    zIndex: 10,
+  },
+  sideIconButton: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: 'rgba(40,40,40,0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  takePhotoButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  captureButtonOuter: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    borderWidth: 4,
+    borderColor: 'white',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+  },
+  captureButtonInner: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
     backgroundColor: 'white',
-    padding: 15,
-    borderRadius: 10,
+    opacity: 0.3,
+  },
+  flipButton: {
+    backgroundColor: 'rgba(40,40,40,0.5)',
+    width: 54,
+    height: 54,
+    borderRadius: 27,
     alignItems: 'center',
     justifyContent: 'center',
   },
   disabledButton: {
-    backgroundColor: '#cccccc',
-    opacity: 0.6,
-  },
-  buttonText: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: 'black',
-  },
-  text: {
-    color: 'white',
-    fontSize: 18,
-    textAlign: 'center',
-    padding: 20,
+    opacity: 0.5,
   },
   preview: {
     position: 'absolute',
-    right: 20,
-    top: 20,
-    width: 80,
-    height: 120,
-    borderRadius: 10,
+    left: 20,
+    bottom: 120,
+    width: 50,
+    height: 75,
+    borderRadius: 4,
     overflow: 'hidden',
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: 'white',
     zIndex: 1,
   },
   previewImage: {
     width: '100%',
     height: '100%',
-  },
-  backButton: {
-    position: 'absolute',
-    top: 40,
-    left: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.7)',
-    padding: 10,
-    borderRadius: 8,
-    zIndex: 1,
-  },
-  backButtonText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: 'black',
   },
   hiddenWebViewContainer: {
     position: 'absolute',
@@ -702,4 +777,23 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 18,
   },
-}); 
+  // Keep existing styles for permission screens
+  button: {
+    backgroundColor: 'white',
+    padding: 15,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  buttonText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: 'black',
+  },
+  text: {
+    color: 'white',
+    fontSize: 18,
+    textAlign: 'center',
+    padding: 20,
+  },
+});

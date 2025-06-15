@@ -1,6 +1,6 @@
+import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, RefreshControl, Alert, Dimensions } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useState, useEffect, useCallback } from 'react';
 import { getGalleryImages, deleteImageFromGallery, type GalleryImage } from '../utils/galleryStorage';
 
 const { width } = Dimensions.get('window');
@@ -206,4 +206,4 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
   },
-}); 
+});
