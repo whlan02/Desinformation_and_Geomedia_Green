@@ -61,20 +61,14 @@ def register_device_endpoint():
         os_version = data.get('os_version')
         public_key_data = data.get('public_key_data')
         
-        # Extract public key hash if available
-        public_key_hash = None
-        if public_key_data and 'hash' in public_key_data:
-            public_key_hash = public_key_data['hash']
-        
         logger.info(f"📱 Registering device: {device_model} ({installation_id})")
         
-        # Register device in database
+        # Register device in database (simplified - no redundant hash extraction)
         device_id = register_device(
             installation_id=installation_id,
             device_model=device_model,
             os_name=os_name,
             os_version=os_version,
-            public_key_hash=public_key_hash,
             public_key_data=public_key_data
         )
         
@@ -152,13 +146,31 @@ def verify_image():
         image_hash = generate_image_hash(image_data)
         image_file.seek(0)  # Reset file pointer
         
+        # Get device public key if installation_id provided
+        public_key_data = None
+        if installation_id:
+            device_info = get_device_by_installation_id(installation_id)
+            if device_info and device_info.get('public_key_data'):
+                public_key_data = device_info['public_key_data']
+                logger.info(f"🔑 Retrieved public key for device: {installation_id}")
+            else:
+                logger.warning(f"⚠️ No public key found for device: {installation_id}")
+        
         # Forward request to Node.js steganography service
         steganography_url = f"{Config.STEGANOGRAPHY_SERVICE_URL}/decode-image"
         
         try:
+            # Prepare form data for steganography service
+            form_data = {}
+            if installation_id:
+                form_data['installation_id'] = installation_id
+            if public_key_data:
+                form_data['public_key_data'] = json.dumps(public_key_data)
+            
             response = requests.post(
                 steganography_url,
                 files={'image': (image_file.filename, image_file.stream, image_file.content_type)},
+                data=form_data,
                 timeout=30
             )
             
@@ -184,18 +196,39 @@ def verify_image():
                 'success': False,
                 'error': steg_result.get('error', 'Unknown error'),
                 'verification_result': {
-                    'valid': False,
+                    'is_authentic': False,
                     'message': 'No hidden information found in image'
                 }
             }
         else:
+            # Parse the decoded data to extract information
+            decoded_data = None
+            try:
+                import json
+                raw_data = steg_result.get('rawData', '')
+                if raw_data:
+                    parsed_data = json.loads(raw_data)
+                    # Extract the original data (excluding signature-related fields)
+                    decoded_data = {
+                        'deviceModel': parsed_data.get('deviceModel'),
+                        'Time': parsed_data.get('Time'),
+                        'location': parsed_data.get('location')
+                    }
+            except:
+                decoded_data = None
+            
+            signature_verification = steg_result.get('signatureVerification', {
+                'valid': False,
+                'message': 'No signature verification performed'
+            })
+            
             verification_result = {
                 'success': True,
-                'decoded_info': steg_result.get('decodedInfo', ''),
-                'signature_verification': steg_result.get('signatureVerification', {
-                    'valid': False,
-                    'message': 'No signature verification performed'
-                }),
+                'signature_verification': {
+                    'valid': signature_verification.get('valid', False),
+                    'message': signature_verification.get('message', 'Unknown verification status')
+                },
+                'decoded_info': decoded_data,  # Return parsed JSON data instead of string
                 'raw_data': steg_result.get('rawData', '')
             }
         
@@ -258,7 +291,7 @@ def get_device_info(installation_id):
             'geocam_name': f"GeoCam{device['geocam_sequence']}",
             'last_activity': device['last_activity'].isoformat() if device['last_activity'] else None,
             'is_active': device['is_active'],
-            'public_key_hash': device['public_key_hash']
+            'public_key_hash': device['public_key_data']['hash'] if device.get('public_key_data') and 'hash' in device['public_key_data'] else None
         }
         
         return jsonify({

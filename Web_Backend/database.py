@@ -54,7 +54,6 @@ def create_tables():
                 device_model VARCHAR(255) NOT NULL,
                 os_name VARCHAR(100),
                 os_version VARCHAR(100),
-                public_key_hash VARCHAR(255),
                 public_key_data JSONB,
                 registration_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 geocam_sequence INTEGER UNIQUE,
@@ -110,7 +109,7 @@ def get_next_geocam_sequence():
         db.close()
 
 def register_device(installation_id, device_model, os_name=None, os_version=None, 
-                   public_key_hash=None, public_key_data=None):
+                   public_key_data=None):
     """Register a new GeoCam device"""
     db = Database()
     cursor = db.get_cursor()
@@ -142,11 +141,11 @@ def register_device(installation_id, device_model, os_name=None, os_version=None
                 cursor.execute("""
                     INSERT INTO geocam_devices 
                     (installation_id, device_model, os_name, os_version, 
-                     public_key_hash, public_key_data, geocam_sequence)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                     public_key_data, geocam_sequence)
+                    VALUES (%s, %s, %s, %s, %s, %s)
                     RETURNING id
                 """, (installation_id, device_model, os_name, os_version, 
-                      public_key_hash, public_key_json, geocam_sequence))
+                      public_key_json, geocam_sequence))
                 
                 device_id = cursor.fetchone()['id']
                 db.commit()
