@@ -37,3 +37,7 @@ yarn-error.*
 *.tsbuildinfo
 
 /temp
+
+# build
+android/
+ios/

@@ -2,7 +2,7 @@
   "expo": {
     "name": "Geo Cam",
     "slug": "camera-app",
-    "version": "1.0.0",
+    "version": "1.0.2",
     "orientation": "portrait",
     "icon": "./assets/camera@3x.png",
     "userInterfaceStyle": "light",
@@ -12,7 +12,7 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.princeob.geocam",
+      "bundleIdentifier": "com.blueking21st.camera-app",
       "infoPlist": {
         "NSCameraUsageDescription": "This app needs access to the camera to take photos.",
         "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to save photos.",
@@ -35,7 +35,7 @@
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION"
       ],
-      "package": "com.princeob.geocam"
+      "package": "com.blueking21st.camera-app"
     },
     "plugins": [
       [
@@ -63,9 +63,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "a37b8750-4b4d-489f-97a9-199eeb5b396f"
+        "projectId": "2914410f-b64a-4405-a161-6073dc68da2c"
       }
     },
-    "owner": "princeob"
+    "owner": "blueking21st"
   }
 }
