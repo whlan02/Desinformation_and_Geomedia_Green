@@ -8,42 +8,91 @@ import MapView, { Marker, UrlTile } from 'react-native-maps';
 const { width } = Dimensions.get('window');
 const MAP_HEIGHT = 200;
 
+type CameraImage = {
+  uri: string;
+  encodedInfo: string;
+  signature?: string;
+  publicKey?: string;
+  timestamp: number;
+};
+
+type ImageDetailItem = (GalleryImage | CameraImage) & {
+  id?: string;
+};
+
 export default function ImageDetail() {
   const router = useRouter();
-  const { imageId } = useLocalSearchParams<{ imageId: string }>();
-  const [image, setImage] = useState<GalleryImage | null>(null);
+  const params = useLocalSearchParams();
+  const [image, setImage] = useState<ImageDetailItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [sharing, setSharing] = useState(false);
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [fromCamera, setFromCamera] = useState(false);
 
   useEffect(() => {
-    loadImage();
-  }, [imageId]);
+    let isMounted = true;
 
-  const loadImage = async () => {
-    try {
-      const images = await getGalleryImages();
-      const foundImage = images.find(img => img.id === imageId);
-      setImage(foundImage || null);
-      
-      // Extract location from encoded info
-      if (foundImage) {
-        try {
-          const info = JSON.parse(foundImage.encodedInfo);
-          if (info.location) {
-            setLocation(info.location);
+    if (params.item) {
+      try {
+        const item = JSON.parse(params.item as string);
+        if (isMounted) {
+          setImage(item);
+          setFromCamera(true);
+          
+          if (item.encodedInfo) {
+            try {
+              const info = JSON.parse(item.encodedInfo);
+              if (info.location) {
+                setLocation(info.location);
+              }
+            } catch (e) {
+              console.error('Error parsing location:', e);
+            }
           }
-        } catch (e) {
-          console.error('Error parsing location:', e);
+          setLoading(false);
         }
+      } catch (e) {
+        console.error('Error parsing camera image data:', e);
+        if (isMounted) setLoading(false);
       }
-    } catch (error) {
-      console.error('Error loading image:', error);
-      Alert.alert('Error', 'Failed to load image');
-    } finally {
-      setLoading(false);
+    } 
+    else if (params.imageId) {
+      const loadImage = async () => {
+        try {
+          const images = await getGalleryImages();
+          const foundImage = images.find(img => img.id === params.imageId);
+          
+          if (isMounted) {
+            if (foundImage) {
+              setImage(foundImage);
+              
+              try {
+                const info = JSON.parse(foundImage.encodedInfo);
+                if (info.location) {
+                  setLocation(info.location);
+                }
+              } catch (e) {
+                console.error('Error parsing location:', e);
+              }
+            }
+            setLoading(false);
+          }
+        } catch (error) {
+          console.error('Error loading image:', error);
+          Alert.alert('Error', 'Failed to load image');
+          if (isMounted) setLoading(false);
+        }
+      };
+      
+      loadImage();
+    } else {
+      if (isMounted) setLoading(false);
     }
-  };
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const handleShare = async () => {
     if (!image) return;
@@ -72,7 +121,6 @@ export default function ImageDetail() {
       const parsed = JSON.parse(encodedInfo);
       let formatted = '';
       
-      // Only show user-friendly information, hide technical details
       const userFriendlyFields = ['deviceModel', 'Time', 'location'];
       
       for (const key in parsed) {
@@ -87,10 +135,11 @@ export default function ImageDetail() {
         }
       }
       
-      // Add signature status if available
-      if (parsed.signature) {
+      // Signature verification info
+      if ('signature' in parsed && parsed.signature && 'publicKey' in parsed && parsed.publicKey) {
         formatted += `🔐 Digitally Signed: Yes\n`;
-        formatted += `🔑 Authentication: Hardware-secured\n`;
+        formatted += `🔑 Public Key: ${parsed.publicKey.substring(0, 12)}...\n`;
+        formatted += `🔒 Signature: ${parsed.signature.substring(0, 12)}...\n`;
       } else {
         formatted += `🔐 Digitally Signed: No\n`;
       }
@@ -190,7 +239,8 @@ export default function ImageDetail() {
         
         <View style={styles.metaContainer}>
           <Text style={styles.timestamp}>
-            Taken: {new Date(image.timestamp).toLocaleString()}
+            {fromCamera ? 'Taken: ' : 'Saved: '} 
+            {new Date(image.timestamp).toLocaleString()}
           </Text>
           
           {renderMap()}
@@ -320,4 +370,4 @@ const styles = StyleSheet.create({
     width: '100%',
     height: MAP_HEIGHT,
   },
-}); 
+});

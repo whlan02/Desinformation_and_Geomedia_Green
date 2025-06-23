@@ -230,6 +230,45 @@ export const signDataWithNaCl = async (originalData: any, privateKey: any): Prom
 };
 
 /**
+ * Sign raw data (Uint8Array) using NaCl detached signature
+ * This version is designed for the camera workflow
+ */
+export const signRawDataWithNaCl = async (
+  data: Uint8Array,
+  privateKeyBytes: Uint8Array
+): Promise<Uint8Array> => {
+  try {
+    console.log('🔑 Creating NaCl raw data signature...');
+    
+    // Validate input types
+    if (!(data instanceof Uint8Array)) {
+      throw new Error(`Data must be a Uint8Array. Received: ${typeof data}`);
+    }
+    
+    if (!(privateKeyBytes instanceof Uint8Array)) {
+      throw new Error(`Private key must be a Uint8Array. Received: ${typeof privateKeyBytes}`);
+    }
+    
+    // Validate key length
+    if (privateKeyBytes.length !== 64) {
+      throw new Error(`Invalid private key length. Expected 64 bytes, got ${privateKeyBytes.length}`);
+    }
+    
+    // Create detached signature
+    const signature = nacl.sign.detached(data, privateKeyBytes);
+    
+    console.log('✅ NaCl raw data signature created');
+    console.log('📝 Signed data length:', data.length);
+    console.log('🔏 Signature length:', signature.length);
+    
+    return signature;
+  } catch (error) {
+    console.error('❌ Failed to create NaCl raw data signature:', error);
+    throw error;
+  }
+};
+
+/**
  * Verify signature using NaCl detached verification
  */
 export const verifySignatureWithNaCl = async (signaturePackage: string, publicKey: any): Promise<boolean> => {
@@ -430,5 +469,3 @@ export const deleteNaClKeys = async (): Promise<boolean> => {
     return false;
   }
 };
-
- 

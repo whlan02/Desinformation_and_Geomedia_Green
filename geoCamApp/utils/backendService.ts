@@ -18,6 +18,7 @@ export interface ImageVerificationResponse {
     is_authentic: boolean;
     decoded_data?: any;
     signature_valid?: boolean;
+    algorithm_valid?: boolean;
     device_info?: any;
   };
   error?: string;
@@ -226,6 +227,7 @@ export const submitPhotoForVerification = async (
     formData.append('metadata', JSON.stringify(metadata));
     formData.append('installation_id', keyPair.privateKey.installationId);
     formData.append('key_fingerprint', keyPair.fingerprint);
+    formData.append('algorithm', 'NaCl-Ed25519');  // Explicit algorithm specification
 
     // Use the existing VERIFY_IMAGE endpoint
     const response = await fetch(buildApiUrl(BACKEND_CONFIG.ENDPOINTS.VERIFY_IMAGE), {
@@ -276,6 +278,7 @@ export const verifyPhotoSignature = async (photoData: string, signature: string)
       body: JSON.stringify({
         photo_data: photoData,
         signature: signature,
+        algorithm: 'NaCl-Ed25519'  // Explicit algorithm specification
       }),
     });
 
@@ -329,7 +332,9 @@ export const verifyImageWithBackend = async (imageUri: string): Promise<ImageVer
     // Get device info for activity tracking
     const keyPair = await getStoredNaClKeyPair();
     const installationId = keyPair?.privateKey?.installationId;
+    const keyFingerprint = keyPair?.fingerprint; // Key fingerprint for algorithm identification
     console.log('🆔 Installation ID:', installationId);
+    console.log('🔑 Key fingerprint:', keyFingerprint);
 
     // Create FormData for multipart upload
     const formData = new FormData();
@@ -353,6 +358,14 @@ export const verifyImageWithBackend = async (imageUri: string): Promise<ImageVer
     if (installationId) {
       formData.append('installation_id', installationId);
     }
+    
+    // Add key fingerprint for algorithm identification
+    if (keyFingerprint) {
+      formData.append('key_fingerprint', keyFingerprint);
+    }
+    
+    // Explicitly specify the algorithm
+    formData.append('algorithm', 'NaCl-Ed25519');
 
     console.log('🚀 Sending request to:', buildApiUrl(BACKEND_CONFIG.ENDPOINTS.VERIFY_IMAGE));
 
@@ -393,13 +406,21 @@ export const verifyImageWithBackend = async (imageUri: string): Promise<ImageVer
     console.log('✅ Backend verification completed:', result);
     
     // Transform backend response to match our interface
+    const algorithmValid = 
+      result.signature_verification?.algorithm === 'NaCl-Ed25519' || 
+      result.algorithm === 'NaCl-Ed25519' || 
+      result?.verification_result?.algorithm === 'NaCl-Ed25519';
+      
+    const signatureValid = result.signature_verification?.valid || false;
+    
     const transformedResult: ImageVerificationResponse = {
-      success: result.success !== false, // Default to true unless explicitly false
-      message: result.signature_verification?.message || result.error || 'Verification completed',
+      success: result.success !== false,
+      message: result.signature_verification?.message || result.message || result.error || 'Verification completed',
       verification_result: {
-        is_authentic: result.signature_verification?.valid || false,
-        decoded_data: result.decoded_info || null, // Use decoded_info from backend
-        signature_valid: result.signature_verification?.valid || false,
+        is_authentic: signatureValid && algorithmValid,
+        decoded_data: result.decoded_info || result.decoded_data || null,
+        signature_valid: signatureValid,
+        algorithm_valid: algorithmValid,
         device_info: result.device_info,
       }
     };
@@ -413,4 +434,4 @@ export const verifyImageWithBackend = async (imageUri: string): Promise<ImageVer
       error: String(error),
     };
   }
-}; 
+};
