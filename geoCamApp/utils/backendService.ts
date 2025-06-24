@@ -1,7 +1,7 @@
 import * as Device from 'expo-device';
 import * as FileSystem from 'expo-file-system';
 import { buildApiUrl, buildSteganographyUrl, BACKEND_CONFIG } from './backendConfig';
-import { getStoredNaClKeyPair } from './naclCryptoUtils';
+import { getStoredNobleEd25519KeyPair } from './nobleEd25519Utils';
 
 // Types for API responses
 export interface DeviceRegistrationResponse {
@@ -28,15 +28,15 @@ export interface ImageVerificationResponse {
  */
 export const registerDevice = async () => {
   try {
-    console.log('📱 Starting device registration with NaCl keys...');
+    console.log('📱 Starting device registration with Noble Ed25519 keys...');
     
-    // Get the stored NaCl key pair
-    const keyPair = await getStoredNaClKeyPair();
+    // Get the stored Noble Ed25519 key pair
+    const keyPair = await getStoredNobleEd25519KeyPair();
     if (!keyPair) {
-      console.error('❌ No NaCl keys found for registration');
+              console.error('❌ No Noble Ed25519 keys found for registration');
       return {
         success: false,
-        message: 'No NaCl keys available for registration',
+        message: 'No Noble Ed25519 keys available for registration',
       };
     }
 
@@ -50,7 +50,7 @@ export const registerDevice = async () => {
       public_key_data: {
         type: keyPair.publicKey.type,
         keyId: keyPair.publicKey.keyId,
-        keyBase64: keyPair.publicKey.keyBase64,  // Complete NaCl public key in Base64 format
+        keyBase64: keyPair.publicKey.keyBase64,  // Complete Noble Ed25519 public key in Base64 format
         algorithm: keyPair.publicKey.algorithm,
         keySize: keyPair.publicKey.keySize,
         generatedAt: keyPair.publicKey.generatedAt,
@@ -60,7 +60,7 @@ export const registerDevice = async () => {
       registration_timestamp: new Date().toISOString(),
     };
 
-    console.log('📤 Sending simplified NaCl registration data:', {
+          console.log('📤 Sending simplified Noble Ed25519 registration data:', {
       installation_id: registrationData.installation_id,
       device_model: registrationData.device_model,
       public_key_type: registrationData.public_key_data.type,
@@ -99,7 +99,7 @@ export const registerDevice = async () => {
     }
     
     if (response.ok && result.success) {
-      console.log('✅ Device registration successful with NaCl keys:', result);
+              console.log('✅ Device registration successful with Noble Ed25519 keys:', result);
       return {
         success: true,
         message: result.message,
@@ -134,9 +134,9 @@ export const checkDeviceRegistration = async (): Promise<boolean> => {
   try {
     console.log('🔍 Checking device registration status...');
     
-    const keyPair = await getStoredNaClKeyPair();
+    const keyPair = await getStoredNobleEd25519KeyPair();
     if (!keyPair) {
-      console.log('❌ No NaCl keys found - device cannot be registered');
+      console.log('❌ No Noble Ed25519 keys found - device cannot be registered');
       return false;
     }
 
@@ -207,11 +207,11 @@ export const submitPhotoForVerification = async (
   metadata: any
 ) => {
   try {
-    console.log('📸 Submitting photo with NaCl signature for verification...');
+    console.log('📸 Submitting photo with Noble Ed25519 signature for verification...');
     
-    const keyPair = await getStoredNaClKeyPair();
+    const keyPair = await getStoredNobleEd25519KeyPair();
     if (!keyPair) {
-      throw new Error('No NaCl keys available for photo submission');
+      throw new Error('No Noble Ed25519 keys available for photo submission');
     }
 
     // Create form data for photo upload
@@ -327,7 +327,7 @@ export const verifyImageWithBackend = async (imageUri: string): Promise<ImageVer
     console.log('📁 Image URI:', imageUri);
 
     // Get device info for activity tracking
-    const keyPair = await getStoredNaClKeyPair();
+    const keyPair = await getStoredNobleEd25519KeyPair();
     const installationId = keyPair?.privateKey?.installationId;
     console.log('🆔 Installation ID:', installationId);
 

@@ -8,7 +8,8 @@ import * as Device from 'expo-device';
 import * as Location from 'expo-location';
 import * as FileSystem from 'expo-file-system';
 import { saveImageToGallery } from '../utils/galleryStorage';
-import { signDataWithNaCl, getStoredNaClKeyPair } from '../utils/naclCryptoUtils';
+import { signDataWithNobleEd25519, getStoredNobleEd25519KeyPair } from '../utils/nobleEd25519Utils';
+import { embedMetadataIntoPNG, type PNGMetadata } from '../utils/PNG_Metadata';
 import { Ionicons } from '@expo/vector-icons';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
@@ -335,7 +336,7 @@ export default function CameraScreen() {
     setIsLoadingKeys(true);
     try {
       // Load existing keys from storage
-      const storedKeyPair = await getStoredNaClKeyPair();
+      const storedKeyPair = await getStoredNobleEd25519KeyPair();
       if (storedKeyPair) {
         setKeyPair(storedKeyPair);
         console.log('🔑 Loaded existing keys from storage');
@@ -488,23 +489,35 @@ export default function CameraScreen() {
       try {
         console.log('✅ Steganography encoding completed');
         
-        // Step 2: Now generate the signature for the basic data (but don't send to backend)
-        const parsedBasicData = JSON.parse(basicData);
-        const signature = await signDataWithNaCl(parsedBasicData, keyPair!.privateKey);
-        
-        console.log('✅ NaCl signature generated locally');
-        console.log('🔐 Signature length:', signature.length);
-        console.log('📝 Signature will be stored locally but not sent to backend');
-        
-        // Save the steganography-encoded image to device
-        const filename = FileSystem.cacheDirectory + `geocam-encoded-${Date.now()}.png`;
-        const base64Data = steganographyEncodedImage.split(',')[1];
-        
-        if (!base64Data) {
+        // Step 2: Now generate the signature for the steganography-encoded IMAGE (not basicData)
+        // Extract the base64 image data from the data URL
+        const base64ImageData = steganographyEncodedImage.split(',')[1];
+        if (!base64ImageData) {
           throw new Error("Invalid base64 data format from steganography encoding");
         }
         
-        await FileSystem.writeAsStringAsync(filename, base64Data, {
+        // Directly sign the steganography-encoded image data
+        const signature = await signDataWithNobleEd25519(base64ImageData, keyPair!.privateKey);
+        
+        console.log('✅ Noble Ed25519 signature generated for steganography-encoded image');
+        console.log('🔐 Signature length:', signature.length);
+        console.log('📝 Signature represents the image with embedded basicData');
+        
+        // Step 3: Embed public key and signature into PNG metadata
+        const pngMetadata: PNGMetadata = {
+          publicKey: keyPair!.publicKey.keyBase64,
+          signature: signature,
+          algorithm: 'Ed25519',
+          timestamp: new Date().toISOString(),
+          keyId: keyPair!.privateKey.keyId
+        };
+        
+        const pngWithMetadata = await embedMetadataIntoPNG(base64ImageData, pngMetadata);
+        
+        // Save the PNG with embedded metadata to device
+        const filename = FileSystem.cacheDirectory + `geocam-encoded-${Date.now()}.png`;
+        
+        await FileSystem.writeAsStringAsync(filename, pngWithMetadata, {
           encoding: FileSystem.EncodingType.Base64,
         });
         await MediaLibrary.saveToLibraryAsync(filename);
@@ -513,26 +526,26 @@ export default function CameraScreen() {
         // Save to gallery storage with steganography-encoded data and signature
         const galleryData = {
           uri: filename,
-          encodedInfo: basicData, // Only the steganography-encoded basic data
-          signature: signature,    // Local signature (not sent to backend)
+          encodedInfo: basicData, // The basic data that was embedded
+          signature: signature,    // Signature of the steganography-encoded image
           timestamp: Date.now(),
         };
         
         try {
           await saveImageToGallery(galleryData);
-          console.log('💾 Image with steganography encoding and local signature saved to gallery');
+          console.log('💾 Image with steganography encoding and image signature saved to gallery');
         } catch (galleryError) {
           console.error('Failed to save to gallery storage:', galleryError);
         }
         
         console.log('📸 GeoCam photo workflow completed:');
         console.log('  1. ✅ Basic data (time+location+device) encoded with steganography');
-        console.log('  2. ✅ NaCl signature generated locally');
-        console.log('  3. ✅ Image saved to device gallery');
-        console.log('  4. ℹ️  Signature stored locally, not sent to backend');
+        console.log('  2. ✅ Noble Ed25519 signature generated for the steganography-encoded IMAGE');
+        console.log('  3. ✅ Public key and signature embedded in PNG metadata');
+        console.log('  4. ✅ Image saved to device gallery');
         
       } catch (signatureError) {
-        console.error('❌ Failed to generate signature:', signatureError);
+        console.error('❌ Failed in photo workflow:', signatureError);
         
         // Still save the steganography-encoded image even if signature fails
         try {

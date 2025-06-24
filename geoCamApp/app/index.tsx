@@ -3,7 +3,7 @@ import { useRouter } from 'expo-router';
 import { ImageBackground } from 'react-native';
 import { SvgXml } from 'react-native-svg';
 import { useEffect, useState } from 'react';
-import { generateNaClKeyPair, getStoredNaClKeyPair, storeNaClKeyPair, hasStoredNaClKeyPair } from '../utils/naclCryptoUtils';
+import { generateNobleEd25519KeyPair, getStoredNobleEd25519KeyPair, storeNobleEd25519KeyPair, hasStoredNobleEd25519KeyPair } from '../utils/nobleEd25519Utils';
 import { testAllServices } from '../utils/backendConfig';
 import { registerDevice, checkDeviceRegistration } from '../utils/backendService';
 
@@ -41,12 +41,12 @@ export default function MainMenu() {
       console.log('🔐 Checking app key initialization status...');
       
       // Check if keys already exist
-      const hasKeys = await hasStoredNaClKeyPair();
+      const hasKeys = await hasStoredNobleEd25519KeyPair();
       
       if (hasKeys) {
         console.log('✅ App keys already initialized');
         // Double-check by trying to load them
-        const keyPair = await getStoredNaClKeyPair();
+        const keyPair = await getStoredNobleEd25519KeyPair();
         if (keyPair) {
           console.log('✅ Key validation successful');
           setKeysInitialized(true);
@@ -73,11 +73,11 @@ export default function MainMenu() {
   const generateAndStoreNewKeys = async () => {
     try {
       // Generate new keys for this app installation
-      const newKeyPair = await generateNaClKeyPair();
-      await storeNaClKeyPair(newKeyPair.privateKey, newKeyPair.publicKey, newKeyPair.fingerprint);
+      const newKeyPair = await generateNobleEd25519KeyPair();
+      await storeNobleEd25519KeyPair(newKeyPair.privateKey, newKeyPair.publicKey, newKeyPair.fingerprint);
       
       // Verify keys were stored correctly
-      const verification = await getStoredNaClKeyPair();
+      const verification = await getStoredNobleEd25519KeyPair();
       if (verification) {
         console.log('✅ App keys successfully generated and verified');
         setKeysInitialized(true);
