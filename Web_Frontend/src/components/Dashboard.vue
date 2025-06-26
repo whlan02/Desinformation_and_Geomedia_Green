@@ -11,23 +11,25 @@
     <div class="card">
       <h3>Backend Status</h3>
       <table>
-        <tr>
-          <td>Connection:</td>
-          <td class="status-healthy" v-if="isBackendHealthy">Healthy</td>
-          <td class="status-unhealthy" v-else>Unhealthy</td>
-        </tr>
-        <tr>
-          <td>Backend URL:</td>
-          <td>{{ backendUrl || 'localhost (proxied)' }}</td>
-        </tr>
-        <tr>
-          <td>Last Checked:</td>
-          <td>{{ lastCheckedFormatted }}</td>
-        </tr>
-        <tr>
-          <td>Message:</td>
-          <td>{{ backendHealth.message }}</td>
-        </tr>
+        <tbody>
+          <tr>
+            <td>Connection:</td>
+            <td class="status-healthy" v-if="isBackendHealthy">Healthy</td>
+            <td class="status-unhealthy" v-else>Unhealthy</td>
+          </tr>
+          <tr>
+            <td>Backend URL:</td>
+            <td>{{ backendUrl || 'localhost (proxied)' }}</td>
+          </tr>
+          <tr>
+            <td>Last Checked:</td>
+            <td>{{ lastCheckedFormatted }}</td>
+          </tr>
+          <tr>
+            <td>Message:</td>
+            <td>{{ backendHealth.message }}</td>
+          </tr>
+        </tbody>
       </table>
     </div>
 
@@ -35,18 +37,20 @@
     <div class="card">
       <h3>Device Summary</h3>
       <table>
-        <tr>
-          <td>Total Devices:</td>
-          <td><strong>{{ deviceCount }}</strong></td>
-        </tr>
-        <tr>
-          <td>Operating Systems:</td>
-          <td><strong>{{ Object.keys(devicesByOS).length }}</strong></td>
-        </tr>
-        <tr>
-          <td>Last Updated:</td>
-          <td>{{ lastUpdatedFormatted }}</td>
-        </tr>
+        <tbody>
+          <tr>
+            <td>Total Devices:</td>
+            <td><strong>{{ deviceCount }}</strong></td>
+          </tr>
+          <tr>
+            <td>Operating Systems:</td>
+            <td><strong>{{ Object.keys(devicesByOS).length }}</strong></td>
+          </tr>
+          <tr>
+            <td>Last Updated:</td>
+            <td>{{ lastUpdatedFormatted }}</td>
+          </tr>
+        </tbody>
       </table>
     </div>
 

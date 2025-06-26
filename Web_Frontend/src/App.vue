@@ -8,10 +8,14 @@ export default {
   <div id="app">
     <header class="app-header">
       <div class="container">
-        <h1 class="app-title">GeoCam Device Manager</h1>
+        <div class="app-brand">
+          <img src="/geocam-logo.png" alt="GeoCam" class="app-logo">
+          <h1 class="app-title">GeoCam Device Manager</h1>
+        </div>
         <nav class="app-nav">
           <router-link to="/" class="nav-link" active-class="active">Dashboard</router-link>
           <router-link to="/devices" class="nav-link" active-class="active">Devices</router-link>
+          <a href="http://localhost:8000" class="nav-link external" target="_blank">Main Website</a>
         </nav>
       </div>
     </header>
@@ -39,10 +43,11 @@ export default {
 }
 
 body {
-  font-family: Arial, sans-serif;
-  line-height: 1.4;
-  color: #333;
-  background-color: #f9f9f9;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  line-height: 1.6;
+  color: #1e293b;
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+  min-height: 100vh;
 }
 
 .container {
@@ -53,9 +58,11 @@ body {
 
 /* Header */
 .app-header {
-  background-color: #fff;
-  border-bottom: 1px solid #ddd;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid #e2e8f0;
   padding: 15px 0;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
 }
 
 .app-header .container {
@@ -64,10 +71,24 @@ body {
   align-items: center;
 }
 
+.app-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.app-logo {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
 .app-title {
   font-size: 20px;
-  font-weight: normal;
-  color: #333;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0;
 }
 
 .app-nav {
@@ -76,21 +97,37 @@ body {
 }
 
 .nav-link {
-  color: #666;
+  color: #64748b;
   text-decoration: none;
-  padding: 8px 12px;
+  padding: 8px 16px;
+  border-radius: 8px;
   border: 1px solid transparent;
+  transition: all 0.3s ease;
+  font-weight: 500;
 }
 
 .nav-link:hover {
-  color: #333;
-  border-color: #ddd;
+  color: #1e40af;
+  background-color: #f1f5f9;
+  border-color: #e2e8f0;
 }
 
 .nav-link.active {
-  color: #333;
-  border-color: #333;
-  font-weight: bold;
+  color: #1e40af;
+  background-color: #eff6ff;
+  border-color: #bfdbfe;
+  font-weight: 600;
+}
+
+.nav-link.external {
+  background: linear-gradient(135deg, #1e40af, #059669);
+  color: white;
+  border-color: transparent;
+}
+
+.nav-link.external:hover {
+  background: linear-gradient(135deg, #1d4ed8, #047857);
+  color: white;
 }
 
 /* Main Content */
@@ -111,39 +148,56 @@ body {
 
 /* Basic Components */
 .card {
-  background: #fff;
-  border: 1px solid #ddd;
-  padding: 20px;
-  margin-bottom: 20px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
 }
 
 .btn {
   display: inline-block;
-  padding: 8px 16px;
-  border: 1px solid #333;
-  background-color: #fff;
-  color: #333;
+  padding: 10px 20px;
+  border: 1px solid #e2e8f0;
+  background-color: #ffffff;
+  color: #374151;
   text-decoration: none;
   cursor: pointer;
   font-size: 14px;
+  font-weight: 500;
+  border-radius: 8px;
+  transition: all 0.3s ease;
 }
 
 .btn:hover {
-  background-color: #f5f5f5;
+  background-color: #f9fafb;
+  border-color: #d1d5db;
+  transform: translateY(-1px);
 }
 
 .btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+  transform: none;
 }
 
 .btn-primary {
-  background-color: #333;
-  color: #fff;
+  background: linear-gradient(135deg, #1e40af, #3b82f6);
+  color: #ffffff;
+  border-color: transparent;
 }
 
 .btn-primary:hover {
-  background-color: #555;
+  background: linear-gradient(135deg, #1d4ed8, #2563eb);
+  transform: translateY(-1px);
 }
 
 .loading {
@@ -158,13 +212,29 @@ body {
 }
 
 .status-healthy {
-  color: #060;
-  font-weight: bold;
+  color: #059669;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.status-healthy::before {
+  content: "●";
+  color: #10b981;
 }
 
 .status-unhealthy {
-  color: #d00;
-  font-weight: bold;
+  color: #dc2626;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.status-unhealthy::before {
+  content: "●";
+  color: #ef4444;
 }
 
 /* Tables */
@@ -189,11 +259,31 @@ th {
 @media (max-width: 768px) {
   .app-header .container {
     flex-direction: column;
+    gap: 15px;
+  }
+  
+  .app-nav {
+    flex-wrap: wrap;
+    justify-content: center;
     gap: 10px;
   }
   
   .container {
     padding: 0 15px;
+  }
+  
+  .card {
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  
+  .app-title {
+    font-size: 18px;
+  }
+  
+  .app-logo {
+    width: 32px;
+    height: 32px;
   }
 }
 </style>

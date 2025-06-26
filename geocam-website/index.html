@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GeoCam - Every Photo Tells a Story. GeoCam Makes It True.</title>
+    <meta name="description" content="Every photo tells a story. GeoCam makes it true. Cryptographically secure location-verified photography for authentic, tamper-proof images.">
+    <meta name="keywords" content="geocam, photo verification, cryptographic security, location verification, desinformation">
+    
+    <!-- Open Graph tags -->
+    <meta property="og:title" content="GeoCam - Every Photo Tells a Story. GeoCam Makes It True.">
+    <meta property="og:description" content="Every photo tells a story. GeoCam makes it true. Cryptographically secure location-verified photography for authentic, tamper-proof images.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://geocam.app">
+    <meta property="og:image" content="assets/images/geocam-og.png">
+    
+    <!-- Twitter Card tags -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="GeoCam - Every Photo Tells a Story. GeoCam Makes It True.">
+    <meta name="twitter:description" content="Every photo tells a story. GeoCam makes it true. Cryptographically secure location-verified photography for authentic, tamper-proof images.">
+    <meta name="twitter:image" content="assets/images/geocam-og.png">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="assets/images/favicon.png">
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+    
+    <!-- Apple PWA Meta Tags -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="GeoCam">
+    <link rel="apple-touch-icon" href="assets/images/icon-192.png">
+    
+    <!-- Microsoft PWA Meta Tags -->
+    <meta name="msapplication-TileImage" content="assets/images/icon-144.png">
+    <meta name="msapplication-TileColor" content="#1e40af">
+    <meta name="theme-color" content="#1e40af">
+    
+    <!-- CSS -->
+    <link rel="stylesheet" href="assets/css/main.css">
+    <link rel="stylesheet" href="assets/css/components.css">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'geocam-blue': '#1e40af',
+                        'geocam-dark': '#1e293b',
+                        'geocam-light': '#f1f5f9',
+                        'geocam-accent': '#059669'
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- D3.js for Architecture diagram -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+</head>
+<body class="font-sans antialiased">
+    <!-- Navigation -->
+    <nav id="navbar" class="bg-white shadow-lg fixed w-full top-0 z-50 transition-all duration-300">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <a href="#home" class="flex-shrink-0 flex items-center">
+                        <img class="h-10 w-10 rounded-lg" src="assets/images/geocam-logo.png" alt="GeoCam">
+                        <span class="ml-2 text-xl font-bold text-geocam-dark">GeoCam</span>
+                    </a>
+                </div>
+                
+                <!-- Desktop Navigation -->
+                <div class="hidden md:flex items-center space-x-8">
+                    <a href="#home" class="nav-link text-geocam-dark hover:text-geocam-blue transition-colors">Home</a>
+                    <a href="#hardware" class="nav-link text-geocam-dark hover:text-geocam-blue transition-colors">Hardware</a>
+                    <a href="#about" class="nav-link text-geocam-dark hover:text-geocam-blue transition-colors">About</a>
+                    <a href="#capture" class="nav-link text-geocam-dark hover:text-geocam-blue transition-colors">Capture</a>
+                    <a href="#verify" class="nav-link text-geocam-dark hover:text-geocam-blue transition-colors">Verify</a>
+                    <a href="#architecture" class="nav-link text-geocam-dark hover:text-geocam-blue transition-colors">Architecture</a>
+                    <a href="#flow" class="nav-link text-geocam-dark hover:text-geocam-blue transition-colors">Flow</a>
+                    <a href="#build" class="nav-link text-geocam-dark hover:text-geocam-blue transition-colors">Build</a>
+                </div>
+                
+                <!-- Mobile menu button -->
+                <div class="md:hidden flex items-center">
+                    <button id="mobile-menu-button" class="text-geocam-dark hover:text-geocam-blue focus:outline-none focus:text-geocam-blue">
+                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Mobile Navigation -->
+        <div id="mobile-menu" class="md:hidden hidden bg-white border-t border-gray-200">
+            <div class="px-2 pt-2 pb-3 space-y-1 sm:px-3">
+                <a href="#home" class="mobile-nav-link block px-3 py-2 text-geocam-dark hover:text-geocam-blue">Home</a>
+                <a href="#hardware" class="mobile-nav-link block px-3 py-2 text-geocam-dark hover:text-geocam-blue">Hardware</a>
+                <a href="#about" class="mobile-nav-link block px-3 py-2 text-geocam-dark hover:text-geocam-blue">About</a>
+                <a href="#capture" class="mobile-nav-link block px-3 py-2 text-geocam-dark hover:text-geocam-blue">Capture</a>
+                <a href="#verify" class="mobile-nav-link block px-3 py-2 text-geocam-dark hover:text-geocam-blue">Verify</a>
+                <a href="#architecture" class="mobile-nav-link block px-3 py-2 text-geocam-dark hover:text-geocam-blue">Architecture</a>
+                <a href="#flow" class="mobile-nav-link block px-3 py-2 text-geocam-dark hover:text-geocam-blue">Flow</a>
+                <a href="#build" class="mobile-nav-link block px-3 py-2 text-geocam-dark hover:text-geocam-blue">Build</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section id="home" class="relative pt-20 pb-16 overflow-hidden">
+        <!-- Background Image with Overlay -->
+        <div class="absolute inset-0 bg-cover bg-center bg-no-repeat" style="background-image: url('assets/images/background.jpg');">
+            <div class="absolute inset-0 bg-gradient-to-br from-geocam-dark/70 via-geocam-blue/50 to-geocam-accent/40"></div>
+        </div>
+        
+        <!-- Content -->
+        <div class="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center">
+                <div class="flex justify-center mb-8">
+                    <img src="assets/images/geocam-logo.png" alt="GeoCam Logo" class="h-24 w-24 rounded-2xl shadow-2xl">
+                </div>
+                
+                <h1 class="text-4xl md:text-6xl font-bold text-white mb-6 drop-shadow-lg">
+                    Every Photo Tells a Story. GeoCam Makes It True.
+                </h1>
+                <p class="text-xl md:text-2xl text-gray-100 mb-8 max-w-3xl mx-auto drop-shadow-md">
+                    Cryptographically secure location-verified photography
+                </p>
+                
+                <!-- Hero Features -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12 max-w-5xl mx-auto">
+                    <div class="hero-feature-card bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl p-6 text-white">
+                        <div class="flex justify-center mb-4">
+                            <img src="assets/images/secure_capture.png" alt="Secure Capture Icon" class="h-16 w-16 rounded-full bg-white/20 p-2">
+                        </div>
+                        <h3 class="text-xl font-bold mb-2">Secure Capture</h3>
+                        <p class="text-gray-100">Real-time GPS verification with cryptographic signatures embedded in every photo</p>
+                    </div>
+                    
+                    <div class="hero-feature-card bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl p-6 text-white">
+                        <div class="flex justify-center mb-4">
+                            <svg class="h-16 w-16 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-bold mb-2">Instant Verification</h3>
+                        <p class="text-gray-100">Upload any GeoCam image to instantly verify its authenticity and location data</p>
+                    </div>
+                    
+                    <div class="hero-feature-card bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl p-6 text-white">
+                        <div class="flex justify-center mb-4">
+                            <svg class="h-16 w-16 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"/>
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-bold mb-2">Open Architecture</h3>
+                        <p class="text-gray-100">Explore our transparent system design and integrate with our open-source SDKs</p>
+                    </div>
+                </div>
+                
+                <!-- CTA Buttons -->
+                <div class="flex flex-col sm:flex-row gap-4 justify-center items-center">
+                    <a href="#capture" class="bg-geocam-blue hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg transition-colors inline-flex items-center">
+                        <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M3 4a1 1 0 011-1h3a1 1 0 011 1v.5a.5.5 0 00.5.5h3a.5.5 0 00.5-.5V4a1 1 0 011-1h3a1 1 0 011 1v12a1 1 0 01-1 1H4a1 1 0 01-1-1V4z"/>
+                            <path d="M10 8a2 2 0 100 4 2 2 0 000-4z"/>
+                        </svg>
+                        Download Mobile App
+                    </a>
+                    <a href="#verify" class="bg-geocam-accent hover:bg-green-700 text-white font-bold py-3 px-8 rounded-lg transition-colors inline-flex items-center">
+                        <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                        </svg>
+                        Try Verification Tool
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Hardware Prototype Section -->
+    <section id="hardware" class="py-16 bg-gradient-to-br from-geocam-light to-white">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl md:text-5xl font-bold text-geocam-dark mb-4">GeoCam Hardware</h2>
+                <p class="text-xl text-gray-600 max-w-3xl mx-auto">
+                    Our custom-built GeoCam prototype device with integrated secure hardware and GPS verification
+                </p>
+            </div>
+            
+            <div class="max-w-4xl mx-auto">
+                <div class="bg-white rounded-2xl shadow-2xl overflow-hidden">
+                    <div class="aspect-video bg-gradient-to-br from-gray-50 to-white p-8 flex items-center justify-center">
+                        <img src="assets/images/Geocam_Prototype.jpg" alt="GeoCam Hardware Prototype Device" class="max-w-full max-h-full object-contain rounded-lg shadow-lg">
+                    </div>
+                    <div class="p-8">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div class="text-center">
+                                <div class="bg-geocam-blue text-white p-3 rounded-lg w-12 h-12 flex items-center justify-center mb-4 mx-auto">
+                                    <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/>
+                                    </svg>
+                                </div>
+                                <h4 class="font-bold text-geocam-dark mb-2">GPS Integration</h4>
+                                <p class="text-gray-600 text-sm">High-precision location tracking with tamper-resistant GPS module</p>
+                            </div>
+                            <div class="text-center">
+                                <div class="bg-geocam-accent text-white p-3 rounded-lg w-12 h-12 flex items-center justify-center mb-4 mx-auto">
+                                    <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/>
+                                    </svg>
+                                </div>
+                                <h4 class="font-bold text-geocam-dark mb-2">Secure Crypto</h4>
+                                <p class="text-gray-600 text-sm">Hardware-based Ed25519 signature generation and verification</p>
+                            </div>
+                            <div class="text-center">
+                                <div class="bg-geocam-blue text-white p-3 rounded-lg w-12 h-12 flex items-center justify-center mb-4 mx-auto">
+                                    <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                                        <path d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z"/>
+                                    </svg>
+                                </div>
+                                <h4 class="font-bold text-geocam-dark mb-2">4K Imaging</h4>
+                                <p class="text-gray-600 text-sm">Professional-grade camera with real-time steganographic embedding</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Live Statistics Section -->
+    <section id="stats" class="py-16 bg-geocam-dark text-white">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl md:text-5xl font-bold mb-4">Live System Statistics</h2>
+                <p class="text-xl text-gray-300 max-w-3xl mx-auto">
+                    Real-time data from the GeoCam network showing active devices and verification activity
+                </p>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
+                <div class="text-center">
+                    <div class="bg-white/10 backdrop-blur-sm rounded-xl p-6">
+                        <div class="text-4xl font-bold text-geocam-accent mb-2" id="total-devices">Loading...</div>
+                        <div class="text-gray-300">Total Devices</div>
+                    </div>
+                </div>
+                <div class="text-center">
+                    <div class="bg-white/10 backdrop-blur-sm rounded-xl p-6">
+                        <div class="text-4xl font-bold text-blue-400 mb-2" id="active-devices">Loading...</div>
+                        <div class="text-gray-300">Active Devices</div>
+                    </div>
+                </div>
+                <div class="text-center">
+                    <div class="bg-white/10 backdrop-blur-sm rounded-xl p-6">
+                        <div class="text-4xl font-bold text-green-400 mb-2" id="total-verifications">Loading...</div>
+                        <div class="text-gray-300">Total Verifications</div>
+                    </div>
+                </div>
+                <div class="text-center">
+                    <div class="bg-white/10 backdrop-blur-sm rounded-xl p-6">
+                        <div class="text-4xl font-bold text-yellow-400 mb-2" id="success-rate">Loading...</div>
+                        <div class="text-gray-300">Success Rate</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div class="bg-white/10 backdrop-blur-sm rounded-xl p-6">
+                    <h3 class="text-xl font-bold mb-4">Devices by Platform</h3>
+                    <div id="platform-stats" class="space-y-2">
+                        <div class="loading-placeholder">Loading platform statistics...</div>
+                    </div>
+                </div>
+                <div class="bg-white/10 backdrop-blur-sm rounded-xl p-6">
+                    <h3 class="text-xl font-bold mb-4">Recent Activity</h3>
+                    <div id="recent-activity" class="space-y-2">
+                        <div class="loading-placeholder">Loading recent activity...</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="text-center mt-8">
+                <a href="http://localhost:5173" target="_blank" class="bg-geocam-accent hover:bg-green-700 text-white font-bold py-3 px-8 rounded-lg transition-colors inline-flex items-center">
+                    <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"/>
+                    </svg>
+                    View Admin Dashboard
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- About GeoCam Section -->
+    <section id="about" class="py-16 bg-white">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl md:text-5xl font-bold text-geocam-dark mb-4">About GeoCam</h2>
+                <p class="text-xl text-gray-600 max-w-3xl mx-auto">
+                    GeoCam is part of the Desinformation and Geomedia Study project at the Institute for Geoinformatics, 
+                    developing cutting-edge solutions to combat misinformation through verifiable location data.
+                </p>
+            </div>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+                <div>
+                    <h3 class="text-2xl font-bold text-geocam-dark mb-4">Project Background</h3>
+                    <p class="text-gray-600 mb-6">
+                        In an era of increasing digital manipulation and misinformation, GeoCam provides a robust solution 
+                        for creating tamper-evident, location-verified photographs. Our cryptographic approach ensures that 
+                        every image captured contains verifiable proof of its authenticity and location.
+                    </p>
+                    
+                    <h3 class="text-2xl font-bold text-geocam-dark mb-4">Goals</h3>
+                    <ul class="text-gray-600 space-y-2">
+                        <li class="flex items-start">
+                            <svg class="w-5 h-5 text-geocam-accent mt-1 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                            </svg>
+                            Combat photo manipulation and misinformation
+                        </li>
+                        <li class="flex items-start">
+                            <svg class="w-5 h-5 text-geocam-accent mt-1 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                            </svg>
+                            Provide cryptographic proof of photo authenticity
+                        </li>
+                        <li class="flex items-start">
+                            <svg class="w-5 h-5 text-geocam-accent mt-1 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                            </svg>
+                            Enable location verification for media content
+                        </li>
+                        <li class="flex items-start">
+                            <svg class="w-5 h-5 text-geocam-accent mt-1 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                            </svg>
+                            Support journalism and research with verified media
+                        </li>
+                    </ul>
+                </div>
+                
+                <div class="space-y-8">
+                    <!-- GeoCam Hardware Prototype -->
+                    <div class="text-center">
+                        <img src="assets/images/Geocam_Prototype.jpg" alt="GeoCam Hardware Prototype" class="mx-auto mb-6 max-w-full h-auto rounded-lg shadow-lg">
+                        <h4 class="text-xl font-bold text-geocam-dark mb-2">GeoCam Hardware Prototype</h4>
+                        <p class="text-gray-600 mb-6">
+                            Our custom-built GeoCam device featuring integrated GPS, secure cryptographic processing, and high-resolution imaging capabilities.
+                        </p>
+                    </div>
+                    
+                    <!-- Institute Information -->
+                    <div class="text-center">
+                        <img src="assets/images/ifgi-logo.png" alt="Institute for Geoinformatics (IFGI)" class="mx-auto mb-4 h-16 bg-white p-2 rounded-lg shadow-sm">
+                        <h4 class="text-lg font-bold text-geocam-dark mb-2">Institute for Geoinformatics (IFGI)</h4>
+                        <p class="text-gray-600 mb-6">
+                            Desinformation and Geomedia Study Project
+                        </p>
+                        
+                        <div class="bg-geocam-light p-6 rounded-lg">
+                            <h5 class="font-bold text-geocam-dark mb-2">Get in Touch</h5>
+                            <a href="https://github.com/whlan02/Desinformation_and_Geomedia_Green" 
+                               class="inline-flex items-center text-geocam-blue hover:text-blue-700">
+                                <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 0C4.477 0 0 4.484 0 10.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0110 4.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.203 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.942.359.31.678.921.678 1.856 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0020 10.017C20 4.484 15.522 0 10 0z" clip-rule="evenodd"/>
+                                </svg>
+                                View on GitHub
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Capture Section -->
+    <section id="capture" class="py-16 bg-geocam-light">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl md:text-5xl font-bold text-geocam-dark mb-4">Capture</h2>
+                <p class="text-xl text-gray-600 max-w-3xl mx-auto">
+                    The GeoCam mobile app provides an intuitive interface for capturing location-verified photos 
+                    with cryptographic signatures embedded directly into the image.
+                </p>
+            </div>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+                <div>
+                    <h3 class="text-2xl font-bold text-geocam-dark mb-6">Key Features</h3>
+                    <div class="space-y-4">
+                        <div class="flex items-start">
+                            <div class="bg-geocam-blue text-white p-2 rounded-lg mr-4">
+                                <img src="assets/images/camera.svg" alt="Camera" class="w-6 h-6">
+                            </div>
+                            <div>
+                                <h4 class="font-bold text-geocam-dark">Real-time Location Capture</h4>
+                                <p class="text-gray-600">GPS coordinates are captured at the moment of photo taking</p>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-start">
+                            <div class="bg-geocam-accent text-white p-2 rounded-lg mr-4">
+                                <img src="assets/images/Verify.svg" alt="Verify" class="w-6 h-6">
+                            </div>
+                            <div>
+                                <h4 class="font-bold text-geocam-dark">Steganographic Embedding</h4>
+                                <p class="text-gray-600">Metadata is invisibly embedded within the image pixels</p>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-start">
+                            <div class="bg-geocam-blue text-white p-2 rounded-lg mr-4">
+                                <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M18 3a1 1 0 00-1.447-.894L8.763 6H5a3 3 0 000 6h.28l1.771 5.316A1 1 0 008 18h1a1 1 0 001-1v-4.382l6.553 3.894A1 1 0 0018 16V3z" clip-rule="evenodd"/>
+                                </svg>
+                            </div>
+                            <div>
+                                <h4 class="font-bold text-geocam-dark">Ed25519 Digital Signatures</h4>
+                                <p class="text-gray-600">Cryptographic signatures ensure data integrity and authenticity</p>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-start">
+                            <div class="bg-geocam-accent text-white p-2 rounded-lg mr-4">
+                                <img src="assets/images/gallery.svg" alt="Gallery" class="w-6 h-6">
+                            </div>
+                            <div>
+                                <h4 class="font-bold text-geocam-dark">Export & Share</h4>
+                                <p class="text-gray-600">Easy sharing with verification capabilities intact</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-8">
+                        <h3 class="text-xl font-bold text-geocam-dark mb-4">Download the App</h3>
+                        <div class="flex flex-col sm:flex-row gap-4">
+                            <div class="bg-white p-4 rounded-lg shadow-md flex items-center">
+                                <div id="qr-code" class="mr-4"></div>
+                                <div>
+                                    <p class="font-bold text-geocam-dark">Scan to Download</p>
+                                    <p class="text-sm text-gray-600">Android & iOS versions available</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="text-center">
+                    <img src="assets/images/app-screenshots.png" alt="GeoCam App Screenshots" class="rounded-lg shadow-xl mx-auto">
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Verify Section -->
+    <section id="verify" class="py-16 bg-white">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl md:text-5xl font-bold text-geocam-dark mb-4">Verify</h2>
+                <p class="text-xl text-gray-600 max-w-3xl mx-auto">
+                    Upload any GeoCam image to verify its authenticity, check the digital signature, 
+                    and detect potential geo-spoofing attempts.
+                </p>
+            </div>
+            
+            <!-- Verification Tool -->
+            <div class="bg-geocam-light rounded-lg p-8 mb-12">
+                <div class="max-w-2xl mx-auto">
+                    <div id="upload-area" class="border-2 border-dashed border-geocam-blue rounded-lg p-8 text-center cursor-pointer hover:border-blue-700 transition-colors">
+                        <svg class="mx-auto h-12 w-12 text-geocam-blue mb-4" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                            <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <p class="text-geocam-dark font-medium mb-2">Drop your GeoCam image here or click to browse</p>
+                        <p class="text-gray-500 text-sm">Supports JPEG, PNG formats</p>
+                        <input type="file" id="image-upload" class="hidden" accept="image/*">
+                    </div>
+                    
+                    <div id="verification-results" class="mt-8 hidden">
+                        <div class="bg-white rounded-lg p-6 shadow-md">
+                            <h3 class="text-lg font-bold text-geocam-dark mb-4">Verification Results</h3>
+                            <div id="results-content"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Demo Section -->
+            <div class="text-center">
+                <h3 class="text-2xl font-bold text-geocam-dark mb-6">Try a Demo</h3>
+                <p class="text-gray-600 mb-8">
+                    Experience the verification process with our sample GeoCam image
+                </p>
+                <button id="demo-btn" class="bg-geocam-blue hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg transition-colors">
+                    Run Demo Verification
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Architecture Section -->
+    <section id="architecture" class="py-16 bg-geocam-light">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl md:text-5xl font-bold text-geocam-dark mb-4">System Architecture</h2>
+                <p class="text-xl text-gray-600 max-w-3xl mx-auto">
+                    Explore the technical architecture of GeoCam with our interactive diagram. 
+                    Hover over components to learn about their implementation details.
+                </p>
+            </div>
+            
+            <div class="bg-white rounded-lg shadow-xl p-8">
+                <div id="architecture-diagram" class="w-full" style="min-height: 500px;"></div>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-12">
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <div class="bg-geocam-blue text-white p-3 rounded-lg w-12 h-12 flex items-center justify-center mb-4">
+                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"/>
+                        </svg>
+                    </div>
+                    <h4 class="font-bold text-geocam-dark mb-2">UI Layer</h4>
+                    <p class="text-gray-600 text-sm">React Native components for cross-platform mobile interface</p>
+                </div>
+                
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <div class="bg-geocam-accent text-white p-3 rounded-lg w-12 h-12 flex items-center justify-center mb-4">
+                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"/>
+                        </svg>
+                    </div>
+                    <h4 class="font-bold text-geocam-dark mb-2">Core Processing</h4>
+                    <p class="text-gray-600 text-sm">Image processing, GPS handling, and metadata management</p>
+                </div>
+                
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <div class="bg-geocam-blue text-white p-3 rounded-lg w-12 h-12 flex items-center justify-center mb-4">
+                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/>
+                        </svg>
+                    </div>
+                    <h4 class="font-bold text-geocam-dark mb-2">Security Layer</h4>
+                    <p class="text-gray-600 text-sm">Ed25519 signatures, steganography, and verification protocols</p>
+                </div>
+                
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <div class="bg-geocam-accent text-white p-3 rounded-lg w-12 h-12 flex items-center justify-center mb-4">
+                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"/>
+                        </svg>
+                    </div>
+                    <h4 class="font-bold text-geocam-dark mb-2">Storage & APIs</h4>
+                    <p class="text-gray-600 text-sm">Local storage, cloud sync, and external service integration</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Interactive Flow Section -->
+    <section id="flow" class="py-16 bg-white">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl md:text-5xl font-bold text-geocam-dark mb-4">Interactive Flow</h2>
+                <p class="text-xl text-gray-600 max-w-3xl mx-auto">
+                    Follow the complete capture → sign → verify process through our interactive walkthrough
+                </p>
+            </div>
+            
+            <div class="text-center mb-8">
+                <button id="start-flow-btn" class="bg-geocam-blue hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg transition-colors">
+                    Start Interactive Walkthrough
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Flow Modal -->
+    <div id="flow-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
+        <div class="bg-white rounded-lg max-w-4xl max-h-[90vh] overflow-y-auto m-4">
+            <div class="p-6">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-2xl font-bold text-geocam-dark">GeoCam Process Flow</h3>
+                    <button id="close-flow-btn" class="text-gray-500 hover:text-gray-700">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+                
+                <!-- Progress Bar -->
+                <div class="mb-6">
+                    <div class="bg-gray-200 rounded-full h-2">
+                        <div id="flow-progress" class="bg-geocam-blue h-2 rounded-full transition-all duration-300" style="width: 8.33%"></div>
+                    </div>
+                    <p class="text-sm text-gray-600 mt-2">Step <span id="current-step">1</span> of <span id="total-steps">12</span></p>
+                </div>
+                
+                <!-- Flow Content -->
+                <div id="flow-content" class="mb-6"></div>
+                
+                <!-- Controls -->
+                <div class="flex justify-between items-center">
+                    <button id="prev-step-btn" class="bg-gray-300 hover:bg-gray-400 text-gray-700 font-bold py-2 px-6 rounded transition-colors" disabled>
+                        Previous
+                    </button>
+                    
+                    <div class="flex gap-2">
+                        <button id="autoplay-btn" class="bg-geocam-accent hover:bg-green-700 text-white font-bold py-2 px-4 rounded transition-colors">
+                            Auto Play
+                        </button>
+                    </div>
+                    
+                    <button id="next-step-btn" class="bg-geocam-blue hover:bg-blue-700 text-white font-bold py-2 px-6 rounded transition-colors">
+                        Next
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Build Section -->
+    <section id="build" class="py-16 bg-geocam-light">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl md:text-5xl font-bold text-geocam-dark mb-4">Build</h2>
+                <p class="text-xl text-gray-600 max-w-3xl mx-auto">
+                    Integrate GeoCam into your applications with our SDKs and development tools
+                </p>
+            </div>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <div class="bg-green-500 text-white p-3 rounded-lg w-12 h-12 flex items-center justify-center mb-4">
+                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-geocam-dark mb-2">Android SDK</h3>
+                    <p class="text-gray-600 mb-4">Kotlin-based SDK for Android applications</p>
+                    <a href="#" class="text-geocam-blue hover:text-blue-700 font-medium">Download SDK →</a>
+                </div>
+                
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <div class="bg-blue-500 text-white p-3 rounded-lg w-12 h-12 flex items-center justify-center mb-4">
+                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M3 5a2 2 0 012-2h10a2 2 0 012 2v8a2 2 0 01-2 2h-2.22l.123.489.804.804A1 1 0 0113 18H7a1 1 0 01-.707-1.707l.804-.804L7.22 15H5a2 2 0 01-2-2V5zm5.771 7H5V5h10v7H8.771z" clip-rule="evenodd"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-geocam-dark mb-2">iOS SDK</h3>
+                    <p class="text-gray-600 mb-4">Swift-based SDK for iOS applications</p>
+                    <a href="#" class="text-geocam-blue hover:text-blue-700 font-medium">Download SDK →</a>
+                </div>
+                
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <div class="bg-orange-500 text-white p-3 rounded-lg w-12 h-12 flex items-center justify-center mb-4">
+                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M2 5a2 2 0 012-2h8a2 2 0 012 2v10a2 2 0 002 2H4a2 2 0 01-2-2V5zm3 1h6v4H5V6zm6 6H5v2h6v-2z" clip-rule="evenodd"/>
+                            <path d="M15 7h1a2 2 0 012 2v5.5a1.5 1.5 0 01-3 0V9a1 1 0 00-1-1h-1v3a2 2 0 01-2 2H5.828l1.086 1.086A1 1 0 016.207 15.5L4.5 13.793a1 1 0 010-1.414L6.207 10.5a1 1 0 01.707 1.207L5.828 12.5H11a1 1 0 001-1V7z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-geocam-dark mb-2">Rust CLI</h3>
+                    <p class="text-gray-600 mb-4">Command-line tool for verification and batch processing</p>
+                    <a href="#" class="text-geocam-blue hover:text-blue-700 font-medium">Download CLI →</a>
+                </div>
+            </div>
+            
+            <!-- Code Examples -->
+            <div class="bg-white rounded-lg shadow-xl p-8">
+                <h3 class="text-2xl font-bold text-geocam-dark mb-6">Quick Start Examples</h3>
+                
+                <div class="space-y-6">
+                    <div>
+                        <h4 class="text-lg font-bold text-geocam-dark mb-2">Android (Kotlin)</h4>
+                        <pre class="bg-gray-900 text-green-400 p-4 rounded-lg overflow-x-auto"><code>// Initialize GeoCam
+val geoCam = GeoCam.Builder()
+    .enableLocationVerification(true)
+    .setSigningKey(keyPair)
+    .build()
+
+// Capture verified photo
+geoCam.takePictureAsync { result ->
+    when (result) {
+        is Success -> handleVerifiedImage(result.image)
+        is Error -> handleError(result.exception)
+    }
+}</code></pre>
+                    </div>
+                    
+                    <div>
+                        <h4 class="text-lg font-bold text-geocam-dark mb-2">iOS (Swift)</h4>
+                        <pre class="bg-gray-900 text-green-400 p-4 rounded-lg overflow-x-auto"><code>// Initialize GeoCam
+let geoCam = GeoCam.Builder()
+    .enableLocationVerification(true)
+    .setSigningKey(keyPair)
+    .build()
+
+// Capture verified photo
+geoCam.takePictureAsync { result in
+    switch result {
+    case .success(let image):
+        handleVerifiedImage(image)
+    case .failure(let error):
+        handleError(error)
+    }
+}</code></pre>
+                    </div>
+                    
+                    <div>
+                        <h4 class="text-lg font-bold text-geocam-dark mb-2">Rust CLI</h4>
+                        <pre class="bg-gray-900 text-green-400 p-4 rounded-lg overflow-x-auto"><code># Verify a GeoCam image
+geocam verify --image photo.jpg --public-key key.pub
+
+# Batch verify multiple images
+geocam batch-verify --directory ./photos --output report.json
+
+# Extract metadata from GeoCam image
+geocam extract --image photo.jpg --format json</code></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Help Section -->
+    <section id="help" class="py-16 bg-white">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl md:text-5xl font-bold text-geocam-dark mb-4">Help & Support</h2>
+                <p class="text-xl text-gray-600 max-w-3xl mx-auto">
+                    Get help with GeoCam through our comprehensive support resources
+                </p>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <div class="bg-geocam-light p-6 rounded-lg">
+                    <div class="bg-geocam-blue text-white p-3 rounded-lg w-12 h-12 flex items-center justify-center mb-4">
+                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-geocam-dark mb-4">Video Tutorials</h3>
+                    <p class="text-gray-600 mb-4">Step-by-step video guides for using GeoCam</p>
+                    <a href="#" class="text-geocam-blue hover:text-blue-700 font-medium">Coming Soon →</a>
+                </div>
+                
+                <div class="bg-geocam-light p-6 rounded-lg">
+                    <div class="bg-geocam-accent text-white p-3 rounded-lg w-12 h-12 flex items-center justify-center mb-4">
+                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-geocam-dark mb-4">Frequently Asked Questions</h3>
+                    <div class="space-y-3">
+                        <details class="bg-white p-3 rounded">
+                            <summary class="font-medium cursor-pointer">How does GeoCam prevent location spoofing?</summary>
+                            <p class="text-gray-600 mt-2 text-sm">GeoCam uses multiple validation techniques including GPS signal analysis, sensor fusion, and cryptographic timestamps to detect and prevent location spoofing attempts.</p>
+                        </details>
+                        <details class="bg-white p-3 rounded">
+                            <summary class="font-medium cursor-pointer">What image formats are supported?</summary>
+                            <p class="text-gray-600 mt-2 text-sm">GeoCam supports JPEG and PNG formats. The metadata is embedded using steganographic techniques that preserve image quality.</p>
+                        </details>
+                        <details class="bg-white p-3 rounded">
+                            <summary class="font-medium cursor-pointer">Can I verify images taken with other apps?</summary>
+                            <p class="text-gray-600 mt-2 text-sm">Only images captured with GeoCam can be cryptographically verified, as the signing process occurs during capture.</p>
+                        </details>
+                    </div>
+                </div>
+                
+                <div class="bg-geocam-light p-6 rounded-lg">
+                    <div class="bg-geocam-blue text-white p-3 rounded-lg w-12 h-12 flex items-center justify-center mb-4">
+                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/>
+                            <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-geocam-dark mb-4">Contact Support</h3>
+                    <div class="space-y-3">
+                        <a href="#" class="flex items-center text-gray-600 hover:text-geocam-blue">
+                            <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/>
+                                <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/>
+                            </svg>
+                            Email Support
+                        </a>
+                        <a href="#" class="flex items-center text-gray-600 hover:text-geocam-blue">
+                            <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+                            </svg>
+                            Signal Messenger
+                        </a>
+                        <a href="https://github.com/whlan02/Desinformation_and_Geomedia_Green" class="flex items-center text-gray-600 hover:text-geocam-blue">
+                            <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M10 0C4.477 0 0 4.484 0 10.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0110 4.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.203 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.942.359.31.678.921.678 1.856 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0020 10.017C20 4.484 15.522 0 10 0z" clip-rule="evenodd"/>
+                            </svg>
+                            GitHub Issues
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-geocam-dark text-white py-12">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
+                <div class="col-span-1 md:col-span-2">
+                    <div class="flex items-center mb-4">
+                        <img class="h-10 w-10 rounded-lg" src="assets/images/geocam-logo.png" alt="GeoCam">
+                        <span class="ml-2 text-xl font-bold">GeoCam</span>
+                    </div>
+                    <p class="text-gray-300 mb-4">
+                        Cryptographically secure location-verified photos for a more trustworthy digital world.
+                    </p>
+                    <p class="text-gray-400 text-sm">
+                        Part of the Desinformation and Geomedia Study project at the Institute for Geoinformatics
+                    </p>
+                </div>
+                
+                <div>
+                    <h3 class="text-lg font-bold mb-4">Quick Links</h3>
+                    <ul class="space-y-2 text-gray-300">
+                        <li><a href="#about" class="hover:text-white transition-colors">About</a></li>
+                        <li><a href="#capture" class="hover:text-white transition-colors">Capture</a></li>
+                        <li><a href="#verify" class="hover:text-white transition-colors">Verify</a></li>
+                        <li><a href="#build" class="hover:text-white transition-colors">Build</a></li>
+                    </ul>
+                </div>
+                
+                <div>
+                    <h3 class="text-lg font-bold mb-4">Resources</h3>
+                    <ul class="space-y-2 text-gray-300">
+                        <li><a href="#help" class="hover:text-white transition-colors">Help Center</a></li>
+                        <li><a href="#architecture" class="hover:text-white transition-colors">Documentation</a></li>
+                        <li><a href="https://github.com/whlan02/Desinformation_and_Geomedia_Green" class="hover:text-white transition-colors">GitHub</a></li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="border-t border-gray-700 mt-8 pt-8 text-center text-gray-400">
+                <p>&copy; 2024 GeoCam Project. Open source under MIT License.</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <script src="assets/js/main.js"></script>
+    <script src="assets/js/verification.js"></script>
+    <script src="assets/js/architecture.js"></script>
+    <script src="assets/js/flow.js"></script>
+</body>
+</html>

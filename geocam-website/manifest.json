@@ -1,0 +1,132 @@
+{
+  "name": "GeoCam - Cryptographically Secure Location-Verified Photos",
+  "short_name": "GeoCam",
+  "description": "GeoCam helps anyone capture and cryptographically secure location-verified photos. Bringing trust to every snapshot.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#ffffff",
+  "theme_color": "#1e40af",
+  "lang": "en",
+  "scope": "/",
+  "categories": ["photography", "security", "utilities"],
+  "screenshots": [
+    {
+      "src": "assets/images/screenshot-desktop.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "platform": "wide",
+      "label": "Desktop view of GeoCam website"
+    },
+    {
+      "src": "assets/images/screenshot-mobile.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "label": "Mobile view of GeoCam website"
+    }
+  ],
+  "icons": [
+    {
+      "src": "assets/images/icon-72.png",
+      "sizes": "72x72",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/images/icon-96.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/images/icon-128.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/images/icon-144.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/images/icon-152.png",
+      "sizes": "152x152",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/images/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/images/icon-384.png",
+      "sizes": "384x384",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/images/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Verify Image",
+      "short_name": "Verify",
+      "description": "Upload and verify a GeoCam image",
+      "url": "/#verify",
+      "icons": [
+        {
+          "src": "assets/images/verify-shortcut.png",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "View Architecture",
+      "short_name": "Architecture",
+      "description": "Explore the GeoCam system architecture",
+      "url": "/#architecture",
+      "icons": [
+        {
+          "src": "assets/images/architecture-shortcut.png",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "Interactive Flow",
+      "short_name": "Flow",
+      "description": "See the capture-sign-verify process",
+      "url": "/#flow",
+      "icons": [
+        {
+          "src": "assets/images/flow-shortcut.png",
+          "sizes": "96x96"
+        }
+      ]
+    }
+  ],
+  "related_applications": [
+    {
+      "platform": "play",
+      "url": "https://play.google.com/store/apps/details?id=com.geocam.app",
+      "id": "com.geocam.app"
+    },
+    {
+      "platform": "itunes",
+      "url": "https://apps.apple.com/app/geocam/id123456789",
+      "id": "123456789"
+    }
+  ],
+  "prefer_related_applications": false,
+  "edge_side_panel": {
+    "preferred_width": 400
+  }
+}

@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GeoCam System Architecture Flow</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+        .diagram-container {
+            background: rgba(255,255,255,0.1);
+            border-radius: 15px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        .node {
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .node:hover {
+            filter: brightness(1.2);
+        }
+        .node rect {
+            fill: #4a90e2;
+            stroke: #2c5aa0;
+            stroke-width: 2;
+            rx: 8;
+            ry: 8;
+        }
+        .node.process rect {
+            fill: #7ed321;
+            stroke: #5ba515;
+        }
+        .node.security rect {
+            fill: #f5a623;
+            stroke: #d1890b;
+        }
+        .node.storage rect {
+            fill: #9013fe;
+            stroke: #6a0dad;
+        }
+        .node.verification rect {
+            fill: #50e3c2;
+            stroke: #2ecc71;
+        }
+        .node.ui rect {
+            fill: #bd10e0;
+            stroke: #8e44ad;
+        }
+        .node text {
+            fill: white;
+            font-size: 11px;
+            font-weight: bold;
+            text-anchor: middle;
+            dominant-baseline: middle;
+        }
+        .link {
+            fill: none;
+            stroke: #ffffff;
+            stroke-width: 2;
+            marker-end: url(#arrowhead);
+            opacity: 0.8;
+        }
+        .link.data-flow {
+            stroke: #4a90e2;
+            stroke-width: 3;
+        }
+        .link.security-flow {
+            stroke: #f5a623;
+            stroke-width: 3;
+            stroke-dasharray: 5,5;
+        }
+        .link.storage-flow {
+            stroke: #9013fe;
+            stroke-width: 2;
+        }
+        .legend {
+            margin-top: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            justify-content: center;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255,255,255,0.1);
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 12px;
+        }
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 4px;
+        }
+        .tooltip {
+            position: absolute;
+            background: rgba(0,0,0,0.9);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+            max-width: 250px;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎯 GeoCam System Architecture & Data Flow</h1>
+        <div class="diagram-container">
+            <svg id="diagram" width="100%" height="800"></svg>
+        </div>
+        
+        <div class="legend">
+            <div class="legend-item">
+                <div class="legend-color" style="background: #4a90e2;"></div>
+                <span>User Interface</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #7ed321;"></div>
+                <span>Core Processing</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #f5a623;"></div>
+                <span>Security Layer</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #9013fe;"></div>
+                <span>Data Storage</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #50e3c2;"></div>
+                <span>Verification</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #bd10e0;"></div>
+                <span>External Systems</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="tooltip" id="tooltip"></div>
+
+    <script>
+        const svg = d3.select("#diagram");
+        const width = 1200;
+        const height = 800;
+        svg.attr("viewBox", `0 0 ${width} ${height}`);
+
+        // Define arrowhead marker
+        svg.append("defs").append("marker")
+            .attr("id", "arrowhead")
+            .attr("viewBox", "0 -5 10 10")
+            .attr("refX", 10)
+            .attr("refY", 0)
+            .attr("markerWidth", 6)
+            .attr("markerHeight", 6)
+            .attr("orient", "auto")
+            .append("path")
+            .attr("d", "M0,-5L10,0L0,5")
+            .attr("fill", "#ffffff");
+
+        // Node data with detailed information
+        const nodes = [
+            // UI Layer
+            { id: "main-menu", x: 100, y: 50, width: 120, height: 40, type: "ui", 
+              label: "Main Menu\n(index.tsx)", 
+              description: "Entry point with Camera, Gallery, and Verify buttons. Built with React Native and Expo Router." },
+            
+            // Camera Flow
+            { id: "camera-ui", x: 50, y: 150, width: 100, height: 40, type: "ui", 
+              label: "Camera UI\n(camera.tsx)", 
+              description: "Camera interface with flash, flip, and capture controls. Uses Expo Camera API." },
+            { id: "photo-capture", x: 200, y: 150, width: 120, height: 40, type: "process", 
+              label: "Photo Capture\nProcess", 
+              description: "Captures high-quality JPEG with base64 encoding. Quality: 0.8, includes EXIF data." },
+            { id: "metadata-collection", x: 370, y: 150, width: 130, height: 40, type: "process", 
+              label: "Metadata\nCollection", 
+              description: "Gathers device model, GPS coordinates, timestamp, and signature version info." },
+            
+            // Security Processing
+            { id: "steganography", x: 550, y: 150, width: 120, height: 40, type: "security", 
+              label: "Steganographic\nEncoding", 
+              description: "Embeds metadata invisibly using LSB manipulation via WebView and steganography.js." },
+            { id: "key-generation", x: 450, y: 250, width: 120, height: 40, type: "security", 
+              label: "Ed25519 Key\nGeneration", 
+              description: "Auto-generates cryptographic key pairs. Private key stored securely in AsyncStorage." },
+            { id: "digital-signing", x: 620, y: 250, width: 120, height: 40, type: "security", 
+              label: "Digital Signing\n(Ed25519)", 
+              description: "Creates cryptographic signatures using TweetNaCl. Signs image data with private key." },
+            
+            // Storage Layer
+            { id: "exif-embedding", x: 750, y: 150, width: 120, height: 40, type: "storage", 
+              label: "EXIF Signature\nEmbedding", 
+              description: "Primary method: embeds signature in JPEG EXIF UserComment field using piexifjs." },
+            { id: "companion-file", x: 750, y: 250, width: 120, height: 40, type: "storage", 
+              label: "Companion\n.sig File", 
+              description: "Fallback method: creates separate .sig file with JSON signature data." },
+            { id: "gallery-storage", x: 920, y: 200, width: 120, height: 40, type: "storage", 
+              label: "Gallery Storage\n(AsyncStorage)", 
+              description: "Stores image metadata, URIs, timestamps, and encoded info locally." },
+            
+            // Gallery Flow
+            { id: "gallery-ui", x: 50, y: 350, width: 100, height: 40, type: "ui", 
+              label: "Gallery UI\n(gallery.tsx)", 
+              description: "Grid view of captured photos with thumbnails and timestamps. Supports delete and detail view." },
+            { id: "image-detail", x: 200, y: 350, width: 120, height: 40, type: "ui", 
+              label: "Image Detail\n(image-detail.tsx)", 
+              description: "Full-screen image view with metadata display and sharing options." },
+            
+            // Verification Flow
+            { id: "verify-ui", x: 50, y: 500, width: 100, height: 40, type: "verification", 
+              label: "Verify UI\n(verify.tsx)", 
+              description: "Interface for selecting and verifying image authenticity. Shows real-time status." },
+            { id: "image-picker", x: 200, y: 500, width: 120, height: 40, type: "verification", 
+              label: "Image Selection\n(ImagePicker)", 
+              description: "Allows users to select images from device gallery for verification." },
+            { id: "signature-verification", x: 370, y: 500, width: 130, height: 40, type: "verification", 
+              label: "Signature\nVerification", 
+              description: "Fast verification engine. Checks EXIF first, then companion files. Uses Ed25519 verification." },
+            { id: "authenticity-result", x: 550, y: 500, width: 120, height: 40, type: "verification", 
+              label: "Authenticity\nResult", 
+              description: "Displays verification status: Valid (green), Invalid (red), or Not Found (orange)." },
+            
+            // External Dependencies
+            { id: "device-apis", x: 200, y: 50, width: 120, height: 40, type: "ui", 
+              label: "Device APIs\n(Location, Camera)", 
+              description: "Native device capabilities: GPS location services, camera hardware, media library access." },
+            { id: "crypto-engine", x: 800, y: 350, width: 120, height: 40, type: "security", 
+              label: "Crypto Engine\n(TweetNaCl)", 
+              description: "High-performance cryptographic library providing Ed25519 signature generation and verification." },
+            
+            // System Components
+            { id: "webview-processor", x: 550, y: 50, width: 120, height: 40, type: "process", 
+              label: "Hidden WebView\nProcessor", 
+              description: "Invisible WebView that runs steganography.js for encoding/decoding operations." }
+        ];
+
+        // Connection data with flow types
+        const links = [
+            // Main navigation flows
+            { source: "main-menu", target: "camera-ui", type: "data-flow" },
+            { source: "main-menu", target: "gallery-ui", type: "data-flow" },
+            { source: "main-menu", target: "verify-ui", type: "data-flow" },
+            
+            // Camera capture flow
+            { source: "device-apis", target: "camera-ui", type: "data-flow" },
+            { source: "camera-ui", target: "photo-capture", type: "data-flow" },
+            { source: "photo-capture", target: "metadata-collection", type: "data-flow" },
+            { source: "device-apis", target: "metadata-collection", type: "data-flow" },
+            { source: "metadata-collection", target: "steganography", type: "data-flow" },
+            { source: "webview-processor", target: "steganography", type: "data-flow" },
+            
+            // Security flow
+            { source: "key-generation", target: "digital-signing", type: "security-flow" },
+            { source: "steganography", target: "digital-signing", type: "security-flow" },
+            { source: "digital-signing", target: "exif-embedding", type: "security-flow" },
+            { source: "digital-signing", target: "companion-file", type: "security-flow" },
+            
+            // Storage flow
+            { source: "exif-embedding", target: "gallery-storage", type: "storage-flow" },
+            { source: "companion-file", target: "gallery-storage", type: "storage-flow" },
+            { source: "gallery-storage", target: "gallery-ui", type: "data-flow" },
+            { source: "gallery-ui", target: "image-detail", type: "data-flow" },
+            
+            // Verification flow
+            { source: "verify-ui", target: "image-picker", type: "data-flow" },
+            { source: "image-picker", target: "signature-verification", type: "data-flow" },
+            { source: "crypto-engine", target: "signature-verification", type: "security-flow" },
+            { source: "signature-verification", target: "authenticity-result", type: "verification-flow" },
+            
+            // Cross-system connections
+            { source: "crypto-engine", target: "digital-signing", type: "security-flow" },
+            { source: "key-generation", target: "signature-verification", type: "security-flow" }
+        ];
+
+        // Create tooltip
+        const tooltip = d3.select("#tooltip");
+
+        // Draw links
+        const linkElements = svg.selectAll(".link")
+            .data(links)
+            .enter()
+            .append("path")
+            .attr("class", d => `link ${d.type}`)
+            .attr("d", d => {
+                const source = nodes.find(n => n.id === d.source);
+                const target = nodes.find(n => n.id === d.target);
+                return `M${source.x + source.width/2},${source.y + source.height/2} 
+                        L${target.x + target.width/2},${target.y + target.height/2}`;
+            });
+
+        // Draw nodes
+        const nodeElements = svg.selectAll(".node")
+            .data(nodes)
+            .enter()
+            .append("g")
+            .attr("class", d => `node ${d.type}`)
+            .attr("transform", d => `translate(${d.x}, ${d.y})`)
+            .on("mouseover", function(event, d) {
+                tooltip.style("opacity", 1)
+                    .html(`<strong>${d.label.replace(/\n/g, " ")}</strong><br>${d.description}`)
+                    .style("left", (event.pageX + 10) + "px")
+                    .style("top", (event.pageY - 10) + "px");
+            })
+            .on("mouseout", function() {
+                tooltip.style("opacity", 0);
+            });
+
+        // Add rectangles to nodes
+        nodeElements.append("rect")
+            .attr("width", d => d.width)
+            .attr("height", d => d.height);
+
+        // Add text to nodes
+        nodeElements.append("text")
+            .attr("x", d => d.width / 2)
+            .attr("y", d => d.height / 2)
+            .text(d => d.label);
+
+        // Add title and flow indicators
+        svg.append("text")
+            .attr("x", width / 2)
+            .attr("y", 30)
+            .attr("text-anchor", "middle")
+            .attr("font-size", "18px")
+            .attr("font-weight", "bold")
+            .attr("fill", "white")
+            .text("GeoCam: Photo Capture → Security Processing → Verification Flow");
+
+        // Add flow direction labels
+        const flowLabels = [
+            { x: 400, y: 120, text: "📸 CAPTURE FLOW", color: "#7ed321" },
+            { x: 600, y: 320, text: "🔐 SECURITY FLOW", color: "#f5a623" },
+            { x: 350, y: 470, text: "✅ VERIFICATION FLOW", color: "#50e3c2" },
+            { x: 800, y: 120, text: "💾 STORAGE FLOW", color: "#9013fe" }
+        ];
+
+        flowLabels.forEach(label => {
+            svg.append("text")
+                .attr("x", label.x)
+                .attr("y", label.y)
+                .attr("text-anchor", "middle")
+                .attr("font-size", "12px")
+                .attr("font-weight", "bold")
+                .attr("fill", label.color)
+                .text(label.text);
+        });
+
+        // Add performance metrics
+        const metricsBox = svg.append("g")
+            .attr("transform", "translate(50, 600)");
+
+        metricsBox.append("rect")
+            .attr("width", 300)
+            .attr("height", 120)
+            .attr("fill", "rgba(255,255,255,0.1)")
+            .attr("stroke", "rgba(255,255,255,0.3)")
+            .attr("rx", 8);
+
+        metricsBox.append("text")
+            .attr("x", 150)
+            .attr("y", 20)
+            .attr("text-anchor", "middle")
+            .attr("font-size", "14px")
+            .attr("font-weight", "bold")
+            .attr("fill", "white")
+            .text("⚡ Performance Metrics");
+
+        const metrics = [
+            "• Photo Capture: < 2 seconds",
+            "• Steganographic Encoding: < 3 seconds",
+            "• Digital Signing: < 1 second",
+            "• Signature Verification: < 0.5 seconds",
+            "• End-to-End Process: < 6 seconds"
+        ];
+
+        metrics.forEach((metric, i) => {
+            metricsBox.append("text")
+                .attr("x", 15)
+                .attr("y", 45 + i * 15)
+                .attr("font-size", "11px")
+                .attr("fill", "white")
+                .text(metric);
+        });
+
+        // Add security features box
+        const securityBox = svg.append("g")
+            .attr("transform", "translate(400, 600)");
+
+        securityBox.append("rect")
+            .attr("width", 350)
+            .attr("height", 120)
+            .attr("fill", "rgba(255,255,255,0.1)")
+            .attr("stroke", "rgba(255,255,255,0.3)")
+            .attr("rx", 8);
+
+        securityBox.append("text")
+            .attr("x", 175)
+            .attr("y", 20)
+            .attr("text-anchor", "middle")
+            .attr("font-size", "14px")
+            .attr("font-weight", "bold")
+            .attr("fill", "white")
+            .text("🛡️ Security Features");
+
+        const securityFeatures = [
+            "• Ed25519 Elliptic Curve Cryptography",
+            "• Invisible Steganographic Data Embedding",
+            "• Dual-Layer Signature (EXIF + Companion Files)",
+            "• GPS & Timestamp Tamper Protection",
+            "• Device Fingerprinting & Attribution"
+        ];
+
+        securityFeatures.forEach((feature, i) => {
+            securityBox.append("text")
+                .attr("x", 15)
+                .attr("y", 45 + i * 15)
+                .attr("font-size", "11px")
+                .attr("fill", "white")
+                .text(feature);
+        });
+
+        // Add data formats box
+        const formatsBox = svg.append("g")
+            .attr("transform", "translate(800, 600)");
+
+        formatsBox.append("rect")
+            .attr("width", 300)
+            .attr("height", 120)
+            .attr("fill", "rgba(255,255,255,0.1)")
+            .attr("stroke", "rgba(255,255,255,0.3)")
+            .attr("rx", 8);
+
+        formatsBox.append("text")
+            .attr("x", 150)
+            .attr("y", 20)
+            .attr("text-anchor", "middle")
+            .attr("font-size", "14px")
+            .attr("font-weight", "bold")
+            .attr("fill", "white")
+            .text("📄 Supported Formats");
+
+        const formats = [
+            "• Input: JPEG, PNG, WebP",
+            "• Signatures: Ed25519 (64 bytes)",
+            "• Storage: Base64 + JSON metadata",
+            "• EXIF: UserComment field embedding",
+            "• Companion: .sig JSON files"
+        ];
+
+        formats.forEach((format, i) => {
+            formatsBox.append("text")
+                .attr("x", 15)
+                .attr("y", 45 + i * 15)
+                .attr("font-size", "11px")
+                .attr("fill", "white")
+                .text(format);
+        });
+
+    </script>
+</body>
+</html>

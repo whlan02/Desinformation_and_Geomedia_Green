@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GeoCam Interactive Flow Demonstration</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            overflow-x: hidden;
+            min-height: 100vh;
+        }
+
+        .container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .stage {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+            padding: 30px;
+            max-width: 500px;
+            text-align: center;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+            transform: scale(0) rotate(180deg);
+            opacity: 0;
+            transition: all 0.8s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+        }
+
+        .stage.active {
+            transform: scale(1) rotate(0deg);
+            opacity: 1;
+        }
+
+        .stage.completed {
+            transform: scale(0.3) translateX(-200px);
+            opacity: 0.3;
+        }
+
+        .stage-icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            display: block;
+            animation: bounce 2s infinite;
+        }
+
+        @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+            40% { transform: translateY(-10px); }
+            60% { transform: translateY(-5px); }
+        }
+
+        .stage-title {
+            font-size: 2rem;
+            font-weight: bold;
+            margin-bottom: 15px;
+            color: #fff;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        .stage-description {
+            font-size: 1.1rem;
+            line-height: 1.6;
+            margin-bottom: 20px;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .stage-details {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 15px;
+            margin: 15px 0;
+            font-size: 0.9rem;
+            text-align: left;
+        }
+
+        .stage-details ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .stage-details li {
+            margin: 8px 0;
+            padding-left: 20px;
+            position: relative;
+        }
+
+        .stage-details li:before {
+            content: "▸";
+            position: absolute;
+            left: 0;
+            color: #4ecdc4;
+            font-weight: bold;
+        }
+
+        .controls {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 15px;
+            z-index: 1000;
+        }
+
+        .btn {
+            background: linear-gradient(45deg, #4ecdc4, #44a08d);
+            border: none;
+            color: white;
+            padding: 15px 30px;
+            border-radius: 50px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        .btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .btn:disabled {
+            background: rgba(255, 255, 255, 0.2);
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .progress-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #4ecdc4, #44a08d);
+            transition: width 0.8s ease;
+            z-index: 1000;
+        }
+
+        .stage-counter {
+            position: fixed;
+            top: 30px;
+            right: 30px;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 10px 20px;
+            border-radius: 25px;
+            font-weight: bold;
+            backdrop-filter: blur(10px);
+        }
+
+        .data-flow {
+            position: absolute;
+            width: 100px;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, #4ecdc4, transparent);
+            animation: dataFlow 2s infinite;
+            display: none;
+        }
+
+        @keyframes dataFlow {
+            0% { transform: translateX(-100px); opacity: 0; }
+            50% { opacity: 1; }
+            100% { transform: translateX(100px); opacity: 0; }
+        }
+
+        .connection-line {
+            position: absolute;
+            height: 2px;
+            background: rgba(78, 205, 196, 0.5);
+            display: none;
+            animation: drawLine 1s ease-in-out;
+        }
+
+        @keyframes drawLine {
+            from { width: 0; }
+            to { width: 100%; }
+        }
+
+        .floating-particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        .particle {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            animation: float 20s infinite linear;
+        }
+
+        @keyframes float {
+            0% { transform: translateY(100vh) rotate(0deg); opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { transform: translateY(-100px) rotate(360deg); opacity: 0; }
+        }
+
+        .code-snippet {
+            background: rgba(0, 0, 0, 0.6);
+            border-radius: 8px;
+            padding: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.8rem;
+            text-align: left;
+            margin: 15px 0;
+            border-left: 4px solid #4ecdc4;
+        }
+
+        .highlight {
+            color: #4ecdc4;
+            font-weight: bold;
+        }
+
+        .auto-mode {
+            position: fixed;
+            top: 30px;
+            left: 30px;
+        }
+
+        .auto-mode label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 10px 15px;
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+        }
+
+        .stage-image {
+            width: 80px;
+            height: 80px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 15px;
+            margin: 0 auto 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="floating-particles" id="particles"></div>
+    
+    <div class="progress-bar" id="progressBar"></div>
+    
+    <div class="stage-counter" id="stageCounter">
+        Step 1 of 12
+    </div>
+
+    <div class="auto-mode">
+        <label>
+            <input type="checkbox" id="autoMode"> Auto Play
+        </label>
+    </div>
+
+    <div class="container" id="container">
+        <!-- Stage 1: App Launch -->
+        <div class="stage active" id="stage1">
+            <div class="stage-icon">📱</div>
+            <h2 class="stage-title">GeoCam App Launch</h2>
+            <p class="stage-description">User opens the GeoCam mobile application</p>
+            <div class="stage-details">
+                <ul>
+                    <li>React Native + Expo framework initializes</li>
+                    <li>Main menu loads with three primary options</li>
+                    <li>Background location and camera permissions requested</li>
+                    <li>Ed25519 key pair auto-generated if first launch</li>
+                </ul>
+            </div>
+            <div class="code-snippet">
+<span class="highlight">// Main Menu Component</span>
+&lt;TouchableOpacity onPress={() => router.push('/camera')}&gt;
+  📸 Camera
+&lt;/TouchableOpacity&gt;
+            </div>
+        </div>
+
+        <!-- Stage 2: Camera Access -->
+        <div class="stage" id="stage2">
+            <div class="stage-icon">📸</div>
+            <h2 class="stage-title">Camera Interface</h2>
+            <p class="stage-description">User taps camera button to access photo capture</p>
+            <div class="stage-details">
+                <ul>
+                    <li>Expo Camera API initializes with permissions</li>
+                    <li>Live camera viewfinder activates</li>
+                    <li>Flash and camera flip controls available</li>
+                    <li>Location services start GPS tracking</li>
+                </ul>
+            </div>
+            <div class="code-snippet">
+<span class="highlight">// Camera Setup</span>
+const [permission] = useCameraPermissions();
+const [locationPermission] = Location.useForegroundPermissions();
+            </div>
+        </div>
+
+        <!-- Stage 3: Photo Capture -->
+        <div class="stage" id="stage3">
+            <div class="stage-icon">🎯</div>
+            <h2 class="stage-title">Photo Capture</h2>
+            <p class="stage-description">User presses shutter button to take photo</p>
+            <div class="stage-details">
+                <ul>
+                    <li>High-quality JPEG captured (0.8 quality)</li>
+                    <li>Image converted to base64 format</li>
+                    <li>EXIF metadata extraction disabled for security</li>
+                    <li>Raw image data prepared for processing</li>
+                </ul>
+            </div>
+            <div class="code-snippet">
+<span class="highlight">// Photo Capture</span>
+const photo = await cameraRef.current.takePictureAsync({
+  quality: 0.8, base64: true, imageType: 'jpg'
+});
+            </div>
+        </div>
+
+        <!-- Stage 4: Metadata Collection -->
+        <div class="stage" id="stage4">
+            <div class="stage-icon">📊</div>
+            <h2 class="stage-title">Metadata Collection</h2>
+            <p class="stage-description">System gathers device and location context</p>
+            <div class="stage-details">
+                <ul>
+                    <li>Device model and specifications captured</li>
+                    <li>Precise GPS coordinates (latitude/longitude)</li>
+                    <li>ISO timestamp with timezone information</li>
+                    <li>Signature version and authenticity flags</li>
+                </ul>
+            </div>
+            <div class="code-snippet">
+<span class="highlight">// Metadata Assembly</span>
+const infoToEncode = JSON.stringify({
+  deviceModel: Device.modelName,
+  Time: new Date().toISOString(),
+  location: { latitude, longitude },
+  signed: true
+});
+            </div>
+        </div>
+
+        <!-- Stage 5: Steganographic Encoding -->
+        <div class="stage" id="stage5">
+            <div class="stage-icon">🔍</div>
+            <h2 class="stage-title">Invisible Data Embedding</h2>
+            <p class="stage-description">Metadata hidden invisibly within image pixels</p>
+            <div class="stage-details">
+                <ul>
+                    <li>Hidden WebView loads steganography.js library</li>
+                    <li>LSB (Least Significant Bit) manipulation</li>
+                    <li>Prime number-based encoding algorithm</li>
+                    <li>Image appears identical but contains hidden data</li>
+                </ul>
+            </div>
+            <div class="code-snippet">
+<span class="highlight">// Steganographic Process</span>
+const encodedDataUrl = steg.encode(info, image);
+// Data hidden in pixel alpha channels
+            </div>
+        </div>
+
+        <!-- Stage 6: Key Generation -->
+        <div class="stage" id="stage6">
+            <div class="stage-icon">🔐</div>
+            <h2 class="stage-title">Cryptographic Keys</h2>
+            <p class="stage-description">Ed25519 key pair generation for signing</p>
+            <div class="stage-details">
+                <ul>
+                    <li>32-byte private key generated using TweetNaCl</li>
+                    <li>Public key derived for verification</li>
+                    <li>Keys stored securely in AsyncStorage</li>
+                    <li>Same keys used for all future photos</li>
+                </ul>
+            </div>
+            <div class="code-snippet">
+<span class="highlight">// Key Generation</span>
+const keyPair = nacl.sign.keyPair();
+await AsyncStorage.setItem('private_key', 
+  Base64.fromUint8Array(keyPair.secretKey));
+            </div>
+        </div>
+
+        <!-- Stage 7: Digital Signing -->
+        <div class="stage" id="stage7">
+            <div class="stage-icon">✍️</div>
+            <h2 class="stage-title">Digital Signature</h2>
+            <p class="stage-description">Cryptographic signature creation</p>
+            <div class="stage-details">
+                <ul>
+                    <li>Image data signed with Ed25519 private key</li>
+                    <li>64-byte signature generated</li>
+                    <li>Signature proves image authenticity</li>
+                    <li>Any pixel change breaks the signature</li>
+                </ul>
+            </div>
+            <div class="code-snippet">
+<span class="highlight">// Digital Signing</span>
+const signature = nacl.sign.detached(
+  imageBytes, keyPair.secretKey
+);
+const sigBase64 = Base64.fromUint8Array(signature);
+            </div>
+        </div>
+
+        <!-- Stage 8: EXIF Embedding -->
+        <div class="stage" id="stage8">
+            <div class="stage-icon">📝</div>
+            <h2 class="stage-title">EXIF Signature Storage</h2>
+            <p class="stage-description">Signature embedded in JPEG metadata</p>
+            <div class="stage-details">
+                <ul>
+                    <li>JPEG EXIF UserComment field utilized</li>
+                    <li>Signature stored as base64 string</li>
+                    <li>piexifjs library handles EXIF manipulation</li>
+                    <li>Preserves image quality and appearance</li>
+                </ul>
+            </div>
+            <div class="code-snippet">
+<span class="highlight">// EXIF Embedding</span>
+const exifObj = { 'Exif': { 
+  [piexif.ExifIFD.UserComment]: sigBase64 
+}};
+const newData = piexif.insert(exifBytes, dataUri);
+            </div>
+        </div>
+
+        <!-- Stage 9: Companion File -->
+        <div class="stage" id="stage9">
+            <div class="stage-icon">📄</div>
+            <h2 class="stage-title">Backup Signature File</h2>
+            <p class="stage-description">Creates .sig companion file as fallback</p>
+            <div class="stage-details">
+                <ul>
+                    <li>JSON file with signature and metadata</li>
+                    <li>Supports non-JPEG formats (PNG, WebP)</li>
+                    <li>Algorithm and version information included</li>
+                    <li>Timestamp for signature creation</li>
+                </ul>
+            </div>
+            <div class="code-snippet">
+<span class="highlight">// Companion File</span>
+const sigData = JSON.stringify({
+  signature: sigBase64,
+  algorithm: 'Ed25519',
+  timestamp: new Date().toISOString()
+});
+            </div>
+        </div>
+
+        <!-- Stage 10: Gallery Storage -->
+        <div class="stage" id="stage10">
+            <div class="stage-icon">🗂️</div>
+            <h2 class="stage-title">Secure Gallery Storage</h2>
+            <p class="stage-description">Image and metadata saved to local gallery</p>
+            <div class="stage-details">
+                <ul>
+                    <li>AsyncStorage database for metadata</li>
+                    <li>Device media library for image files</li>
+                    <li>Unique ID generation for each photo</li>
+                    <li>Thumbnail creation for gallery view</li>
+                </ul>
+            </div>
+            <div class="code-snippet">
+<span class="highlight">// Gallery Storage</span>
+const imageData = {
+  id: generateUniqueId(),
+  uri: filename,
+  encodedInfo: metadata,
+  timestamp: Date.now()
+};
+            </div>
+        </div>
+
+        <!-- Stage 11: Verification Process -->
+        <div class="stage" id="stage11">
+            <div class="stage-icon">🔍</div>
+            <h2 class="stage-title">Image Verification</h2>
+            <p class="stage-description">User selects image to verify authenticity</p>
+            <div class="stage-details">
+                <ul>
+                    <li>Image picker allows photo selection</li>
+                    <li>EXIF signature extraction attempted first</li>
+                    <li>Companion .sig file checked as fallback</li>
+                    <li>Public key verification against signature</li>
+                </ul>
+            </div>
+            <div class="code-snippet">
+<span class="highlight">// Verification Process</span>
+const isValid = nacl.sign.detached.verify(
+  imageBytes, signature, publicKey
+);
+return { valid: isValid, method: 'EXIF' };
+            </div>
+        </div>
+
+        <!-- Stage 12: Result Display -->
+        <div class="stage" id="stage12">
+            <div class="stage-icon">✅</div>
+            <h2 class="stage-title">Authenticity Result</h2>
+            <p class="stage-description">Verification status displayed to user</p>
+            <div class="stage-details">
+                <ul>
+                    <li>✅ AUTHENTIC - Valid signature found</li>
+                    <li>❌ INVALID - Signature verification failed</li>
+                    <li>⚠️ NOT FOUND - No signature detected</li>
+                    <li>Real-time status with color coding</li>
+                </ul>
+            </div>
+            <div class="code-snippet">
+<span class="highlight">// Result Display</span>
+&lt;Text style={{color: getStatusColor()}}&gt;
+  {signatureStatus === 'valid' ? 
+    '✓ AUTHENTIC' : '✗ INVALID'}
+&lt;/Text&gt;
+            </div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button class="btn" id="prevBtn" onclick="previousStep()" disabled>← Previous</button>
+        <button class="btn" id="nextBtn" onclick="nextStep()">Next →</button>
+        <button class="btn" id="resetBtn" onclick="resetDemo()">🔄 Reset</button>
+    </div>
+
+    <script>
+        let currentStep = 1;
+        const totalSteps = 12;
+        let autoPlay = false;
+        let autoPlayInterval = null;
+
+        // Initialize particles
+        function createParticles() {
+            const container = document.getElementById('particles');
+            for (let i = 0; i < 20; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                particle.style.left = Math.random() * 100 + '%';
+                particle.style.width = particle.style.height = (Math.random() * 5 + 2) + 'px';
+                particle.style.animationDelay = Math.random() * 20 + 's';
+                particle.style.animationDuration = (Math.random() * 10 + 15) + 's';
+                container.appendChild(particle);
+            }
+        }
+
+        function updateProgress() {
+            const progress = (currentStep / totalSteps) * 100;
+            document.getElementById('progressBar').style.width = progress + '%';
+            document.getElementById('stageCounter').textContent = `Step ${currentStep} of ${totalSteps}`;
+        }
+
+        function showStage(stepNumber) {
+            // Hide all stages
+            for (let i = 1; i <= totalSteps; i++) {
+                const stage = document.getElementById(`stage${i}`);
+                if (i < stepNumber) {
+                    stage.className = 'stage completed';
+                } else if (i === stepNumber) {
+                    stage.className = 'stage active';
+                } else {
+                    stage.className = 'stage';
+                }
+            }
+            
+            updateProgress();
+            updateButtons();
+        }
+
+        function updateButtons() {
+            document.getElementById('prevBtn').disabled = currentStep === 1;
+            document.getElementById('nextBtn').disabled = currentStep === totalSteps;
+            
+            if (currentStep === totalSteps) {
+                document.getElementById('nextBtn').textContent = '🎉 Complete!';
+            } else {
+                document.getElementById('nextBtn').textContent = 'Next →';
+            }
+        }
+
+        function nextStep() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                showStage(currentStep);
+                
+                // Add some visual effects
+                setTimeout(() => {
+                    const currentStageEl = document.getElementById(`stage${currentStep}`);
+                    currentStageEl.style.transform += ' scale(1.05)';
+                    setTimeout(() => {
+                        currentStageEl.style.transform = currentStageEl.style.transform.replace(' scale(1.05)', '');
+                    }, 200);
+                }, 100);
+            }
+        }
+
+        function previousStep() {
+            if (currentStep > 1) {
+                currentStep--;
+                showStage(currentStep);
+            }
+        }
+
+        function resetDemo() {
+            currentStep = 1;
+            showStage(currentStep);
+            stopAutoPlay();
+        }
+
+        function startAutoPlay() {
+            if (autoPlayInterval) clearInterval(autoPlayInterval);
+            autoPlayInterval = setInterval(() => {
+                if (currentStep < totalSteps) {
+                    nextStep();
+                } else {
+                    resetDemo();
+                }
+            }, 4000);
+        }
+
+        function stopAutoPlay() {
+            if (autoPlayInterval) {
+                clearInterval(autoPlayInterval);
+                autoPlayInterval = null;
+            }
+        }
+
+        // Auto-play toggle
+        document.getElementById('autoMode').addEventListener('change', function() {
+            autoPlay = this.checked;
+            if (autoPlay) {
+                startAutoPlay();
+            } else {
+                stopAutoPlay();
+            }
+        });
+
+        // Keyboard navigation
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'ArrowRight' || e.key === ' ') {
+                e.preventDefault();
+                nextStep();
+            } else if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                previousStep();
+            } else if (e.key === 'r' || e.key === 'R') {
+                e.preventDefault();
+                resetDemo();
+            }
+        });
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            createParticles();
+            showStage(currentStep);
+            
+            // Add some entrance animation
+            setTimeout(() => {
+                document.getElementById('stage1').style.animationDelay = '0.5s';
+            }, 100);
+        });
+
+        // Touch/swipe support for mobile
+        let touchStartX = 0;
+        let touchEndX = 0;
+
+        document.addEventListener('touchstart', function(e) {
+            touchStartX = e.changedTouches[0].screenX;
+        });
+
+        document.addEventListener('touchend', function(e) {
+            touchEndX = e.changedTouches[0].screenX;
+            handleSwipe();
+        });
+
+        function handleSwipe() {
+            const swipeThreshold = 50;
+            const diff = touchStartX - touchEndX;
+            
+            if (Math.abs(diff) > swipeThreshold) {
+                if (diff > 0) {
+                    // Swipe left - next step
+                    nextStep();
+                } else {
+                    // Swipe right - previous step
+                    previousStep();
+                }
+            }
+        }
+
+        // Add some dynamic background effects
+        setInterval(() => {
+            const stages = document.querySelectorAll('.stage.active');
+            stages.forEach(stage => {
+                const icon = stage.querySelector('.stage-icon');
+                if (icon) {
+                    icon.style.animation = 'none';
+                    setTimeout(() => {
+                        icon.style.animation = 'bounce 2s infinite';
+                    }, 100);
+                }
+            });
+        }, 10000);
+
+    </script>
+</body>
+</html>
