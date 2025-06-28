@@ -80,7 +80,11 @@ export default function Gallery() {
       // Normal gallery view mode
       router.push({
         pathname: '/image-detail',
-        params: { imageId: image.id }
+        params: { 
+          imageId: image.id,
+          // Also pass the URI encoded for consistency with camera preview
+          imageUri: encodeURIComponent(image.uri)
+        }
       });
     }
   };

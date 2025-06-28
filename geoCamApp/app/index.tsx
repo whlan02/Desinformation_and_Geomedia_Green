@@ -22,7 +22,6 @@ export default function MainMenu() {
   const [keysInitialized, setKeysInitialized] = useState(false);
   const [isInitializingKeys, setIsInitializingKeys] = useState(true);
   const pulseAnim = useRef(new Animated.Value(1)).current;
-  const glowAnim = useRef(new Animated.Value(0)).current;
   
   // Determine if we're in landscape mode
   const isLandscape = width > height;
@@ -44,22 +43,6 @@ export default function MainMenu() {
             toValue: 1,
             duration: 1200,
             useNativeDriver: true,
-          }),
-        ])
-      ).start();
-      
-      // Glow effect animation
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(glowAnim, {
-            toValue: 1,
-            duration: 1500,
-            useNativeDriver: false,
-          }),
-          Animated.timing(glowAnim, {
-            toValue: 0.3,
-            duration: 1500,
-            useNativeDriver: false,
           }),
         ])
       ).start();
@@ -117,12 +100,6 @@ export default function MainMenu() {
     }
   };
 
-  // Calculate dynamic glow color based on animation
-  const glowColor = glowAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['rgba(25, 118, 210, 0.5)', 'rgba(25, 118, 210, 0.9)']
-  });
-
   return (
     <>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
@@ -148,13 +125,6 @@ export default function MainMenu() {
             )}
             
             <View style={styles.mainButtonContainer}>
-              <Animated.View style={[
-                styles.buttonGlow,
-                { 
-                  shadowOpacity: glowAnim,
-                  backgroundColor: glowColor
-                }
-              ]} />
               <TouchableOpacity 
                 style={[styles.mainButton, (!keysInitialized || isInitializingKeys) && styles.disabledMainButton]}
                 onPress={() => router.push('/camera')}
@@ -166,7 +136,6 @@ export default function MainMenu() {
                   <Text style={styles.mainButtonLabel}>CAPTURE</Text>
                 </Animated.View>
               </TouchableOpacity>
-              <Text style={[styles.cameraHintText, { marginTop: 8 }]}>Secure, Geotagged Photos</Text>
               <Text style={styles.cameraHintText}>Secure, Geotagged Photos</Text>
             </View>
             
@@ -231,13 +200,6 @@ export default function MainMenu() {
             
             <View style={styles.landscapeRightSection}>
               <View style={styles.landscapeCameraSection}>
-                <Animated.View style={[
-                  styles.buttonGlow,
-                  { 
-                    shadowOpacity: glowAnim,
-                    backgroundColor: glowColor
-                  }
-                ]} />
                 <TouchableOpacity 
                   style={[styles.mainButton, (!keysInitialized || isInitializingKeys) && styles.disabledMainButton]}
                   onPress={() => router.push('/camera')}
@@ -249,6 +211,7 @@ export default function MainMenu() {
                     <Text style={styles.mainButtonLabel}>CAPTURE</Text>
                   </Animated.View>
                 </TouchableOpacity>
+                <Text style={[styles.cameraHintText, { marginTop: 8 }]}>Secure, Geotagged Photos</Text>
               </View>
               
               <View style={[styles.landscapeButtonGrid, { marginRight: insets.right + 10 }]}>
@@ -354,7 +317,7 @@ const styles = StyleSheet.create({
     width: 160,
     height: 160,
     borderRadius: 80,
-    backgroundColor: 'rgba(25, 118, 210, 0.85)',
+    backgroundColor: 'rgba(15, 23, 36, 0.9)',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
@@ -367,7 +330,7 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   disabledMainButton: {
-    backgroundColor: 'rgba(25, 118, 210, 0.5)',
+    backgroundColor: 'rgba(15, 23, 36, 0.5)',
     borderColor: 'rgba(255, 255, 255, 0.5)',
     opacity: 0.7,
   },

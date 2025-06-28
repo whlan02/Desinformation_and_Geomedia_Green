@@ -1,5 +1,5 @@
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, Image, ActivityIndicator, Animated } from 'react-native';
 import { CameraView, CameraType, FlashMode, useCameraPermissions } from 'expo-camera';
 import { useRef, useState, useEffect } from 'react';
 import * as MediaLibrary from 'expo-media-library';
@@ -48,6 +48,9 @@ export default function CameraScreen() {
   const [currentSignature, setCurrentSignature] = useState<string | null>(null);
   const [currentPhotoBase64, setCurrentPhotoBase64] = useState<string | null>(null);
   
+  // Preview animation
+  const previewScale = useRef(new Animated.Value(1)).current;
+  
   // Progress tracking
   const [progress, setProgress] = useState(0);
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -90,6 +93,24 @@ export default function CameraScreen() {
   };
   
   // Cleanup on unmount
+  // Add a pulsing animation to the preview thumbnail when a new photo is taken
+  useEffect(() => {
+    if (lastPhoto) {
+      Animated.sequence([
+        Animated.timing(previewScale, {
+          toValue: 1.1,
+          duration: 200,
+          useNativeDriver: true
+        }),
+        Animated.timing(previewScale, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true
+        }),
+      ]).start();
+    }
+  }, [lastPhoto]);
+
   useEffect(() => {
     return () => {
       if (progressIntervalRef.current) {
@@ -273,6 +294,17 @@ export default function CameraScreen() {
         
         // Complete progress immediately when done
         completeProgress();
+        
+        // Log the file path for debugging
+        console.log('📁 Image file path:', filePath);
+        
+        // Show animation and navigate to image detail after a short delay
+        setTimeout(() => {
+          router.push({
+            pathname: '/image-detail',
+            params: { imageUri: encodeURIComponent(filePath) }
+          });
+        }, 800); // Short delay to see completion animation
       } catch (galleryError) {
         console.error('Failed to save to gallery storage:', galleryError);
       }
@@ -432,6 +464,7 @@ export default function CameraScreen() {
         setLastPhoto(filename);
         
         console.log('📱 MediaLibrary saveToLibraryAsync result:', asset);
+        console.log('📁 ONE CANVAS image path:', filename);
         
         // Save to gallery storage
         const galleryData = {
@@ -445,6 +478,14 @@ export default function CameraScreen() {
         try {
           await saveImageToGallery(galleryData);
           console.log('💾 Final image saved to gallery storage');
+          
+          // Show animation and navigate to image detail after a short delay
+          setTimeout(() => {
+            router.push({
+              pathname: '/image-detail',
+              params: { imageUri: encodeURIComponent(filename) }
+            });
+          }, 800); // Short delay to see completion animation
         } catch (galleryError) {
           console.error('Failed to save to gallery storage:', galleryError);
         }
@@ -489,6 +530,7 @@ export default function CameraScreen() {
         setLastPhoto(filename);
         
         console.log('📱 MediaLibrary saveToLibraryAsync result:', asset);
+        console.log('📁 CORRECT WORKFLOW image path:', filename);
         
         // Save to gallery storage
         const galleryData = {
@@ -502,6 +544,14 @@ export default function CameraScreen() {
         try {
           await saveImageToGallery(galleryData);
           console.log('💾 Final image saved to gallery storage');
+          
+          // Show animation and navigate to image detail after a short delay
+          setTimeout(() => {
+            router.push({
+              pathname: '/image-detail',
+              params: { imageUri: encodeURIComponent(filename) }
+            });
+          }, 800); // Short delay to see completion animation
         } catch (galleryError) {
           console.error('Failed to save to gallery storage:', galleryError);
         }
@@ -533,6 +583,7 @@ export default function CameraScreen() {
         
         const asset = await MediaLibrary.saveToLibraryAsync(filename);
         setLastPhoto(filename);
+        console.log('📁 CORRECT SIGNING image path:', filename);
         
         // Save to gallery storage
         const galleryData = {
@@ -546,6 +597,14 @@ export default function CameraScreen() {
         try {
           await saveImageToGallery(galleryData);
           console.log('💾 Final image saved to gallery storage');
+          
+          // Show animation and navigate to image detail after a short delay
+          setTimeout(() => {
+            router.push({
+              pathname: '/image-detail',
+              params: { imageUri: encodeURIComponent(filename) }
+            });
+          }, 800); // Short delay to see completion animation
         } catch (galleryError) {
           console.error('Failed to save to gallery storage:', galleryError);
         }
@@ -641,13 +700,56 @@ export default function CameraScreen() {
         <TouchableOpacity 
           style={styles.preview}
           onPress={() => {
-            console.log('Preview pressed');
+            console.log('Opening image in details view');
+            const encodedUri = encodeURIComponent(lastPhoto);
+            console.log('📁 Opening preview image with path:', lastPhoto);
+            console.log('📁 Encoded URI:', encodedUri);
+            
+            // Create pulse animation when pressed
+            Animated.sequence([
+              Animated.timing(previewScale, {
+                toValue: 0.92,
+                duration: 100,
+                useNativeDriver: true
+              }),
+              Animated.timing(previewScale, {
+                toValue: 1,
+                duration: 100,
+                useNativeDriver: true
+              })
+            ]).start(() => {
+              // Navigate to image detail with the encoded URI
+              router.push({
+                pathname: '/image-detail',
+                params: { imageUri: encodedUri }
+              });
+            });
+          }}
+          onPressIn={() => {
+            Animated.timing(previewScale, {
+              toValue: 0.95,
+              duration: 100,
+              useNativeDriver: true
+            }).start();
+          }}
+          onPressOut={() => {
+            Animated.timing(previewScale, {
+              toValue: 1,
+              duration: 100,
+              useNativeDriver: true
+            }).start();
           }}
         >
-          <Image
-            source={{ uri: lastPhoto }}
-            style={styles.previewImage}
-          />
+          <Animated.View style={{ transform: [{ scale: previewScale }], flex: 1 }}>
+            <Image
+              source={{ uri: lastPhoto }}
+              style={styles.previewImage}
+            />
+            <View style={styles.previewOverlay}>
+              <Ionicons name="image" size={14} color="white" style={{ marginRight: 3 }} />
+              <Ionicons name="chevron-forward-outline" size={12} color="white" />
+            </View>
+          </Animated.View>
         </TouchableOpacity>
       )}
 
@@ -778,17 +880,34 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 20,
     bottom: 120,
-    width: 50,
-    height: 75,
-    borderRadius: 4,
+    width: 54,
+    height: 80,
+    borderRadius: 6,
     overflow: 'hidden',
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: 'white',
     zIndex: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.5,
+    shadowRadius: 3,
+    elevation: 5,
+    backgroundColor: '#000',
   },
   previewImage: {
     width: '100%',
     height: '100%',
+  },
+  previewOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    padding: 3,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   hiddenWebViewContainer: {
     position: 'absolute',
