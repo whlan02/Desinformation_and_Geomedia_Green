@@ -1,0 +1,17 @@
+# Ignore Python files to prevent Railway from detecting this as a Python project
+*.py
+__pycache__/
+requirements.txt
+Web_Backend/*.py
+Web_Backend/__pycache__/
+Web_Backend/requirements.txt
+Web_Backend/Dockerfile.python
+Web_Backend/app.py
+Web_Backend/config.py
+Web_Backend/database.py
+
+# Only deploy Node.js steganography service
+!Web_Backend/package.json
+!Web_Backend/package-lock.json
+!Web_Backend/steganography-service.js
+!Web_Backend/Dockerfile.railway 
