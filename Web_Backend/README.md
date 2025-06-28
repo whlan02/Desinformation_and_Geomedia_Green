@@ -229,7 +229,7 @@ curl -X POST http://localhost:5000/api/verify-image \
   -F "image=@test_image.jpg"
 ```
 
-## Local Testing Guide (Hybrid Mode)
+## Local Testing Guide (Hybrid Mode, under the same wifi)
 
 This guide explains how to run steganography service locally while keeping the remote database connection.
 
