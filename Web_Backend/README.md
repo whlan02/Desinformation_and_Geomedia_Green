@@ -227,4 +227,117 @@ curl -X POST http://localhost:5000/api/register-device \
 # Test image verification
 curl -X POST http://localhost:5000/api/verify-image \
   -F "image=@test_image.jpg"
-``` 
+```
+
+## Local Testing Guide (Hybrid Mode)
+
+This guide explains how to run steganography service locally while keeping the remote database connection.
+
+### Step 1: Configure Local Environment
+
+1. **Get Your Local IP Address**:
+   ```bash
+   # On Windows
+   ipconfig
+   
+   # On macOS/Linux
+   ifconfig
+   # or
+   ip addr
+   ```
+   Note down your local IP address (usually starts with 192.168.x.x or 10.0.x.x)
+
+2. **Update Mobile App Configuration**:
+   - Open `geoCamApp/utils/backendConfig.ts`
+   - Set the following variables:
+     ```typescript
+     // Keep main API service in production
+     const USE_LOCAL_FOR_TESTING = false;
+     // But use local steganography service
+     const USE_LOCAL_STEGANOGRAPHY_ONLY = true;
+     
+     // Update IP address to your local IP (only for steganography service)
+     const DEV_STEG_URL = Platform.OS === 'web' 
+       ? 'http://localhost:3001' 
+       : 'http://YOUR_IP_ADDRESS:3001';
+     ```
+
+3. **Update Backend Configuration**:
+   - Open `Web_Backend/config.py`
+   - Set the steganography service URL to local:
+     ```python
+     STEGANOGRAPHY_SERVICE_URL = os.getenv('STEGANOGRAPHY_SERVICE_URL', 'http://localhost:3001')
+     ```
+
+### Step 2: Start Local Steganography Service
+
+1. **Start Node.js Steganography Service**:
+   ```bash
+   # Navigate to Web_Backend
+   cd Web_Backend
+   
+   # Install dependencies if not done
+   npm install
+   
+   # Start steganography service
+   node steganography-service.js
+   ```
+
+2. **Start Mobile App** (in a new terminal):
+   ```bash
+   # Navigate to geoCamApp
+   cd geoCamApp
+   
+   # Install dependencies if not done
+   npm install
+   
+   # Start Expo development server
+   npx expo start
+   ```
+
+### Step 3: Verify Services
+
+1. **Check Local Steganography Service**:
+   ```bash
+   curl http://localhost:3001/health
+   ```
+
+2. **Check Remote API Service**:
+   ```bash
+   curl https://geocam-api.onrender.com/health
+   ```
+
+### Troubleshooting
+
+1. **Connection Issues**:
+   - Ensure steganography service is running on port 3001
+   - Check if your phone and computer are on the same network
+   - Verify the IP address in `backendConfig.ts` is correct
+   - Try disabling firewall temporarily
+
+2. **Port Conflicts**:
+   - Check if port 3001 is available:
+     ```bash
+     # On Windows
+     netstat -ano | findstr "3001"
+     
+     # On macOS/Linux
+     lsof -i :3001
+     ```
+
+### Switching Back to Production
+
+To switch back to full production environment:
+
+1. **Update Mobile App Configuration**:
+   - In `geoCamApp/utils/backendConfig.ts`:
+     ```typescript
+     const USE_LOCAL_FOR_TESTING = false;
+     const USE_LOCAL_STEGANOGRAPHY_ONLY = false;
+     ```
+
+2. **Update Backend Configuration**:
+   - In `Web_Backend/config.py`:
+     ```python
+     STEGANOGRAPHY_SERVICE_URL = os.getenv('STEGANOGRAPHY_SERVICE_URL', 'https://geocam-steganography.onrender.com')
+     ``` 
