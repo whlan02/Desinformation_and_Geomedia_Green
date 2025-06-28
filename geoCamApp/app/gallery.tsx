@@ -539,12 +539,11 @@ const styles = StyleSheet.create({
   },
   backButton: {
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: 'center',
+    alignItems: 'center',
   },
   backButtonText: {
     fontSize: 16,

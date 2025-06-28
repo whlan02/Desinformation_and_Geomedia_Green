@@ -24,6 +24,7 @@ import * as FileSystem from 'expo-file-system';
 import { verifyImagePurePng } from '../utils/backendService';
 import { getGalleryImages} from '../utils/galleryStorage';
 import CircularProgress from '../components/CircularProgress';
+import { Ionicons } from '@expo/vector-icons';
 
 const { width, height } = Dimensions.get('window');
 const MAP_HEIGHT = 150;
@@ -172,25 +173,43 @@ export default function Verify() {
           const decodedData = verificationResult.verification_result.decoded_data;
           let formattedString = '';
           
-          // Handle device information first
+          // Format information in a more structured way
+          
+          // Handle device information first with special formatting
           if (decodedData.geocamDevice && decodedData.deviceModel) {
-            formattedString += `Device: ${decodedData.geocamDevice} (${decodedData.deviceModel})\n`;
+            formattedString += `📱 Device:     ${decodedData.geocamDevice} (${decodedData.deviceModel})\n`;
           } else if (decodedData.geocamDevice) {
-            formattedString += `Device: ${decodedData.geocamDevice}\n`;
+            formattedString += `📱 Device:     ${decodedData.geocamDevice}\n`;
           } else if (decodedData.deviceModel) {
-            formattedString += `Device: ${decodedData.deviceModel}\n`;
+            formattedString += `📱 Device:     ${decodedData.deviceModel}\n`;
           }
-
+          
+          // Add time information with formatting if available
+          if (decodedData.Time || decodedData.time) {
+            const timeValue = decodedData.Time || decodedData.time;
+            formattedString += `🕒 Captured:   ${timeValue}\n`;
+          }
+          
+          // Format location information separately (we'll display it in a map)
+          if (decodedData.location) {
+            setLocation(decodedData.location); // Set location for map
+            formattedString += `📍 Location:   ${decodedData.location.latitude.toFixed(6)}, ${decodedData.location.longitude.toFixed(6)}\n`;
+          }
+          
+          // Add separator line
+          formattedString += `\n${'─'.repeat(40)}\n\n`;
+          
+          // Add any other information
           for (const key in decodedData) {
             if (decodedData.hasOwnProperty(key)) {
-              if (key === 'location' && decodedData[key]) {
-                setLocation(decodedData[key]); // Set location for map
-                formattedString += `Location:\nLat: ${decodedData[key].latitude}\nLon: ${decodedData[key].longitude}\n`;
-              } else if (key === 'deviceModel' || key === 'geocamDevice') {
-                // Skip these keys as they were handled before
+              if (key === 'location' || key === 'deviceModel' || key === 'geocamDevice' || key === 'Time' || key === 'time') {
+                // Skip keys we've already processed
                 continue;
               } else {
-                formattedString += `${key.charAt(0).toUpperCase() + key.slice(1)}: ${decodedData[key]}\n`;
+                // Format key with proper spacing
+                const formattedKey = key.charAt(0).toUpperCase() + key.slice(1);
+                const spacePadding = ' '.repeat(Math.max(1, 12 - formattedKey.length));
+                formattedString += `${formattedKey}:${spacePadding}${decodedData[key]}\n`;
               }
             }
           }
@@ -292,7 +311,10 @@ export default function Verify() {
 
     return (
       <View style={styles.mapContainer}>
-        <Text style={styles.mapTitle}>Photo Location</Text>
+        <View style={styles.mapTitle}>
+          <Ionicons name="location" size={20} color="#03A9F4" style={{marginRight: 8}} />
+          <Text style={{color: 'white', fontWeight: 'bold', fontSize: 17}}>Photo Location</Text>
+        </View>
         <MapView
           style={styles.map}
           initialRegion={{
@@ -342,7 +364,7 @@ export default function Verify() {
             style={styles.newImageButton} 
             onPress={showBottomSheetModal}
           >
-            <Text style={styles.newImageButtonText}>Select Image to Verify</Text>
+            <Text style={styles.newImageButtonText}>Browse Images</Text>
           </TouchableOpacity>
         </View>
       );
@@ -359,9 +381,16 @@ export default function Verify() {
             styles.resultCard, 
             signatureVerification.valid ? styles.successCard : styles.errorCard
           ]}>
-            <Text style={styles.resultTitle}>
-              {signatureVerification.valid ? '✓ Verification Successful' : '✗ Verification Failed'}
-            </Text>
+            <View style={styles.resultHeaderRow}>
+              <Ionicons 
+                name={signatureVerification.valid ? "shield-checkmark" : "shield-outline"} 
+                size={28} 
+                color={signatureVerification.valid ? "#4caf50" : "#f44336"} 
+              />
+              <Text style={styles.resultTitle}>
+                {signatureVerification.valid ? 'Verification Successful' : 'Verification Failed'}
+              </Text>
+            </View>
             <Text style={styles.resultText}>
               {signatureVerification.message}
             </Text>
@@ -370,8 +399,13 @@ export default function Verify() {
 
         {decodedInfo && (
           <View style={styles.resultCard}>
-            <Text style={styles.resultTitle}>Decoded Information</Text>
-            <Text style={styles.decodedText}>{decodedInfo}</Text>
+            <View style={styles.resultHeaderRow}>
+              <Ionicons name="information-circle" size={28} color="#03DAC6" />
+              <Text style={styles.resultTitle}>Image Information</Text>
+            </View>
+            <View style={styles.infoContainer}>
+              <Text style={styles.decodedText}>{decodedInfo}</Text>
+            </View>
           </View>
         )}
 
@@ -379,7 +413,10 @@ export default function Verify() {
         
         {errorText && (
           <View style={[styles.resultCard, styles.errorCard]}>
-            <Text style={styles.resultTitle}>Error</Text>
+            <View style={styles.resultHeaderRow}>
+              <Ionicons name="alert-circle" size={28} color="#f44336" />
+              <Text style={styles.resultTitle}>Error</Text>
+            </View>
             <Text style={styles.errorText}>{errorText}</Text>
           </View>
         )}
@@ -388,7 +425,10 @@ export default function Verify() {
           style={styles.newImageButton} 
           onPress={selectNewImage}
         >
-          <Text style={styles.newImageButtonText}>Select New Image</Text>
+          <View style={styles.buttonContent}>
+            <Ionicons name="image" size={22} color="#000000" />
+            <Text style={styles.newImageButtonText}>Select New Image</Text>
+          </View>
         </TouchableOpacity>
       </View>
     );
@@ -450,8 +490,12 @@ export default function Verify() {
           style={styles.backButton} 
           onPress={() => router.back()}
         >
-          <Text style={styles.backButtonText}>← Back</Text>
+          <Ionicons name="arrow-back" size={24} color="white" />
         </TouchableOpacity>
+        
+        <Text style={styles.topBarTitle}>
+          Verify Image
+        </Text>
         
         {selectedImage && (
           <View style={styles.statusIndicator}>
@@ -467,10 +511,6 @@ export default function Verify() {
       </View>
       
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Verify Image</Text>
-          <Text style={styles.subtitle}>Check authenticity and extract hidden data</Text>
-        </View>
 
         {renderVerificationResult()}
       </ScrollView>
@@ -502,14 +542,17 @@ const styles = StyleSheet.create({
   },
   backButton: {
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 8,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  backButtonText: {
-    fontSize: 16,
+  topBarTitle: {
+    fontSize: 20,
     fontWeight: 'bold',
     color: 'white',
+    textAlign: 'center',
   },
   statusIndicator: {
     flexDirection: 'row',
@@ -617,7 +660,7 @@ const styles = StyleSheet.create({
   resultCard: {
     backgroundColor: '#373c40',
     borderRadius: 16,
-    padding: 18,
+    padding: 20,
     marginBottom: 20,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.15)',
@@ -631,25 +674,46 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(27, 77, 62, 0.9)',
     borderColor: '#4caf50',
     borderWidth: 1.5,
+    borderLeftWidth: 5,
   },
   errorCard: {
     backgroundColor: 'rgba(77, 27, 27, 0.9)',
     borderColor: '#f44336',
     borderWidth: 1.5,
+    borderLeftWidth: 5,
   },
   resultTitle: {
     fontSize: 19,
     fontWeight: '700',
     color: '#ffffff',
-    marginBottom: 10,
-    textAlign: 'center',
+    marginLeft: 8,
     letterSpacing: 0.3,
+    flex: 1,
   },
   resultText: {
     fontSize: 16,
     color: '#e0e0e0',
-    textAlign: 'center',
-    lineHeight: 22,
+    textAlign: 'left',
+    lineHeight: 24,
+    paddingLeft: 36,
+  },
+  resultHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  infoContainer: {
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+    padding: 12,
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: '#03DAC6',
+  },
+  buttonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
   },
   decodedText: {
     fontSize: 15,
@@ -685,6 +749,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 3,
     elevation: 4,
+    borderLeftWidth: 3,
+    borderLeftColor: '#03A9F4',
   },
   mapTitle: {
     color: 'white',
@@ -694,6 +760,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   map: {
     width: '100%',
@@ -701,24 +769,24 @@ const styles = StyleSheet.create({
   },
   newImageButton: {
     backgroundColor: '#03DAC6',
-    paddingVertical: 14,
+    paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
     alignSelf: 'center',
-    marginTop: 15,
-    marginBottom: 10,
+    marginTop: 20,
+    marginBottom: 15,
     width: '85%',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.2,
-    shadowRadius: 3,
-    elevation: 4,
+    shadowRadius: 5,
+    elevation: 5,
   },
   newImageButtonText: {
     fontSize: 17,
     fontWeight: '700',
     color: '#000000',
-    letterSpacing: 0.3,
+    letterSpacing: 0.5,
   },
   overlay: {
     flex: 1,

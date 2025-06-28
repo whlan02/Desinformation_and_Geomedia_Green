@@ -1,7 +1,8 @@
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, StatusBar } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { generateSecuritySummary, getSecurityRecommendations, supportsHardwareSecurity } from '../utils/deviceSecurityInfo';
 import { deleteSecp256k1Keys, hasStoredSecp256k1KeyPair } from '../utils/secp256k1Utils';
 import { testAllServices } from '../utils/backendConfig';
@@ -131,11 +132,24 @@ export default function SecurityInfo() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#25292e" />
+      
+      <View style={styles.topBar}>
+        <TouchableOpacity 
+          style={styles.backButton} 
+          onPress={() => router.back()}
+        >
+          <Ionicons name="arrow-back" size={24} color="white" />
+        </TouchableOpacity>
+        
+        <Text style={styles.topBarTitle}>
+          Device Information
+        </Text>
+        
+        <View style={{width: 40}} /> {/* Empty view for balanced layout */}
+      </View>
+      
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Device Security</Text>
-          <Text style={styles.subtitle}>Manage your device's security settings</Text>
-        </View>
 
         {/* Device Name Card */}
         {geocamDeviceName && (
@@ -246,11 +260,41 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#25292e',
   },
+  topBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: '#373c40',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+  },
+  backButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  topBarTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: 'white',
+    textAlign: 'center',
+  },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
     padding: 16,
+    paddingTop: 10,
     paddingBottom: 40,
   },
   header: {

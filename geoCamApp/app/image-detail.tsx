@@ -16,6 +16,7 @@ import { useState, useEffect, useRef } from 'react';
 import { getGalleryImages, type GalleryImage } from '../utils/galleryStorage';
 import * as Sharing from 'expo-sharing';
 import MapView, { Marker, UrlTile } from 'react-native-maps';
+import { Ionicons } from '@expo/vector-icons';
 
 const { width } = Dimensions.get('window');
 const MAP_HEIGHT = 200;
@@ -169,7 +170,7 @@ export default function ImageDetail() {
           style={styles.floatingBackButton} 
           onPress={() => router.back()}
         >
-          <Text style={styles.backButtonText}>←</Text>
+          <Ionicons name="arrow-back" size={24} color="white" />
         </TouchableOpacity>
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color="#ffffff" />
@@ -186,7 +187,7 @@ export default function ImageDetail() {
           style={styles.floatingBackButton} 
           onPress={() => router.back()}
         >
-          <Text style={styles.backButtonText}>←</Text>
+          <Ionicons name="arrow-back" size={24} color="white" />
         </TouchableOpacity>
         <View style={styles.centerContainer}>
           <Text style={styles.errorText}>Image not found</Text>
@@ -233,7 +234,7 @@ export default function ImageDetail() {
         { opacity: headerOpacity }
       ]}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Text style={styles.backButtonText}>← Back</Text>
+          <Ionicons name="arrow-back" size={24} color="white" />
         </TouchableOpacity>
         <Text style={styles.title}>Photo Details</Text>
         <TouchableOpacity 
@@ -336,7 +337,7 @@ export default function ImageDetail() {
         style={styles.floatingBackButton} 
         onPress={() => router.back()}
       >
-        <Text style={styles.backButtonText}>←</Text>
+        <Ionicons name="arrow-back" size={24} color="white" />
       </TouchableOpacity>
     </View>
   );
@@ -362,22 +363,19 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(55, 60, 64, 0.95)', // Semi-transparent header
   },
   backButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  backButtonText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: 'white',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   floatingBackButton: {
     position: 'absolute',
     top: 50,
     left: 20,
     zIndex: 90,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
     width: 40,
     height: 40,
     borderRadius: 20,

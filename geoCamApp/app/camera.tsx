@@ -827,7 +827,7 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   topBarButton: {
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
     width: 40,
     height: 40,
     borderRadius: 20,

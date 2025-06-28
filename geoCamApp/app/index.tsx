@@ -132,11 +132,11 @@ export default function MainMenu() {
                 activeOpacity={0.8}
               >
                 <Animated.View style={[styles.mainButtonInner, { transform: [{ scale: pulseAnim }] }]}>
-                  <SvgXml xml={cameraIconXml} width={55} height={55} />
+                  <SvgXml xml={cameraIconXml} width={45} height={45} />
                   <Text style={styles.mainButtonLabel}>CAPTURE</Text>
                 </Animated.View>
               </TouchableOpacity>
-              <Text style={styles.cameraHintText}>Secure, Geotagged Photos</Text>
+              
             </View>
             
             <View style={[styles.bottomContainer, { marginBottom: Math.max(insets.bottom + 10, 30) }]}>
@@ -165,7 +165,7 @@ export default function MainMenu() {
                   activeOpacity={0.7}
                 >
                   <SvgXml xml={securityIconXml} width={26} height={26} />
-                  <Text style={styles.buttonLabel}>Security</Text>
+                  <Text style={styles.buttonLabel}>Device Info</Text>
                 </TouchableOpacity>
               </View>
               
@@ -207,7 +207,7 @@ export default function MainMenu() {
                   activeOpacity={0.8}
                 >
                   <Animated.View style={[styles.mainButtonInner, { transform: [{ scale: pulseAnim }] }]}>
-                    <SvgXml xml={cameraIconXml} width={55} height={55} />
+                    <SvgXml xml={cameraIconXml} width={45} height={45} />
                     <Text style={styles.mainButtonLabel}>CAPTURE</Text>
                   </Animated.View>
                 </TouchableOpacity>
@@ -314,10 +314,10 @@ const styles = StyleSheet.create({
     elevation: 15,
   },
   mainButton: {
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    backgroundColor: 'rgba(15, 23, 36, 0.9)',
+    width: 130,
+    height: 130,
+    borderRadius: 65,
+    backgroundColor: 'rgba(15, 23, 36, 0.7)',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
@@ -325,7 +325,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.5,
     shadowRadius: 10,
     elevation: 12,
-    borderWidth: 3,
+    borderWidth: 2,
     borderColor: 'white',
     zIndex: 2,
   },
@@ -367,16 +367,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-evenly',
     gap: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
     paddingVertical: 18,
     paddingHorizontal: 24,
-    borderRadius: 30,
     width: '90%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.4,
-    shadowRadius: 6,
-    elevation: 8,
   },
   button: {
     backgroundColor: 'transparent',
@@ -390,7 +383,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   secondaryButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    backgroundColor: 'rgba(15, 23, 36, 0.7)',
     padding: 12,
     borderRadius: 15,
     width: 80,
@@ -401,9 +394,9 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.5)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-    elevation: 3,
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
   },
   disabledButton: {
     borderColor: 'rgba(255, 255, 255, 0.5)',
@@ -456,17 +449,10 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
     justifyContent: 'center',
     gap: 15,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
     padding: 15,
-    borderRadius: 25,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
-    elevation: 6,
   },
   landscapeSecondaryButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    backgroundColor: 'rgba(15, 23, 36, 0.7)',
     padding: 10,
     borderRadius: 15,
     width: 70,
@@ -475,5 +461,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.5)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
   }
 });
