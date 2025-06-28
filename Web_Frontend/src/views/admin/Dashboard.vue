@@ -97,8 +97,8 @@
 </template>
 
 <script>
-import { useDeviceStore } from '../stores/deviceStore.js'
-import { BACKEND_CONFIG } from '../services/backendConfig.js'
+import { useDeviceStore } from '../../stores/deviceStore.js'
+import { BACKEND_CONFIG } from '../../services/backendConfig.js'
 
 export default {
   name: 'Dashboard',
