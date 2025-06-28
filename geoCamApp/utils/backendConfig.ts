@@ -13,7 +13,7 @@ const DEV_STEG_URL = Platform.OS === 'web' ? 'http://localhost:3001' : 'http://1
 
 // HYBRID TESTING MODE: Use production for API, local for steganography
 const USE_LOCAL_FOR_TESTING = false;
-const USE_LOCAL_STEGANOGRAPHY_ONLY = false; // Set to false for production
+const USE_LOCAL_STEGANOGRAPHY_ONLY = true; // Set to false for production
 
 // Backend configuration
 export const BACKEND_CONFIG = {
