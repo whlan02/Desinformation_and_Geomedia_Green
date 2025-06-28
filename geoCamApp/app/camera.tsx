@@ -34,6 +34,13 @@ export default function CameraScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [mediaPermission, requestMediaPermission] = MediaLibrary.usePermissions();
   const [locationPermission, requestLocationPermission] = Location.useForegroundPermissions();
+  // Zoom functionality
+  const [zoom, setZoom] = useState(0);
+  // Timer functionality
+  const [timerDuration, setTimerDuration] = useState(0); // 0 = off, 3 = 3 seconds, 10 = 10 seconds
+  const [isTimerActive, setIsTimerActive] = useState(false);
+  const [timerCountdown, setTimerCountdown] = useState(0);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
   
   const [webViewHtml, setWebViewHtml] = useState<string | null>(null);
   const [isEncoding, setIsEncoding] = useState(false);
@@ -124,8 +131,14 @@ export default function CameraScreen() {
 
   useEffect(() => {
     return () => {
+      // Clean up progress interval
       if (progressIntervalRef.current) {
         clearInterval(progressIntervalRef.current);
+      }
+      
+      // Clean up timer interval
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
       }
     };
   }, []);
@@ -226,7 +239,61 @@ export default function CameraScreen() {
       }
     });
   };
+  
+  const cycleTimer = () => {
+    // Cancel any active timer
+    if (isTimerActive && timerRef.current) {
+      clearInterval(timerRef.current);
+      setIsTimerActive(false);
+      setTimerCountdown(0);
+    }
+    
+    // Cycle through timer options: 0 (off) -> 3 seconds -> 10 seconds -> 0 (off)
+    setTimerDuration(current => {
+      switch (current) {
+        case 0: return 3;
+        case 3: return 10;
+        case 10: return 0;
+        default: return 0;
+      }
+    });
+  };
+  
+  const adjustZoom = (increment: boolean) => {
+    setZoom(currentZoom => {
+      // Adjust zoom by 0.1 increments within range 0-1
+      const newZoom = increment 
+        ? Math.min(1, currentZoom + 0.1) 
+        : Math.max(0, currentZoom - 0.1);
+      return parseFloat(newZoom.toFixed(1)); // Fix to 1 decimal place
+    });
+  };
 
+  const takePictureWithTimer = () => {
+    if (timerDuration > 0 && !isTimerActive) {
+      // Start the timer countdown
+      setIsTimerActive(true);
+      setTimerCountdown(timerDuration);
+      
+      // Set up the countdown interval
+      timerRef.current = setInterval(() => {
+        setTimerCountdown(prev => {
+          if (prev <= 1) {
+            // Timer completed, take the picture
+            clearInterval(timerRef.current!);
+            setIsTimerActive(false);
+            takePicture();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } else if (!isTimerActive) {
+      // No timer selected, take picture immediately
+      takePicture();
+    }
+  };
+  
   const takePicture = async () => {
     if (!cameraRef.current || isEncoding || !keyPair) return;
 
@@ -638,6 +705,7 @@ export default function CameraScreen() {
         style={styles.camera}
         facing={type}
         flash={flash}
+        zoom={zoom}
         onCameraReady={() => console.log('Camera ready for capture')}
       />
 
@@ -650,25 +718,60 @@ export default function CameraScreen() {
           <Ionicons name="arrow-back" size={28} color="white" />
         </TouchableOpacity>
         
-        <TouchableOpacity 
-          style={styles.topBarButton} 
-          onPress={toggleFlash}
-        >
-          <Ionicons 
-            name={
-              flash === 'on'
-                ? 'flash'
-                : flash === 'auto'
-                ? 'flash-outline'
-                : 'flash-off'
-            }
-            size={28}
-            color="white"
-          />
-          {flash === 'auto' && (
-            <Text style={{ color: 'white', fontSize: 10, position: 'absolute', bottom: 2, right: 2 }}>A</Text>
-          )}
-        </TouchableOpacity>
+        <View style={styles.topBarControls}>
+          {/* Flash Button */}
+          <TouchableOpacity 
+            style={styles.topBarButton} 
+            onPress={toggleFlash}
+          >
+            <Ionicons 
+              name={
+                flash === 'on'
+                  ? 'flash'
+                  : flash === 'auto'
+                  ? 'flash-outline'
+                  : 'flash-off'
+              }
+              size={24}
+              color="white"
+            />
+            {flash === 'auto' && (
+              <Text style={{ color: 'white', fontSize: 10, position: 'absolute', bottom: 2, right: 2 }}>A</Text>
+            )}
+          </TouchableOpacity>
+          
+          {/* Timer Button */}
+          <TouchableOpacity 
+            style={styles.topBarButton} 
+            onPress={cycleTimer}
+          >
+            <Ionicons name="timer-outline" size={24} color="white" />
+            {timerDuration > 0 && (
+              <Text style={styles.timerBadge}>
+                {timerDuration}s
+              </Text>
+            )}
+          </TouchableOpacity>
+
+          {/* Zoom Controls */}
+          <View style={styles.zoomControls}>
+            <TouchableOpacity 
+              style={styles.zoomButton} 
+              onPress={() => adjustZoom(false)}
+              disabled={zoom <= 0}
+            >
+              <Ionicons name="remove" size={20} color={zoom <= 0 ? "gray" : "white"} />
+            </TouchableOpacity>
+            <Text style={styles.zoomText}>{zoom.toFixed(1)}x</Text>
+            <TouchableOpacity 
+              style={styles.zoomButton} 
+              onPress={() => adjustZoom(true)}
+              disabled={zoom >= 1}
+            >
+              <Ionicons name="add" size={20} color={zoom >= 1 ? "gray" : "white"} />
+            </TouchableOpacity>
+          </View>
+        </View>
       </View>
 
       {/* Bottom Bar */}
@@ -684,11 +787,15 @@ export default function CameraScreen() {
         {/* Take Photo Button */}
         <TouchableOpacity 
           style={styles.takePhotoButton} 
-          onPress={takePicture}
-          disabled={!keyPair || isLoadingKeys || isEncoding}
+          onPress={takePictureWithTimer}
+          disabled={!keyPair || isLoadingKeys || isEncoding || isTimerActive}
         >
           <View style={styles.captureButtonOuter}>
-            <View style={styles.captureButtonInner} />
+            {isTimerActive ? (
+              <Text style={styles.timerCountdown}>{timerCountdown}</Text>
+            ) : (
+              <View style={styles.captureButtonInner} />
+            )}
           </View>
         </TouchableOpacity>
 
@@ -833,6 +940,47 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
+    marginHorizontal: 5,
+  },
+  topBarControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  timerBadge: {
+    position: 'absolute',
+    bottom: 3,
+    right: 3,
+    color: 'white',
+    fontSize: 10,
+    fontWeight: 'bold',
+    backgroundColor: 'rgba(0, 120, 255, 0.7)',
+    borderRadius: 7,
+    width: 14,
+    height: 14,
+    textAlign: 'center',
+    lineHeight: 14,
+  },
+  zoomControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    borderRadius: 20,
+    paddingHorizontal: 5,
+    marginLeft: 5,
+  },
+  zoomButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  zoomText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: 'bold',
+    width: 30,
+    textAlign: 'center',
   },
   bottomBar: {
     position: 'absolute',
@@ -873,6 +1021,11 @@ const styles = StyleSheet.create({
     borderRadius: 35,
     backgroundColor: 'white',
     opacity: 0.3,
+  },
+  timerCountdown: {
+    fontSize: 36,
+    fontWeight: 'bold',
+    color: 'white',
   },
   flipButton: {
     backgroundColor: 'rgba(40,40,40,0.5)',
