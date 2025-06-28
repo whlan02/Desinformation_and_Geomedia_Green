@@ -8,7 +8,7 @@ class Config:
     DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://geocam:geocam@localhost:5432/geocam_db')
     
     # Service URLs
-    STEGANOGRAPHY_SERVICE_URL = os.getenv('STEGANOGRAPHY_SERVICE_URL', 'http://localhost:3001')
+    STEGANOGRAPHY_SERVICE_URL = os.getenv('STEGANOGRAPHY_SERVICE_URL', 'https://geocam-steganography.onrender.com')
     
     # Flask configuration
     SECRET_KEY = os.getenv('SECRET_KEY', 'your-secret-key-here')

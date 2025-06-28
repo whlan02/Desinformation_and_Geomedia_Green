@@ -1,16 +1,16 @@
 import * as Device from 'expo-device';
-import { getNobleEd25519KeyPairInfo, hasStoredNobleEd25519KeyPair } from './nobleEd25519Utils';
+import { getSecp256k1KeyPairInfo, hasStoredSecp256k1KeyPair } from './secp256k1Utils';
 
 /**
- * Get hardware security information for Noble Ed25519 crypto system
+ * Get hardware security information for secp256k1 crypto system
  */
-const getHardwareSecurityInfo = () => {
+export const getHardwareSecurityInfo = () => {
   return {
     hardwareFeatures: {
-      description: 'Noble Ed25519 signatures with device-secured storage',
+      description: 'secp256k1 signatures with device-secured storage',
       keyStorage: Device.osName === 'iOS' ? 'iOS Keychain' : 
                  Device.osName === 'Android' ? 'Android Keystore' : 'Secure Storage',
-      algorithm: 'Ed25519',
+      algorithm: 'secp256k1',
       keySize: '32 bytes (256-bit)',
       signatureSize: '64 bytes (512-bit)',
       security: 'Device-level protection'
@@ -19,53 +19,85 @@ const getHardwareSecurityInfo = () => {
 };
 
 /**
- * Get complete device security status report
+ * Check if device supports hardware security features
  */
-export const getDeviceSecurityReport = async () => {
-  const hardwareInfo = getHardwareSecurityInfo();
-  const hasKeys = await hasStoredNobleEd25519KeyPair();
-  const keyInfo = hasKeys ? await getNobleEd25519KeyPairInfo() : null;
-
-  return {
-    device: {
-      platform: Device.osName,
-      model: Device.modelName,
-      osVersion: Device.osVersion,
-      brand: Device.brand,
-    },
-    
-    hardwareSecurity: {
-      available: true,
-      features: hardwareInfo.hardwareFeatures,
-      description: hardwareInfo.hardwareFeatures.description,
-    },
-    
-    keyPairStatus: {
-      exists: hasKeys,
-      hardwareProtected: true, // Noble Ed25519 keys are stored in device secure storage
-      generatedAt: keyInfo?.generatedAt,
-      fingerprint: keyInfo?.fingerprint,
-      installationId: keyInfo?.installationId,
-      keyType: keyInfo?.keyType,
-    },
-    
-    securityLevel: getSecurityLevelDescription(Device.osName),
-  };
+export const supportsHardwareSecurity = () => {
+  return Device.osName === 'iOS' || Device.osName === 'Android';
 };
 
 /**
- * Get security level description for Noble Ed25519 crypto system
+ * Generate security summary for the device
+ */
+export const generateSecuritySummary = async () => {
+  const status = await getDeviceSecurityStatus();
+  const hardwareInfo = getHardwareSecurityInfo();
+  
+  if (status.error) {
+    return `Error getting security status: ${status.error}`;
+  }
+  
+  const summary = [
+    `Device: ${status.deviceInfo?.model || 'Unknown'}`,
+    `OS: ${status.deviceInfo?.os || 'Unknown'} ${status.deviceInfo?.version || ''}`,
+    `Security Level: ${status.securityLevel?.level || 'Unknown'}`,
+    `Key Storage: ${hardwareInfo.hardwareFeatures.keyStorage}`,
+    `Algorithm: ${hardwareInfo.hardwareFeatures.algorithm}`,
+    `Key Status: ${status.hasKeys ? '✅ Keys Present' : '❌ No Keys'}`,
+    status.keyInfo ? `Key ID: ${status.keyInfo.keyId}` : '',
+    status.keyInfo ? `Generated: ${status.keyInfo.generatedAt}` : ''
+  ].filter(Boolean).join('\n');
+  
+  return summary;
+};
+
+/**
+ * Get device security status
+ */
+export const getDeviceSecurityStatus = async () => {
+  try {
+    const keyInfo = await getSecp256k1KeyPairInfo();
+    const hasKeys = await hasStoredSecp256k1KeyPair();
+    
+    const securityLevel = getSecurityLevelDescription(Device.osName);
+    const hardwareInfo = getHardwareSecurityInfo();
+    const recommendations = getSecurityRecommendations();
+    
+    return {
+      hasKeys,
+      keyInfo,
+      securityLevel,
+      hardwareInfo,
+      recommendations,
+      deviceInfo: {
+        model: Device.modelName,
+        os: Device.osName,
+        version: Device.osVersion,
+        type: Device.deviceType,
+        name: Device.deviceName,
+      }
+    };
+  } catch (error: unknown) {
+    console.error('❌ Failed to get device security status:', error);
+    return {
+      hasKeys: false,
+      error: error instanceof Error ? error.message : String(error)
+    };
+  }
+};
+
+/**
+ * Get security level description for secp256k1 crypto system
  */
 const getSecurityLevelDescription = (platform: string | null) => {
   if (platform === 'iOS') {
     return {
-      level: 'Device-Secured Noble Ed25519',
+      level: 'Device-Secured secp256k1',
       storage: 'iOS Keychain',
-      protection: 'Noble Ed25519 with device-level storage',
+      protection: 'secp256k1 with device-level storage',
       authentication: 'Device access only',
-      description: 'Noble Ed25519 private keys are stored in iOS Keychain and tied to this specific device installation. Keys cannot be extracted from the device but are accessible to anyone with device access.',
+      description: 'secp256k1 private keys are stored in iOS Keychain and tied to this specific device installation. Keys cannot be extracted from the device but are accessible to anyone with device access.',
       benefits: [
-        'Noble Ed25519 cryptographic security',
+        'secp256k1 cryptographic security (same as Bitcoin)',
         'Device-level key protection via iOS Keychain',
         'No biometric authentication required',
         'Keys tied to specific device installation',
@@ -75,13 +107,13 @@ const getSecurityLevelDescription = (platform: string | null) => {
     };
   } else if (platform === 'Android') {
     return {
-      level: 'Device-Secured Noble Ed25519',
+      level: 'Device-Secured secp256k1',
       storage: 'Android Keystore',
-      protection: 'Noble Ed25519 with device-level storage',
+      protection: 'secp256k1 with device-level storage',
       authentication: 'Device access only',
-      description: 'Noble Ed25519 private keys are stored in Android Keystore system and tied to this specific device installation. Keys are accessible to anyone with device access.',
+      description: 'secp256k1 private keys are stored in Android Keystore system and tied to this specific device installation. Keys are accessible to anyone with device access.',
       benefits: [
-        'Noble Ed25519 cryptographic security',
+        'secp256k1 cryptographic security (same as Bitcoin)',
         'Android Keystore system protection',
         'Device-level security',
         'No biometric authentication required',
@@ -91,13 +123,13 @@ const getSecurityLevelDescription = (platform: string | null) => {
     };
   } else {
     return {
-      level: 'Software-Secured Noble Ed25519',
+      level: 'Software-Secured secp256k1',
       storage: 'Encrypted storage',
-      protection: 'Noble Ed25519 with software encryption',
+      protection: 'secp256k1 with software encryption',
       authentication: 'System authentication',
-      description: 'Noble Ed25519 keys are stored using platform-specific secure storage mechanisms.',
+      description: 'secp256k1 keys are stored using platform-specific secure storage mechanisms.',
       benefits: [
-        'Noble Ed25519 cryptographic security',
+        'secp256k1 cryptographic security (same as Bitcoin)',
         'Encrypted storage',
         'Platform security features',
         'Access control'
@@ -107,48 +139,7 @@ const getSecurityLevelDescription = (platform: string | null) => {
 };
 
 /**
- * Generate security status summary text
- */
-export const generateSecuritySummary = async (): Promise<string> => {
-  const report = await getDeviceSecurityReport();
-  
-  let summary = `🔐 GeoCam Security Report\n\n`;
-  
-  summary += `📱 Device: ${report.device.model} (${report.device.platform} ${report.device.osVersion})\n\n`;
-  
-  summary += `🛡️ Security Level: ${report.securityLevel.level}\n`;
-  summary += `💾 Storage: ${report.securityLevel.storage}\n`;
-  summary += `🔒 Protection: ${report.securityLevel.protection}\n`;
-  summary += `🔑 Authentication: ${report.securityLevel.authentication}\n\n`;
-  
-  if (report.keyPairStatus.exists) {
-    summary += `✅ Noble Ed25519 Keys: Generated & Protected\n`;
-    summary += `🔑 Key Type: ${report.keyPairStatus.keyType}\n`;
-    summary += `📅 Generated: ${new Date(report.keyPairStatus.generatedAt || '').toLocaleDateString()}\n`;
-    summary += `🔖 Fingerprint: ${report.keyPairStatus.fingerprint}\n`;
-    summary += `🆔 Installation: ${report.keyPairStatus.installationId?.substring(0, 16)}...\n\n`;
-  } else {
-    summary += `⏳ Noble Ed25519 Keys: Not yet generated\n`;
-    summary += `📝 Status: Keys will be generated on app startup\n\n`;
-  }
-  
-  summary += `📋 Security Benefits:\n`;
-  report.securityLevel.benefits.forEach(benefit => {
-    summary += `  • ${benefit}\n`;
-  });
-  
-  return summary;
-};
-
-/**
- * Check if device supports hardware-level security
- */
-export const supportsHardwareSecurity = (): boolean => {
-  return Device.osName === 'iOS' || Device.osName === 'Android';
-};
-
-/**
-* Get platform-specific security recommendations for Noble Ed25519 crypto system
+ * Get platform-specific security recommendations for secp256k1 crypto system
  */
 export const getSecurityRecommendations = () => {
   const recommendations = [];
@@ -157,13 +148,13 @@ export const getSecurityRecommendations = () => {
     recommendations.push(
       'Keep iOS updated for latest Keychain security features',
       'Use a strong device passcode or password',
-      'Do not jailbreak device as it compromises Noble Ed25519 key security'
+      'Do not jailbreak device as it compromises secp256k1 key security'
     );
   } else if (Device.osName === 'Android') {
     recommendations.push(
       'Use a strong screen lock (PIN, pattern, or password)',
       'Keep Android updated and avoid rooting device',
-      'Ensure device has hardware-backed keystore support for Noble Ed25519 keys'
+      'Ensure device has hardware-backed keystore support for secp256k1 keys'
     );
   }
   
@@ -171,7 +162,7 @@ export const getSecurityRecommendations = () => {
     'Never share your device with untrusted users',
     'Keep the GeoCam app updated for security patches',
     'Protect your device from physical access by untrusted users',
-    'Noble Ed25519 keys are tied to your device installation',
+    'secp256k1 keys are tied to your device installation',
     'Report any suspicious behavior immediately'
   );
   

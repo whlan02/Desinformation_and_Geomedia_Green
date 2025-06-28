@@ -8,285 +8,11 @@ import * as Device from 'expo-device';
 import * as Location from 'expo-location';
 import * as FileSystem from 'expo-file-system';
 import { saveImageToGallery } from '../utils/galleryStorage';
-import { signDataWithNobleEd25519, getStoredNobleEd25519KeyPair } from '../utils/nobleEd25519Utils';
-import { embedMetadataIntoPNG, type PNGMetadata } from '../utils/PNG_Metadata';
+import { getStoredSecp256k1KeyPair } from '../utils/secp256k1Utils';
+import { getStoredGeoCamDeviceName, processGeoCamImageBackend, completeGeoCamImageBackend, signImagePurePng } from '../utils/backendService';
 import { Ionicons } from '@expo/vector-icons';
-import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
-
-const steganographyLib = `
-/*
- * steganography.js v1.0.3 2017-09-22
- *
- * Copyright (C) 2012 Peter Eigenschink (http://www.peter-eigenschink.at/)
- * Dual-licensed under MIT and Beerware license.
-*/
-;(function (name, context, factory) {
-
-  // Supports UMD. AMD, CommonJS/Node.js and browser context
-  if (typeof module !== "undefined" && module.exports) {
-    module.exports = factory();
-  } else if (typeof define === "function" && define.amd) {
-    define(factory);
-  } else {
-    context[name] = factory();
-  }
-
-})("steg", this, function () {
-var Cover = function Cover() {};
-var util = {
-  "isPrime" : function(n) {
-    if (isNaN(n) || !isFinite(n) || n%1 || n<2) return false;
-    if (n%2===0) return (n===2);
-    if (n%3===0) return (n===3);
-    var m=Math.sqrt(n);
-    for (var i=5;i<=m;i+=6) {
-      if (n%i===0) return false;
-      if (n%(i+2)===0) return false;
-    }
-    return true;
-  },
-  "findNextPrime" : function(n) {
-    for(var i=n; true; i+=1)
-      if(util.isPrime(i)) return i;
-  },
-  "sum" : function(func, end, options) {
-    var sum = 0;
-    options = options || {};
-    for(var i = options.start || 0; i < end; i+=(options.inc||1))
-      sum += func(i) || 0;
-
-    return (sum === 0 && options.defValue ? options.defValue : sum);
-  },
-  "product" : function(func, end, options) {
-    var prod = 1;
-    options = options || {};
-    for(var i = options.start || 0; i < end; i+=(options.inc||1))
-      prod *= func(i) || 1;
-
-    return (prod === 1 && options.defValue ? options.defValue : prod);
-  },
-  "createArrayFromArgs" : function(args,index,threshold) {
-    var ret = new Array(threshold-1);
-    for(var i = 0; i < threshold; i+=1)
-      ret[i] = args(i >= index ? i+1:i);
-
-    return ret;
-  },
-  "loadImg": function(url) {
-    var image = new Image();
-    image.src = url;
-    return image;
-  }
-};
-
-Cover.prototype.config = {
-  "t": 3,
-  "threshold": 1,
-  "codeUnitSize": 16,
-  "args": function(i) { return i+1; },
-  "messageDelimiter": function(modMessage,threshold) {
-            var delimiter = new Array(threshold*3);
-            for(var i = 0; i < delimiter.length; i+=1)
-              delimiter[i] = 255;
-            
-            return delimiter;
-          },
-  "messageCompleted": function(data, i, threshold) {
-            var done = true;
-            for(var j = 0; j < 16 && done; j+=1) {
-              done = done && (data[i+j*4] === 255);
-            }
-            return done;
-          }
-};
-Cover.prototype.getHidingCapacity = function(image, options) {
-  options = options || {};
-  var config = this.config;
-
-  var width = options.width || image.width,
-    height = options.height || image.height,
-    t = options.t || config.t,
-    codeUnitSize = options.codeUnitSize || config.codeUnitSize;
-  return t*width*height/codeUnitSize >> 0;
-};
-Cover.prototype.encode = function(message, image, options) {
-  // Handle image url
-  if(typeof image === 'string' && image.length) { // check if image is a string
-    image = util.loadImg(image);
-  } else if(image.src) {
-    image = util.loadImg(image.src);
-  } else if(!(image instanceof HTMLImageElement)) {
-    throw new Error('IllegalInput: The input image is neither an URL string nor an image instance.');
-  }
-
-  options = options || {};
-  var config = this.config;
-
-  var t = options.t || config.t,
-    threshold = options.threshold || config.threshold,
-    codeUnitSize = options.codeUnitSize || config.codeUnitSize,
-    prime = util.findNextPrime(Math.pow(2,t)),
-    args = options.args || config.args,
-    messageDelimiter = options.messageDelimiter || config.messageDelimiter;
-
-  if(!t || t < 1 || t > 7) throw new Error('IllegalOptions: Parameter t = ' + t + ' is not valid: 0 < t < 8');
-
-  var shadowCanvas = document.createElement('canvas'),
-    shadowCtx = shadowCanvas.getContext('2d');
-
-  shadowCanvas.style.display = 'none';
-  shadowCanvas.width = options.width || image.naturalWidth || image.width; // Use naturalWidth
-  shadowCanvas.height = options.height || image.naturalHeight || image.height; // Use naturalHeight
-  
-  if(options.height && options.width) {
-    shadowCtx.drawImage(image, 0, 0, options.width, options.height );
-  } else {
-    shadowCtx.drawImage(image, 0, 0, shadowCanvas.width, shadowCanvas.height);
-  }
-
-  var imageData = shadowCtx.getImageData(0, 0, shadowCanvas.width, shadowCanvas.height),
-    data = imageData.data;
-
-  var bundlesPerChar = codeUnitSize/t >> 0,
-    overlapping = codeUnitSize%t,
-    modMessage = [],
-    decM, oldDec, oldMask, left, right,
-    dec, curOverlapping, mask;
-
-  var i, j;
-  for(i=0; i<=message.length; i+=1) {
-    dec = message.charCodeAt(i) || 0;
-    curOverlapping = (overlapping*i)%t;
-    if(curOverlapping > 0 && oldDec) {
-      mask = Math.pow(2,t-curOverlapping) - 1;
-      oldMask = Math.pow(2, codeUnitSize) * (1 - Math.pow(2, -curOverlapping));
-      left = (dec & mask) << curOverlapping;
-      right = (oldDec & oldMask) >> (codeUnitSize - curOverlapping);
-      modMessage.push(left+right);
-
-      if(i<message.length) {
-        mask = Math.pow(2,2*t-curOverlapping) * (1 - Math.pow(2, -t));
-        for(j=1; j<bundlesPerChar; j+=1) {
-          decM = dec & mask;
-          modMessage.push(decM >> (((j-1)*t)+(t-curOverlapping)));
-          mask <<= t;
-        }
-        if((overlapping*(i+1))%t === 0) {
-          mask = Math.pow(2, codeUnitSize) * (1 - Math.pow(2,-t));
-          decM = dec & mask;
-          modMessage.push(decM >> (codeUnitSize-t));
-        }
-        else if(((((overlapping*(i+1))%t) + (t-curOverlapping)) <= t)) {
-          decM = dec & mask;
-          modMessage.push(decM >> (((bundlesPerChar-1)*t)+(t-curOverlapping)));
-        }
-      }
-    }
-    else if(i<message.length) {
-      mask = Math.pow(2,t) - 1;
-      for(j=0; j<bundlesPerChar; j+=1) {
-        decM = dec & mask;
-        modMessage.push(decM >> (j*t));
-        mask <<= t;
-      }
-    }
-    oldDec = dec;
-  }
-
-  var offset, index, subOffset, delimiter = messageDelimiter(modMessage,threshold),
-    q, qS;
-  for(offset = 0; (offset+threshold)*4 <= data.length && (offset+threshold) <= modMessage.length; offset += threshold) {
-    qS=[];
-    for(i=0; i<threshold && i+offset < modMessage.length; i+=1) {
-      q = 0;
-      for(j=offset; j<threshold+offset && j<modMessage.length; j+=1)
-        q+=modMessage[j]*Math.pow(args(i),j-offset);
-      qS[i] = (255-prime+1)+(q%prime);
-    }
-    for(i=offset*4; i<(offset+qS.length)*4 && i<data.length; i+=4)
-      data[i+3] = qS[(i/4)%threshold];
-
-    subOffset = qS.length;
-  }
-  for(index = (offset+subOffset); index-(offset+subOffset)<delimiter.length && (offset+delimiter.length)*4<data.length; index+=1)
-    data[(index*4)+3]=delimiter[index-(offset+subOffset)];
-  for(i=((index+1)*4)+3; i<data.length; i+=4) data[i] = 255;
-
-  imageData.data = data;
-  shadowCtx.putImageData(imageData, 0, 0);
-
-  return shadowCanvas.toDataURL();
-};
-
-Cover.prototype.decode = function(image, options) {
-  if(typeof image === 'string' && image.length) { // check if image is a string
-    image = util.loadImg(image);
-  } else if(image.src) {
-    image = util.loadImg(image.src);
-  } else if(!(image instanceof HTMLImageElement)) {
-    throw new Error('IllegalInput: The input image is neither an URL string nor an image instance.');
-  }
-
-  options = options || {};
-  var config = this.config;
-
-  var t = options.t || config.t,
-    threshold = options.threshold || config.threshold,
-    codeUnitSize = options.codeUnitSize || config.codeUnitSize,
-    prime = util.findNextPrime(Math.pow(2, t)),
-    args = options.args || config.args,
-    messageCompleted = options.messageCompleted || config.messageCompleted;
-
-  if(!t || t < 1 || t > 7) throw new Error('IllegalOptions: Parameter t = ' + t + ' is not valid: 0 < t < 8');
-
-  var shadowCanvas = document.createElement('canvas'),
-    shadowCtx = shadowCanvas.getContext('2d');
-
-  shadowCanvas.style.display = 'none';
-  shadowCanvas.width = options.width || image.naturalWidth || image.width; // Use naturalWidth
-  shadowCanvas.height = options.height || image.naturalHeight || image.height; // Use naturalHeight
-  
-  if(options.height && options.width) {
-    shadowCtx.drawImage(image, 0, 0, options.width, options.height );
-  } else {
-    shadowCtx.drawImage(image, 0, 0, shadowCanvas.width, shadowCanvas.height);
-  }
-
-  var imageData = shadowCtx.getImageData(0, 0, shadowCanvas.width, shadowCanvas.height),
-    data = imageData.data,
-    modMessage = [],
-    q;
-
-  var i, k, done;
-  if (threshold === 1) {
-    for(i=3, done=false; !done && i<data.length && !done; i+=4) {
-      done = messageCompleted(data, i, threshold);
-      if(!done) modMessage.push(data[i]-(255-prime+1));
-    }
-  } else {
-    // Simplified, as the original code had a large commented out block for threshold > 1
-    console.warn("Decoding for threshold > 1 is not fully implemented in this version of the library copy.");
-  }
-
-  var message = "", charCode = 0, bitCount = 0, mask = Math.pow(2, codeUnitSize)-1;
-  for(i = 0; i < modMessage.length; i+=1) {
-    charCode += modMessage[i] << bitCount;
-    bitCount += t;
-    if(bitCount >= codeUnitSize) {
-      message += String.fromCharCode(charCode & mask);
-      bitCount %= codeUnitSize;
-      charCode = modMessage[i] >> (t-bitCount);
-    }
-  }
-  if(charCode !== 0) message += String.fromCharCode(charCode & mask);
-
-  return message;
-};
-
-return new Cover();
-});
-`;
+import CircularProgress from '../components/CircularProgress';
 
 export default function CameraScreen() {
   const router = useRouter();
@@ -300,6 +26,8 @@ export default function CameraScreen() {
   
   const [webViewHtml, setWebViewHtml] = useState<string | null>(null);
   const [isEncoding, setIsEncoding] = useState(false);
+  const webViewRef = useRef<WebView | null>(null);
+  
   type KeyMetadata = {
     fingerprint?: string;
     [key: string]: any;
@@ -314,6 +42,61 @@ export default function CameraScreen() {
 
   const [keyPair, setKeyPair] = useState<KeyPair | null>(null);
   const [isLoadingKeys, setIsLoadingKeys] = useState(true);
+  
+  // State for current steganography workflow
+  const [currentBasicDataStr, setCurrentBasicDataStr] = useState<string | null>(null);
+  const [currentSignature, setCurrentSignature] = useState<string | null>(null);
+  const [currentPhotoBase64, setCurrentPhotoBase64] = useState<string | null>(null);
+  
+  // Progress tracking
+  const [progress, setProgress] = useState(0);
+  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [accelerateProgress, setAccelerateProgress] = useState(false);
+  
+  // Start fake progress animation
+  const startFakeProgress = (durationMs: number) => {
+    setProgress(0);
+    setAccelerateProgress(false);
+    const intervalMs = 100; // Update every 100ms
+    const increment = 100 / (durationMs / intervalMs);
+    
+    progressIntervalRef.current = setInterval(() => {
+      setProgress(prev => {
+        const newProgress = prev + increment;
+        if (newProgress >= 100) {
+          if (progressIntervalRef.current) {
+            clearInterval(progressIntervalRef.current);
+            progressIntervalRef.current = null;
+          }
+          return 100;
+        }
+        return newProgress;
+      });
+    }, intervalMs);
+  };
+  
+  // Complete progress with acceleration
+  const completeProgress = () => {
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
+    }
+    setAccelerateProgress(true);
+    setProgress(100);
+    setTimeout(() => {
+      setProgress(0);
+      setAccelerateProgress(false);
+    }, 500);
+  };
+  
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -326,17 +109,19 @@ export default function CameraScreen() {
       if(!locationPermission) {
         await requestLocationPermission();
       }
-      
-      // Load existing keys (should already be generated by main menu)
-      await loadExistingKeys();
     })();
   }, [permission, mediaPermission, locationPermission]);
+
+  // Separate useEffect for loading keys - only runs once on mount
+  useEffect(() => {
+    loadExistingKeys();
+  }, []); // Empty dependency array means it only runs once on mount
 
   const loadExistingKeys = async () => {
     setIsLoadingKeys(true);
     try {
       // Load existing keys from storage
-      const storedKeyPair = await getStoredNobleEd25519KeyPair();
+      const storedKeyPair = await getStoredSecp256k1KeyPair();
       if (storedKeyPair) {
         setKeyPair(storedKeyPair);
         console.log('🔑 Loaded existing keys from storage');
@@ -400,10 +185,16 @@ export default function CameraScreen() {
     if (!cameraRef.current || isEncoding || !keyPair) return;
 
     setIsEncoding(true);
+    startFakeProgress(2800); // 2.8 seconds fake progress
+    
     try {
+      console.log('🎯 Starting GeoCam image capture and signing...');
+      
       const photo = await cameraRef.current.takePictureAsync({
         quality: 1,
         base64: true,
+        exif: true,
+        skipProcessing: false,
       });
 
       if (!photo.base64) {
@@ -418,160 +209,361 @@ export default function CameraScreen() {
         locData = loc.coords;
       }
 
-      // Prepare the basic data to encode (time + location + device)
+      // Get GeoCam device name
+      const geocamDeviceName = await getStoredGeoCamDeviceName();
+      console.log('📱 Retrieved GeoCam device name:', geocamDeviceName);
+
+      // Prepare the basic data
       const basicData = {
         deviceModel: Device.modelName,
         Time: new Date().toLocaleString(),
         location: locData ? { latitude: locData.latitude, longitude: locData.longitude } : null,
+        geocamDevice: geocamDeviceName || 'Unknown',
       };
 
-      console.log('📝 Basic data to encode:', basicData);
+      console.log('📝 Prepared basic data for encoding');
+      const basicDataStr = JSON.stringify(basicData);
+      
+      console.log('📤 Sending image for processing and signing...');
+      
+      const signResult = await signImagePurePng(
+        photo.base64,
+        basicDataStr,
+        keyPair!.publicKey.keyBase64,
+        keyPair!.privateKey.keyBase64
+      );
+      
+      if (!signResult.success) {
+        console.error('❌ Image signing failed:', signResult.error);
+        setIsEncoding(false);
+        return;
+      }
+      
+      console.log('✅ Image signing completed');
+      console.log('📊 Processing stats:', signResult.stats);
+      
+      // Save final PNG to device
+      console.log('💾 Saving signed image to device...');
+      const fileName = `geocam-pure-png-${Date.now()}.png`;
+      const filePath = FileSystem.documentDirectory 
+        ? FileSystem.documentDirectory + fileName
+        : null;
 
-      // Step 1: First use steganography to encode the basic data into the image
-      const htmlContent = `
-        <html>
-        <head>
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <script>${steganographyLib}</script>
-        </head>
-        <body>
-          <img id="sourceImage" />
-          <script>
-            const image = document.getElementById('sourceImage');
-            const base64Photo = "data:image/jpeg;base64,${photo.base64}";
-            const basicData = ${JSON.stringify(basicData)};
-            
-            image.onload = function() {
-              try {
-                // First encode the basic data into the image using steganography
-                const basicDataStr = JSON.stringify(basicData);
-                const steganographyEncodedDataUrl = steg.encode(basicDataStr, image);
-                
-                window.ReactNativeWebView.postMessage(JSON.stringify({ 
-                  type: 'steganographyEncoded', 
-                  data: steganographyEncodedDataUrl,
-                  basicData: basicDataStr
-                }));
-              } catch (e) {
-                window.ReactNativeWebView.postMessage(JSON.stringify({ 
-                  type: 'error', 
-                  data: e.toString() + ' Stack: ' + e.stack 
-                }));
-              }
-            };
-            image.onerror = function() {
-              window.ReactNativeWebView.postMessage(JSON.stringify({ 
-                type: 'error', 
-                data: 'Image failed to load in WebView for steganography encoding.' 
-              }));
-            };
-            image.src = base64Photo;
-          </script>
-        </body>
-        </html>
-      `;
-      setWebViewHtml(htmlContent);
+      if (!filePath) {
+        throw new Error('Could not access document directory');
+      }
+      
+      await FileSystem.writeAsStringAsync(filePath, signResult.pngBase64!, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      
+      // Save to gallery storage
+      const galleryData = {
+        uri: filePath,
+        encodedInfo: basicDataStr,
+        signature: 'pure-png-embedded',
+        publicKey: keyPair!.publicKey.keyBase64,
+        timestamp: Date.now(),
+      };
+      
+      try {
+        await saveImageToGallery(galleryData);
+        console.log('💾 Final image saved to gallery storage');
+        setLastPhoto(filePath);
+        
+        // Complete progress immediately when done
+        completeProgress();
+      } catch (galleryError) {
+        console.error('Failed to save to gallery storage:', galleryError);
+      }
 
     } catch (error) {
-      console.error('Failed to take picture or prepare for encoding:', error);
+      console.error('Failed to take picture or process with pure PNG:', error);
+      completeProgress();
+    } finally {
       setIsEncoding(false);
     }
   };
 
   const handleWebViewMessage = async (event: any) => {
-    setWebViewHtml(null);
     const messageData = JSON.parse(event.nativeEvent.data);
-
-    if (messageData.type === 'steganographyEncoded') {
-      const steganographyEncodedImage = messageData.data;
-      const basicData = messageData.basicData;
+    console.log('📨 WebView message received:', messageData.type);
+    
+    if (messageData.type === 'requestSignatureForOneCanvasRGBA') {
+      // NEW: Handle RGBA-based signature request
+      const { rgbaBase64ForSigning, basicInfo, publicKey, privateKey, callbackId, imageWidth, imageHeight } = messageData;
       
       try {
-        console.log('✅ Steganography encoding completed');
+        console.log('🔐 React Native: Computing SHA-512 hash for RGBA data (NEW METHOD)...');
+        console.log('📊 RGBA data size:', rgbaBase64ForSigning.length, 'chars');
+        console.log('📊 Image dimensions:', imageWidth, 'x', imageHeight);
+        console.log('🎯 This avoids all PNG compatibility issues!');
         
-        // Step 2: Now generate the signature for the steganography-encoded IMAGE (not basicData)
-        // Extract the base64 image data from the data URL
-        const base64ImageData = steganographyEncodedImage.split(',')[1];
-        if (!base64ImageData) {
-          throw new Error("Invalid base64 data format from steganography encoding");
+        // Hash the RGBA data directly using React Native crypto
+        const rgbaHash = await require('expo-crypto').digestStringAsync(
+          require('expo-crypto').CryptoDigestAlgorithm.SHA512,
+          rgbaBase64ForSigning,
+          { encoding: require('expo-crypto').CryptoEncoding.HEX }
+        );
+        
+        console.log('✅ SHA-512 hash computed from RGBA data:', rgbaHash.length, 'chars');
+        console.log('🔐 RGBA Hash preview:', rgbaHash.substring(0, 16) + '...');
+        
+        // Sign the RGBA hash using secp256k1
+        const { secp256k1 } = await import('@noble/curves/secp256k1');
+        const dataToSign = new TextEncoder().encode(rgbaHash);
+        const privateKeyBytes = new Uint8Array(
+          atob(privateKey).split('').map(c => c.charCodeAt(0))
+        );
+        
+        const signature = secp256k1.sign(dataToSign, privateKeyBytes);
+        const signatureBase64 = btoa(
+          String.fromCharCode(...signature.toCompactRawBytes())
+        );
+        
+        console.log('✅ RGBA data signed with secp256k1 in React Native');
+        console.log('🔐 Signature length:', signatureBase64.length);
+        console.log('🎯 This signature is based on RGBA data!');
+        
+        setCurrentSignature(signatureBase64);
+        
+        // Continue the workflow in THE SAME WebView by calling the completion function
+        console.log('🔄 Continuing workflow in THE SAME canvas (RGBA method)...');
+        
+        // Inject JavaScript to complete the workflow in the same WebView
+        if (webViewRef && webViewRef.current) {
+          webViewRef.current.injectJavaScript(`
+            if (typeof window.completeOneCanvasWorkflow === 'function') {
+              window.completeOneCanvasWorkflow('${signatureBase64}', '${publicKey}');
+            } else {
+              console.error('completeOneCanvasWorkflow function not found');
+            }
+          `);
         }
         
-        // Directly sign the steganography-encoded image data
-        const signature = await signDataWithNobleEd25519(base64ImageData, keyPair!.privateKey);
+      } catch (error) {
+        console.error('❌ Failed to hash and sign RGBA data in React Native:', error);
+        setWebViewHtml(null);
+        setIsEncoding(false);
+      }
+      
+    } else if (messageData.type === 'requestSignatureForOneCanvas') {
+      // Handle PNG-based signature request with secp256k1
+      const { pngBase64ForSigning, basicInfo, publicKey, privateKey, callbackId } = messageData;
+      
+      try {
+        console.log('🔐 React Native: Computing SHA-512 hash for PNG...');
+        console.log('📊 PNG for signing size:', pngBase64ForSigning.length, 'chars');
         
-        console.log('✅ Noble Ed25519 signature generated for steganography-encoded image');
-        console.log('🔐 Signature length:', signature.length);
-        console.log('📝 Signature represents the image with embedded basicData');
+        // Hash the PNG with basic data using React Native crypto
+        const imageHash = await require('expo-crypto').digestStringAsync(
+          require('expo-crypto').CryptoDigestAlgorithm.SHA512,
+          pngBase64ForSigning,
+          { encoding: require('expo-crypto').CryptoEncoding.HEX }
+        );
         
-        // Step 3: Embed public key and signature into PNG metadata
-        const pngMetadata: PNGMetadata = {
-          publicKey: keyPair!.publicKey.keyBase64,
-          signature: signature,
-          algorithm: 'Ed25519',
-          timestamp: new Date().toISOString(),
-          keyId: keyPair!.privateKey.keyId
-        };
+        console.log('✅ SHA-512 hash computed:', imageHash.length, 'chars');
         
-        const pngWithMetadata = await embedMetadataIntoPNG(base64ImageData, pngMetadata);
+        // Sign the hash using secp256k1
+        const { secp256k1 } = await import('@noble/curves/secp256k1');
+        const dataToSign = new TextEncoder().encode(imageHash);
+        const privateKeyBytes = new Uint8Array(
+          atob(privateKey).split('').map(c => c.charCodeAt(0))
+        );
         
-        // Save the PNG with embedded metadata to device
-        const filename = FileSystem.cacheDirectory + `geocam-encoded-${Date.now()}.png`;
+        const signature = secp256k1.sign(dataToSign, privateKeyBytes);
+        const signatureBase64 = btoa(
+          String.fromCharCode(...signature.toCompactRawBytes())
+        );
         
-        await FileSystem.writeAsStringAsync(filename, pngWithMetadata, {
+        console.log('✅ PNG signed with secp256k1 in React Native');
+        console.log('🔐 Signature length:', signatureBase64.length);
+        
+        setCurrentSignature(signatureBase64);
+        
+        // Continue the workflow in THE SAME WebView by calling the completion function
+        console.log('🔄 Continuing workflow in THE SAME canvas...');
+        
+        // Inject JavaScript to complete the workflow in the same WebView
+        if (webViewRef && webViewRef.current) {
+          webViewRef.current.injectJavaScript(`
+            if (typeof window.completeOneCanvasWorkflow === 'function') {
+              window.completeOneCanvasWorkflow('${signatureBase64}', '${publicKey}');
+            } else {
+              console.error('completeOneCanvasWorkflow function not found');
+            }
+          `);
+        }
+        
+      } catch (error) {
+        console.error('❌ Failed to hash and sign PNG in React Native:', error);
+        setWebViewHtml(null);
+        setIsEncoding(false);
+      }
+      
+    } else if (messageData.type === 'oneCanvasComplete') {
+      // Handle completion from the TRUE ONE CANVAS workflow
+      setWebViewHtml(null);
+      
+      const { finalPngBase64, width, height, basicInfo, signature, publicKey } = messageData;
+      
+      try {
+        console.log('🎉 === TRUE ONE CANVAS GEOCAM WORKFLOW COMPLETED ===');
+        console.log('✅ Step 1: JPEG → Canvas (alpha channel added)');
+        console.log('✅ Step 2: Basic data encoded (exclude last row)');
+        console.log('✅ Step 3: PNG for signature created');
+        console.log('✅ Step 4: Signature generated in React Native');
+        console.log('✅ Step 5: Signature encoded to last row (SAME CANVAS)');
+        console.log('✅ Step 6: Final PNG created (SAME CANVAS)');
+        console.log('🎯 TRUE ONE CANVAS WORKFLOW COMPLETED!');
+        
+        console.log('📊 Final image dimensions:', width, 'x', height);
+        console.log('📊 Final PNG base64 length:', finalPngBase64.length);
+        
+        // Save the final PNG to device
+        const filename = FileSystem.cacheDirectory + `geocam-${Date.now()}.png`;
+        
+        await FileSystem.writeAsStringAsync(filename, finalPngBase64, {
           encoding: FileSystem.EncodingType.Base64,
         });
-        await MediaLibrary.saveToLibraryAsync(filename);
+        
+        // Save to MediaLibrary 
+        const asset = await MediaLibrary.saveToLibraryAsync(filename);
         setLastPhoto(filename);
         
-        // Save to gallery storage with steganography-encoded data and signature
+        console.log('📱 MediaLibrary saveToLibraryAsync result:', asset);
+        
+        // Save to gallery storage
         const galleryData = {
           uri: filename,
-          encodedInfo: basicData, // The basic data that was embedded
-          signature: signature,    // Signature of the steganography-encoded image
+          encodedInfo: currentBasicDataStr || '',
+          signature: currentSignature || '',
+          publicKey: keyPair!.publicKey.keyBase64,
           timestamp: Date.now(),
         };
         
         try {
           await saveImageToGallery(galleryData);
-          console.log('💾 Image with steganography encoding and image signature saved to gallery');
+          console.log('💾 Final image saved to gallery storage');
         } catch (galleryError) {
           console.error('Failed to save to gallery storage:', galleryError);
         }
         
-        console.log('📸 GeoCam photo workflow completed:');
-        console.log('  1. ✅ Basic data (time+location+device) encoded with steganography');
-        console.log('  2. ✅ Noble Ed25519 signature generated for the steganography-encoded IMAGE');
-        console.log('  3. ✅ Public key and signature embedded in PNG metadata');
-        console.log('  4. ✅ Image saved to device gallery');
-        
-      } catch (signatureError) {
-        console.error('❌ Failed in photo workflow:', signatureError);
-        
-        // Still save the steganography-encoded image even if signature fails
-        try {
-          const filename = FileSystem.cacheDirectory + `geocam-encoded-nosig-${Date.now()}.png`;
-          const base64Data = steganographyEncodedImage.split(',')[1];
-          if (base64Data) {
-            await FileSystem.writeAsStringAsync(filename, base64Data, {
-              encoding: FileSystem.EncodingType.Base64,
-            });
-            await MediaLibrary.saveToLibraryAsync(filename);
-            setLastPhoto(filename);
-            
-            await saveImageToGallery({
-              uri: filename,
-              encodedInfo: basicData,
-              timestamp: Date.now(),
-            });
-          }
-        } catch (saveError) {
-          console.error('❌ Failed to save image after signature error:', saveError);
-        }
+        console.log('🎉 === TRUE ONE CANVAS WORKFLOW COMPLETED ===');
+        console.log('✅ Image with encoded data saved successfully');
+                   
+                 } catch (error) {
+        console.error('❌ Failed to save final image:', error);
       }
+      
+        setIsEncoding(false);
+      
+    } else if (messageData.type === 'signingComplete') {
+      // Handle completion from the signing workflow
+      setWebViewHtml(null);
+      
+      const { finalPngBase64, width, height } = messageData;
+      
+      try {
+        console.log('🎉 === CORRECT GEOCAM WORKFLOW COMPLETED ===');
+        console.log('📷 Step 1: JPEG → Canvas (alpha channel added)');
+        console.log('📝 Step 2: Basic data encoded (exclude last row)');
+        console.log('🔗 Step 3: PNG for signature created');
+        console.log('🔐 Step 4: Signature generated in React Native');
+        console.log('📝 Step 5: Signature encoded to last row');
+        console.log('🖼️ Step 6: Final PNG created');
+        console.log('✅ CORRECT WORKFLOW COMPLETED!');
+        
+        console.log('📊 Final image dimensions:', width, 'x', height);
+        console.log('📊 Final PNG base64 length:', finalPngBase64.length);
+        
+        // Save the final PNG to device
+        const filename = FileSystem.cacheDirectory + `geocam-${Date.now()}.png`;
+        
+        await FileSystem.writeAsStringAsync(filename, finalPngBase64, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        
+        // Save to MediaLibrary 
+        const asset = await MediaLibrary.saveToLibraryAsync(filename);
+        setLastPhoto(filename);
+        
+        console.log('📱 MediaLibrary saveToLibraryAsync result:', asset);
+        
+        // Save to gallery storage
+        const galleryData = {
+          uri: filename,
+          encodedInfo: currentBasicDataStr || '',
+          signature: currentSignature || '',
+          publicKey: keyPair!.publicKey.keyBase64,
+          timestamp: Date.now(),
+        };
+        
+        try {
+          await saveImageToGallery(galleryData);
+          console.log('💾 Final image saved to gallery storage');
+        } catch (galleryError) {
+          console.error('Failed to save to gallery storage:', galleryError);
+        }
+        
+        console.log('🎉 === GEOCAM CORRECT WORKFLOW COMPLETED ===');
+        console.log('✅ Image with encoded data saved successfully');
+        
+      } catch (error) {
+        console.error('❌ Failed to save final image:', error);
+        }
+        
+        setIsEncoding(false);
+      
+    } else if (messageData.type === 'correctSigningComplete') {
+      // Also handle the correctSigningComplete message type (if it exists)
+      setWebViewHtml(null);
+      
+      const { finalPngBase64, width, height, basicInfo, signature, publicKey } = messageData;
+      
+      try {
+        console.log('🎉 === CORRECT GEOCAM WORKFLOW COMPLETED ===');
+        
+        // Save the final PNG to device
+        const filename = FileSystem.cacheDirectory + `geocam-${Date.now()}.png`;
+        
+        await FileSystem.writeAsStringAsync(filename, finalPngBase64, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        
+        const asset = await MediaLibrary.saveToLibraryAsync(filename);
+        setLastPhoto(filename);
+        
+        // Save to gallery storage
+        const galleryData = {
+          uri: filename,
+          encodedInfo: currentBasicDataStr || '',
+          signature: currentSignature || '',
+          publicKey: keyPair!.publicKey.keyBase64,
+          timestamp: Date.now(),
+        };
+        
+        try {
+          await saveImageToGallery(galleryData);
+          console.log('💾 Final image saved to gallery storage');
+        } catch (galleryError) {
+          console.error('Failed to save to gallery storage:', galleryError);
+        }
+        
+        console.log('🎉 === GEOCAM CORRECT WORKFLOW COMPLETED ===');
+        console.log('✅ Image with encoded data saved successfully');
+                   
+                 } catch (error) {
+        console.error('❌ Failed to save final image:', error);
+      }
+      
+        setIsEncoding(false);
+      
     } else if (messageData.type === 'error') {
-      console.error('WebView error:', messageData.data);
-    }
+      console.error('❌ WebView workflow error:', messageData.error);
+      setWebViewHtml(null);
     setIsEncoding(false);
+    }
   };
 
   return (
@@ -621,7 +613,7 @@ export default function CameraScreen() {
           style={styles.sideIconButton}
           onPress={() => router.push('/gallery')}
         >
-          <Icon name="photo-library" size={34} color="#fff" />
+          <Ionicons name="images" size={34} color="#fff" />
         </TouchableOpacity>
 
         {/* Take Photo Button */}
@@ -635,7 +627,7 @@ export default function CameraScreen() {
           </View>
         </TouchableOpacity>
 
-        {/* Camera Flip Button in Dark Circle */}
+        {/* Camera Flip Button */}
         <TouchableOpacity 
           style={styles.flipButton} 
           onPress={toggleCameraType}
@@ -649,7 +641,6 @@ export default function CameraScreen() {
         <TouchableOpacity 
           style={styles.preview}
           onPress={() => {
-            // Optional: Implement preview functionality
             console.log('Preview pressed');
           }}
         >
@@ -662,9 +653,11 @@ export default function CameraScreen() {
 
       {/* Loading Indicator */}
       {isEncoding && (
-        <View style={StyleSheet.absoluteFill}>
-          <ActivityIndicator size="large" color="#ffffff" style={styles.loadingIndicator} />
-          <Text style={styles.loadingText}>Encoding info...</Text>
+        <View style={styles.loadingOverlay}>
+          <CircularProgress 
+            progress={progress} 
+            acceleratedCompletion={accelerateProgress}
+          />
         </View>
       )}
 
@@ -672,15 +665,31 @@ export default function CameraScreen() {
       {webViewHtml && (
         <View style={styles.hiddenWebViewContainer}>
           <WebView
+            ref={webViewRef}
             originWhitelist={['*']}
             source={{ html: webViewHtml, baseUrl: '' }}
             onMessage={handleWebViewMessage}
             style={styles.webViewContent}
             javaScriptEnabled={true}
             domStorageEnabled={true}
+            onLoadStart={() => {
+              console.log('🌐 WebView loading started...');
+            }}
+            onLoadEnd={() => {
+              console.log('🌐 WebView loading completed');
+            }}
             onError={(syntheticEvent) => {
               const {nativeEvent} = syntheticEvent;
-              console.warn('WebView error: ', nativeEvent);
+              console.error('❌ WebView error: ', nativeEvent);
+              setIsEncoding(false);
+              setWebViewHtml(null);
+            }}
+            onHttpError={(syntheticEvent) => {
+              const {nativeEvent} = syntheticEvent;
+              console.error('❌ WebView HTTP error: ', nativeEvent);
+            }}
+            onContentProcessDidTerminate={() => {
+              console.error('❌ WebView content process terminated');
               setIsEncoding(false);
               setWebViewHtml(null);
             }}
@@ -765,9 +774,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  disabledButton: {
-    opacity: 0.5,
-  },
   preview: {
     position: 'absolute',
     left: 20,
@@ -798,20 +804,13 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  loadingIndicator: {
-    flex: 1,
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    zIndex: 1000,
   },
-  loadingText: {
-    position: 'absolute',
-    alignSelf: 'center',
-    top: '60%',
-    color: 'white',
-    fontSize: 18,
-  },
-  // Keep existing styles for permission screens
   button: {
     backgroundColor: 'white',
     padding: 15,

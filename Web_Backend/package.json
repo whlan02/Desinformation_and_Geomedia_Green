@@ -2,20 +2,36 @@
   "name": "geocam-steganography-service",
   "version": "1.0.0",
   "description": "Node.js service for steganography encoding/decoding",
-  "main": "steganography-service.js",
+  "main": "dist/steganography-service.js",
   "scripts": {
-    "start": "node steganography-service.js",
-    "dev": "nodemon steganography-service.js"
+    "build": "tsc",
+    "start": "node dist/steganography-service.js",
+    "dev": "ts-node steganography-service.ts",
+    "dev:watch": "nodemon --exec ts-node steganography-service.ts",
+    "test-verification": "ts-node test-verification.ts"
   },
   "dependencies": {
+    "@noble/curves": "^1.9.2",
+    "@noble/ed25519": "^2.3.0",
+    "@types/pngjs": "^6.0.5",
     "body-parser": "^1.20.2",
     "canvas": "^2.11.2",
     "cors": "^2.8.5",
     "express": "^4.18.2",
+    "form-data": "^4.0.3",
     "multer": "^1.4.5-lts.1",
-    "tweetnacl": "^1.0.3"
+    "node-fetch": "^3.3.2",
+    "pngjs": "^7.0.0",
+    "sharp": "^0.34.2",
+    "upng-js": "^2.1.0"
   },
   "devDependencies": {
-    "nodemon": "^3.0.1"
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
+    "@types/multer": "^1.4.13",
+    "@types/node": "^24.0.4",
+    "nodemon": "^3.0.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
   }
 }

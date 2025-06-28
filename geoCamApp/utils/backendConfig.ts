@@ -11,14 +11,18 @@ const PRODUCTION_STEG_URL = 'https://geocam-steganography.onrender.com';
 const DEV_BASE_URL = Platform.OS === 'web' ? 'http://localhost:5000' : 'http://192.168.178.52:5000';
 const DEV_STEG_URL = Platform.OS === 'web' ? 'http://localhost:3001' : 'http://192.168.178.52:3001';
 
-// Temporary switch: set to true to use the local server, false to use the Render deployed service
+// HYBRID TESTING MODE: Use production for API, local for steganography
 const USE_LOCAL_FOR_TESTING = false;
+const USE_LOCAL_STEGANOGRAPHY_ONLY = false; // Set to false for production
 
 // Backend configuration
 export const BACKEND_CONFIG = {
-  // Choose which backend to use based on the testing switch
+  // API services (device registration, etc.) - can be production or local
   BASE_URL: USE_LOCAL_FOR_TESTING ? DEV_BASE_URL : PRODUCTION_BASE_URL,
-  STEGANOGRAPHY_URL: USE_LOCAL_FOR_TESTING ? DEV_STEG_URL : PRODUCTION_STEG_URL,
+  
+  // Steganography service - can be controlled separately for testing
+  STEGANOGRAPHY_URL: USE_LOCAL_STEGANOGRAPHY_ONLY ? DEV_STEG_URL : 
+                     (USE_LOCAL_FOR_TESTING ? DEV_STEG_URL : PRODUCTION_STEG_URL),
   
   // API endpoints
   ENDPOINTS: {

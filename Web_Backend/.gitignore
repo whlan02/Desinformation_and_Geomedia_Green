@@ -33,3 +33,6 @@ temp_images/
 # OS
 .DS_Store
 Thumbs.db
+
+# Build files
+dist/

@@ -6,6 +6,8 @@ export interface GalleryImage {
   encodedInfo: string;
   timestamp: number;
   thumbnailUri?: string;
+  signature?: string;
+  publicKey?: string;
 }
 
 const GALLERY_STORAGE_KEY = 'geocam_gallery_images';

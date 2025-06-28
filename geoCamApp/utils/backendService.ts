@@ -1,7 +1,11 @@
 import * as Device from 'expo-device';
 import * as FileSystem from 'expo-file-system';
+import * as SecureStore from 'expo-secure-store';
 import { buildApiUrl, buildSteganographyUrl, BACKEND_CONFIG } from './backendConfig';
-import { getStoredNobleEd25519KeyPair } from './nobleEd25519Utils';
+import { getStoredSecp256k1KeyPair } from './secp256k1Utils';
+
+// Storage key for GeoCam device name
+const GEOCAM_DEVICE_NAME_KEY = 'geocam_device_name';
 
 // Types for API responses
 export interface DeviceRegistrationResponse {
@@ -9,7 +13,33 @@ export interface DeviceRegistrationResponse {
   message: string;
   device_id?: string;
   geocam_sequence?: string;
+  geocam_name?: string;
 }
+
+/**
+ * Get stored GeoCam device name
+ */
+export const getStoredGeoCamDeviceName = async (): Promise<string | null> => {
+  try {
+    return await SecureStore.getItemAsync(GEOCAM_DEVICE_NAME_KEY);
+  } catch (error) {
+    console.error('❌ Failed to get GeoCam device name:', error);
+    return null;
+  }
+};
+
+/**
+ * Store GeoCam device name
+ */
+export const storeGeoCamDeviceName = async (name: string): Promise<boolean> => {
+  try {
+    await SecureStore.setItemAsync(GEOCAM_DEVICE_NAME_KEY, name);
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to store GeoCam device name:', error);
+    return false;
+  }
+};
 
 export interface ImageVerificationResponse {
   success: boolean;
@@ -24,19 +54,19 @@ export interface ImageVerificationResponse {
 }
 
 /**
- * Register device with backend using NaCl public key
+ * Register device with backend using secp256k1 public key
  */
 export const registerDevice = async () => {
   try {
-    console.log('📱 Starting device registration with Noble Ed25519 keys...');
+    console.log('📱 Starting device registration with secp256k1 keys...');
     
-    // Get the stored Noble Ed25519 key pair
-    const keyPair = await getStoredNobleEd25519KeyPair();
+    // Get the stored secp256k1 key pair
+    const keyPair = await getStoredSecp256k1KeyPair();
     if (!keyPair) {
-              console.error('❌ No Noble Ed25519 keys found for registration');
+      console.error('❌ No secp256k1 keys found for registration');
       return {
         success: false,
-        message: 'No Noble Ed25519 keys available for registration',
+        message: 'No secp256k1 keys available for registration',
       };
     }
 
@@ -50,7 +80,7 @@ export const registerDevice = async () => {
       public_key_data: {
         type: keyPair.publicKey.type,
         keyId: keyPair.publicKey.keyId,
-        keyBase64: keyPair.publicKey.keyBase64,  // Complete Noble Ed25519 public key in Base64 format
+        keyBase64: keyPair.publicKey.keyBase64,  // Complete secp256k1 public key in Base64 format
         algorithm: keyPair.publicKey.algorithm,
         keySize: keyPair.publicKey.keySize,
         generatedAt: keyPair.publicKey.generatedAt,
@@ -60,7 +90,7 @@ export const registerDevice = async () => {
       registration_timestamp: new Date().toISOString(),
     };
 
-          console.log('📤 Sending simplified Noble Ed25519 registration data:', {
+    console.log('📤 Sending simplified secp256k1 registration data:', {
       installation_id: registrationData.installation_id,
       device_model: registrationData.device_model,
       public_key_type: registrationData.public_key_data.type,
@@ -70,59 +100,41 @@ export const registerDevice = async () => {
       public_key_length: registrationData.public_key_data.keyBase64.length,
     });
 
-    const url = buildApiUrl(BACKEND_CONFIG.ENDPOINTS.REGISTER_DEVICE);
-    console.log('🌐 Registration URL:', url);
-
-    const response = await fetch(url, {
+    // Send registration request to backend
+    const response = await fetch(buildApiUrl(BACKEND_CONFIG.ENDPOINTS.REGISTER_DEVICE), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Accept': 'application/json',
       },
       body: JSON.stringify(registrationData),
     });
 
-    console.log('📨 Response status:', response.status);
-    console.log('📨 Response ok:', response.ok);
+    const result = await response.json();
 
-    let result;
-    try {
-      const responseText = await response.text();
-      console.log('📥 Raw response:', responseText);
-      result = JSON.parse(responseText);
-    } catch (parseError) {
-      console.error('❌ Failed to parse response as JSON:', parseError);
-      return {
-        success: false,
-        message: 'Invalid response format from backend',
-      };
-    }
-    
-    if (response.ok && result.success) {
-              console.log('✅ Device registration successful with Noble Ed25519 keys:', result);
+    if (response.ok) {
+      console.log('✅ Device registration successful:', result);
+      
+      // Store the assigned GeoCam device name
+      if (result.geocam_name) {
+        await storeGeoCamDeviceName(result.geocam_name);
+      }
+      
       return {
         success: true,
-        message: result.message,
-        device_id: result.device_id,
-        geocam_sequence: result.geocam_sequence,
+        ...result
       };
     } else {
       console.error('❌ Device registration failed:', result);
       return {
         success: false,
-        message: result.error || result.message || 'Registration failed',
+        message: result.message || 'Device registration failed',
       };
     }
   } catch (error) {
     console.error('❌ Device registration error:', error);
-    if (error instanceof Error) {
-      console.error('❌ Error name:', error.name);
-      console.error('❌ Error message:', error.message);
-      console.error('❌ Error stack:', error.stack);
-    }
     return {
       success: false,
-      message: 'Network error during registration',
+      message: 'Network error during device registration',
     };
   }
 };
@@ -134,9 +146,9 @@ export const checkDeviceRegistration = async (): Promise<boolean> => {
   try {
     console.log('🔍 Checking device registration status...');
     
-    const keyPair = await getStoredNobleEd25519KeyPair();
+    const keyPair = await getStoredSecp256k1KeyPair();
     if (!keyPair) {
-      console.log('❌ No Noble Ed25519 keys found - device cannot be registered');
+      console.log('❌ No secp256k1 keys found - device cannot be registered');
       return false;
     }
 
@@ -154,12 +166,19 @@ export const checkDeviceRegistration = async (): Promise<boolean> => {
       
       // Check if our installation ID is in the registered devices
       const devices = result.devices || [];
-      const isRegistered = devices.some((device: any) => 
+      const registeredDevice = devices.find((device: any) => 
         device.installation_id === keyPair.privateKey.installationId ||
         (device.public_key_data && device.public_key_data.hash === keyPair.fingerprint)
       );
       
-      return isRegistered;
+      // If device is registered, save the GeoCam device name
+      if (registeredDevice && registeredDevice.geocam_sequence) {
+        const geocamName = `GeoCam${registeredDevice.geocam_sequence}`;
+        await storeGeoCamDeviceName(geocamName);
+        console.log('💾 Saved GeoCam device name from registration check:', geocamName);
+      }
+      
+      return !!registeredDevice;
     } else {
       console.warn('⚠️ Registration check failed:', response.status);
       return false;
@@ -199,7 +218,7 @@ export const getBackendHealth = async (): Promise<boolean> => {
 };
 
 /**
- * Submit photo with NaCl signature for verification
+ * Submit photo with secp256k1 signature for verification
  */
 export const submitPhotoForVerification = async (
   photoUri: string, 
@@ -207,11 +226,11 @@ export const submitPhotoForVerification = async (
   metadata: any
 ) => {
   try {
-    console.log('📸 Submitting photo with Noble Ed25519 signature for verification...');
+    console.log('📸 Submitting photo with secp256k1 signature for verification...');
     
-    const keyPair = await getStoredNobleEd25519KeyPair();
+    const keyPair = await getStoredSecp256k1KeyPair();
     if (!keyPair) {
-      throw new Error('No Noble Ed25519 keys available for photo submission');
+      throw new Error('No secp256k1 keys available for photo submission');
     }
 
     // Create form data for photo upload
@@ -327,7 +346,7 @@ export const verifyImageWithBackend = async (imageUri: string): Promise<ImageVer
     console.log('📁 Image URI:', imageUri);
 
     // Get device info for activity tracking
-    const keyPair = await getStoredNobleEd25519KeyPair();
+    const keyPair = await getStoredSecp256k1KeyPair();
     const installationId = keyPair?.privateKey?.installationId;
     console.log('🆔 Installation ID:', installationId);
 
@@ -411,6 +430,552 @@ export const verifyImageWithBackend = async (imageUri: string): Promise<ImageVer
       success: false,
       message: `Verification error: ${error instanceof Error ? error.message : String(error)}`,
       error: String(error),
+    };
+  }
+};
+
+/**
+ * Verify GeoCam image using local steganography service
+ */
+export const verifyGeoCamImageWithLocalBackend = async (imageUri: string): Promise<ImageVerificationResponse> => {
+  try {
+    console.log('🔍 === LOCAL BACKEND VERIFICATION ===');
+    console.log('📤 Sending image to local steganography service...');
+    console.log('📁 Image URI:', imageUri);
+    
+    // Read image as base64
+    const imageBase64 = await FileSystem.readAsStringAsync(imageUri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+    
+    console.log('📊 Image base64 length:', imageBase64.length);
+    
+    // Determine endpoint based on image type
+    let endpoint = '/verify-geocam-rgba'; // Default to RGBA verification (NEW method)
+    
+    // Check if it's a PNG to use PNG verification
+    if (imageUri.toLowerCase().includes('.png')) {
+      console.log('🎯 Using RGBA verification for PNG image');
+      endpoint = '/verify-geocam-rgba';
+    } else {
+      console.log('🎯 Using RGBA verification for JPEG image');
+      endpoint = '/verify-geocam-rgba'; // Still use RGBA for consistency
+    }
+    
+    const requestBody = {
+      imageBase64: imageBase64
+    };
+    
+    const url = buildSteganographyUrl(endpoint);
+    console.log('🌐 Verification URL:', url);
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    });
+    
+    console.log('📨 Response status:', response.status);
+    
+    let result;
+    try {
+      const responseText = await response.text();
+      console.log('📥 Raw response length:', responseText.length);
+      result = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('❌ Failed to parse response:', parseError);
+      return {
+        success: false,
+        message: 'Invalid response format from local backend',
+        error: 'JSON parse error'
+      };
+    }
+    
+    console.log('✅ Local backend verification completed:', result);
+    
+    // Transform local backend response to match our interface
+    const transformedResult: ImageVerificationResponse = {
+      success: result.success !== false,
+      message: result.verification_result?.message || result.error || 'Local verification completed',
+      verification_result: {
+        is_authentic: result.verification_result?.signature_valid || false,
+        decoded_data: result.verification_result?.decoded_info || null,
+        signature_valid: result.verification_result?.signature_valid || false,
+        device_info: result.verification_result?.device_info || null,
+      }
+    };
+    
+    return transformedResult;
+  } catch (error) {
+    console.error('❌ Local backend verification error:', error);
+    return {
+      success: false,
+      message: `Local verification error: ${error instanceof Error ? error.message : String(error)}`,
+      error: String(error),
+    };
+  }
+};
+
+/**
+ * NEW FULL BACKEND WORKFLOW: Process GeoCam image (Step 1)
+ * Send JPEG + basic info to backend, get hash to sign
+ */
+export const processGeoCamImageBackend = async (
+  jpegBase64: string,
+  basicInfo: string,
+  publicKey: string
+): Promise<{
+  success: boolean;
+  sessionId?: string;
+  hashToSign?: string;
+  imageInfo?: {
+    width: number;
+    height: number;
+    rgbaSize: number;
+  };
+  error?: string;
+}> => {
+  try {
+    console.log('🎯 === FULL BACKEND WORKFLOW: Step 1 ===');
+    console.log('📤 Sending JPEG to backend for processing...');
+    console.log('📊 JPEG base64 length:', jpegBase64.length);
+    console.log('📊 Basic info length:', basicInfo.length);
+    console.log('📊 Public key length:', publicKey.length);
+
+    // Create form data
+    const formData = new FormData();
+    
+    // For React Native, we need to use a different approach for file upload
+    // Create a file-like object that FormData can handle
+    const jpegUri = `data:image/jpeg;base64,${jpegBase64}`;
+    
+    formData.append('image', {
+      uri: jpegUri,
+      type: 'image/jpeg',
+      name: 'geocam.jpg'
+    } as any);
+    formData.append('basicInfo', basicInfo);
+    formData.append('publicKey', publicKey);
+
+    const url = buildSteganographyUrl('/process-geocam-image');
+    console.log('🌐 Processing URL:', url);
+
+    const response = await fetch(url, {
+      method: 'POST',
+      body: formData,
+    });
+
+    console.log('📨 Response status:', response.status);
+
+    let result;
+    try {
+      const responseText = await response.text();
+      console.log('📥 Raw response length:', responseText.length);
+      result = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('❌ Failed to parse response:', parseError);
+      return {
+        success: false,
+        error: 'Invalid response format from backend'
+      };
+    }
+
+    if (response.ok && result.success) {
+      console.log('✅ Backend processing successful');
+      console.log('🔑 Session ID:', result.sessionId);
+      console.log('🔐 Hash to sign length:', result.hashToSign?.length);
+      console.log('📊 Image info:', result.imageInfo);
+
+      return {
+        success: true,
+        sessionId: result.sessionId,
+        hashToSign: result.hashToSign,
+        imageInfo: result.imageInfo
+      };
+    } else {
+      console.error('❌ Backend processing failed:', result);
+      return {
+        success: false,
+        error: result.error || 'Backend processing failed'
+      };
+    }
+
+  } catch (error) {
+    console.error('❌ Backend processing error:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Network error'
+    };
+  }
+};
+
+/**
+ * NEW FULL BACKEND WORKFLOW: Complete GeoCam processing (Step 2)
+ * Send signature to backend, get final PNG
+ */
+export const completeGeoCamImageBackend = async (
+  sessionId: string,
+  signature: string
+): Promise<{
+  success: boolean;
+  pngBase64?: string;
+  stats?: {
+    originalSize: number;
+    pngSize: number;
+    dimensions: { width: number; height: number };
+    compressionRatio: string;
+  };
+  error?: string;
+}> => {
+  try {
+    console.log('🎯 === FULL BACKEND WORKFLOW: Step 2 ===');
+    console.log('📤 Sending signature to complete processing...');
+    console.log('🔑 Session ID:', sessionId);
+    console.log('📊 Signature length:', signature.length);
+
+    const requestData = {
+      sessionId,
+      signature
+    };
+
+    const url = buildSteganographyUrl('/complete-geocam-image');
+    console.log('🌐 Completion URL:', url);
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestData),
+    });
+
+    console.log('📨 Response status:', response.status);
+
+    let result;
+    try {
+      const responseText = await response.text();
+      console.log('📥 Raw response length:', responseText.length);
+      result = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('❌ Failed to parse response:', parseError);
+      return {
+        success: false,
+        error: 'Invalid response format from backend'
+      };
+    }
+
+    if (response.ok && result.success) {
+      console.log('✅ Backend completion successful');
+      console.log('📊 PNG base64 length:', result.pngBase64?.length);
+      console.log('📊 Stats:', result.stats);
+
+      return {
+        success: true,
+        pngBase64: result.pngBase64,
+        stats: result.stats
+      };
+    } else {
+      console.error('❌ Backend completion failed:', result);
+      return {
+        success: false,
+        error: result.error || 'Backend completion failed'
+      };
+    }
+
+  } catch (error) {
+    console.error('❌ Backend completion error:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Network error'
+    };
+  }
+};
+
+
+
+export const signImagePurePng = async (
+  jpegBase64: string,
+  basicInfo: string,
+  publicKeyBase64: string,
+  privateKeyBase64: string
+): Promise<{
+  success: boolean;
+  pngBase64?: string;
+  stats?: {
+    originalJpegSize: number;
+    finalPngSize: number;
+    dimensions: { width: number; height: number };
+    method: string;
+    version: string;
+  };
+  error?: string;
+}> => {
+  try {
+    console.log('🎯 === SIGNING WORKFLOW (NO Canvas) ===');
+    console.log('📤 Sending complete signing request to backend...');
+    console.log('📊 JPEG base64 length:', jpegBase64.length);
+    console.log('📊 Basic info length:', basicInfo.length);
+
+    const requestData = {
+      jpegBase64,
+      basicInfo,
+      publicKeyBase64,
+      privateKeyBase64
+    };
+
+    const url = buildSteganographyUrl('/pure-png-sign');
+    console.log('🌐 Signing URL:', url);
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestData),
+    });
+
+    console.log('📨 Response status:', response.status);
+
+    let result;
+    try {
+      const responseText = await response.text();
+      console.log('📥 Raw response length:', responseText.length);
+      result = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('❌ Failed to parse response:', parseError);
+      return {
+        success: false,
+        error: 'Invalid response format from backend'
+      };
+    }
+
+    if (response.ok && result.success) {
+      console.log('✅ Signing successful');
+      console.log('📊 PNG base64 length:', result.pngBase64?.length);
+      console.log('📊 Stats:', result.stats);
+      console.log('🎯 NO Canvas used - signature integrity preserved');
+
+      return {
+        success: true,
+        pngBase64: result.pngBase64,
+        stats: result.stats
+      };
+    } else {
+      console.error('❌ Signing failed:', result);
+      return {
+        success: false,
+        error: result.error || 'Signing failed'
+      };
+    }
+
+  } catch (error) {
+    console.error('❌ Signing error:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Network error'
+    };
+  }
+};
+
+
+export const verifyImagePurePng = async (pngBase64: string): Promise<ImageVerificationResponse> => {
+  try {
+    console.log('📤 Sending verification request to backend...');
+    console.log('📊 PNG base64 length:', pngBase64.length);
+
+    const requestData = {
+      pngBase64
+    };
+
+    const url = buildSteganographyUrl('/pure-png-verify');
+    console.log('🌐verification URL:', url);
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestData),
+    });
+
+    console.log('📨 Response status:', response.status);
+
+    let result;
+    try {
+      const responseText = await response.text();
+      result = JSON.parse(responseText);
+    } catch (parseError) {
+      return {
+        success: false,
+        message: 'Invalid response format from backend',
+      };
+    }
+
+    if (response.ok && result.success) {
+      console.log('✅ verification successful');
+      console.log('🔐 Signature valid:', result.verification_result?.signature_valid);
+      console.log('📊 Method:', result.method);
+      console.log('🎯 NO Canvas used - verification complete');
+
+      return {
+        success: true,
+        message: result.verification_result?.message || 'Verification completed',
+        verification_result: {
+          is_authentic: result.verification_result?.signature_valid || false,
+          decoded_data: result.verification_result?.decoded_info || null,
+          signature_valid: result.verification_result?.signature_valid || false,
+          device_info: result.verification_result?.device_info || null,
+        }
+      };
+    } else {
+      console.error('❌ verification failed:', result);
+      return {
+        success: false,
+        message: result.error || 'verification failed',
+        error: result.error,
+      };
+    }
+
+  } catch (error) {
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : String(error),
+      error: String(error),
+    };
+  }
+};
+
+/**
+ * Process image with steganography and sign with secp256k1
+ */
+export const processImageWithSteganography = async (
+  imageUri: string,
+  basicInfo: string
+): Promise<{ success: boolean; signedImageUri?: string; error?: string }> => {
+  try {
+    console.log('🎯 Starting steganography workflow...');
+    
+    // Get stored secp256k1 key pair
+    const keyPair = await getStoredSecp256k1KeyPair();
+    if (!keyPair) {
+      throw new Error('No secp256k1 keys available for signing');
+    }
+    
+    // Convert image to base64
+    const imageBase64 = await FileSystem.readAsStringAsync(imageUri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+    
+    console.log('📊 Image base64 length:', imageBase64.length);
+    console.log('📊 Basic info length:', basicInfo.length);
+    console.log('📊 Public key length:', keyPair.publicKey.keyBase64.length);
+    console.log('📊 Private key length:', keyPair.privateKey.keyBase64.length);
+    
+    // Create form data for steganography request
+    const formData = new FormData();
+    formData.append('image', imageBase64);
+    formData.append('basicInfo', basicInfo);
+    formData.append('publicKey', keyPair.publicKey.keyBase64);
+    formData.append('privateKey', keyPair.privateKey.keyBase64);
+    
+    // Send request to steganography service
+    const response = await fetch(buildSteganographyUrl('/pure-png-sign'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+      body: formData,
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Steganography service error:', errorText);
+      throw new Error(`Steganography service failed: ${errorText}`);
+    }
+    
+    const result = await response.json();
+    
+    if (!result.success) {
+      throw new Error(result.error || 'Steganography service failed');
+    }
+    
+    // Save processed image
+    const processedImageUri = `${FileSystem.cacheDirectory}processed_${Date.now()}.png`;
+    await FileSystem.writeAsStringAsync(processedImageUri, result.image, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+    
+    console.log('✅ Image processed successfully');
+    console.log('📁 Processed image saved to:', processedImageUri);
+    
+    return {
+      success: true,
+      signedImageUri: processedImageUri,
+    };
+    
+  } catch (error) {
+    console.error('❌ Image processing failed:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+};
+
+/**
+ * Verify image steganography and secp256k1 signature
+ */
+export const verifyImageSteganography = async (
+  imageUri: string
+): Promise<{ success: boolean; error?: string; data?: any }> => {
+  try {
+    console.log('🔍 Starting steganography verification...');
+    
+    // Convert image to base64
+    const imageBase64 = await FileSystem.readAsStringAsync(imageUri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+    
+    // Create form data for verification request
+    const formData = new FormData();
+    formData.append('image', imageBase64);
+    
+    // Send request to steganography service
+    const response = await fetch(buildSteganographyUrl('/verify-geocam-rgba'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+      body: formData,
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Verification service error:', errorText);
+      throw new Error(`Verification service failed: ${errorText}`);
+    }
+    
+    const result = await response.json();
+    
+    if (!result.success) {
+      throw new Error(result.error || 'Verification failed');
+    }
+    
+    console.log('✅ Image verification successful');
+    console.log('📊 Verification result:', result);
+    
+    return {
+      success: true,
+      data: result,
+    };
+    
+  } catch (error) {
+    console.error('❌ Image verification failed:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
     };
   }
 }; 

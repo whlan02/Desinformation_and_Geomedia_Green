@@ -3,9 +3,7 @@ import { useRouter } from 'expo-router';
 import { ImageBackground } from 'react-native';
 import { SvgXml } from 'react-native-svg';
 import { useEffect, useState } from 'react';
-import { generateNobleEd25519KeyPair, getStoredNobleEd25519KeyPair, storeNobleEd25519KeyPair, hasStoredNobleEd25519KeyPair } from '../utils/nobleEd25519Utils';
-import { testAllServices } from '../utils/backendConfig';
-import { registerDevice, checkDeviceRegistration } from '../utils/backendService';
+import { generateSecp256k1KeyPair, getStoredSecp256k1KeyPair, storeSecp256k1KeyPair, hasStoredSecp256k1KeyPair } from '../utils/secp256k1Utils';
 
 // Define SVG strings directly
 const cameraIconXml = `<svg fill="none" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><g stroke="#fff" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="m6.23319 5.83404.44526-2.22627c.18697-.93485 1.0078-1.60777 1.96116-1.60777h6.72079c.9534 0 1.7742.67292 1.9612 1.60777l.4452 2.22627c.1424.71201.6823 1.27824 1.3867 1.45435 1.6729.41822 2.8465 1.9213 2.8465 3.64571v7.0659c0 2.2091-1.7909 4-4 4h-12c-2.20914 0-4-1.7909-4-4v-7.0659c0-1.72441 1.17357-3.22749 2.84645-3.64571.70443-.17611 1.24434-.74234 1.38674-1.45435z"/><circle cx="12" cy="14" r="4"/><path d="m11 6h2"/></g></svg>`;
@@ -20,20 +18,9 @@ export default function MainMenu() {
   const router = useRouter();
   const [keysInitialized, setKeysInitialized] = useState(false);
   const [isInitializingKeys, setIsInitializingKeys] = useState(true);
-  const [backendStatus, setBackendStatus] = useState<{api: boolean, steganography: boolean} | null>(null);
-  const [isTestingBackend, setIsTestingBackend] = useState(false);
-  const [deviceRegistrationStatus, setDeviceRegistrationStatus] = useState<{
-    isRegistered: boolean;
-    isRegistering: boolean;
-    registrationMessage?: string;
-  }>({
-    isRegistered: false,
-    isRegistering: false,
-  });
 
   useEffect(() => {
     initializeAppKeys();
-    testBackendConnectivity();
   }, []);
 
   const initializeAppKeys = async () => {
@@ -41,18 +28,15 @@ export default function MainMenu() {
       console.log('🔐 Checking app key initialization status...');
       
       // Check if keys already exist
-      const hasKeys = await hasStoredNobleEd25519KeyPair();
+      const hasKeys = await hasStoredSecp256k1KeyPair();
       
       if (hasKeys) {
         console.log('✅ App keys already initialized');
         // Double-check by trying to load them
-        const keyPair = await getStoredNobleEd25519KeyPair();
+        const keyPair = await getStoredSecp256k1KeyPair();
         if (keyPair) {
           console.log('✅ Key validation successful');
           setKeysInitialized(true);
-          
-          // After keys are loaded, check and handle device registration
-          await handleDeviceRegistration();
         } else {
           console.warn('⚠️ Keys flag exists but keys not loadable - regenerating...');
           await generateAndStoreNewKeys();
@@ -63,7 +47,6 @@ export default function MainMenu() {
       }
     } catch (error) {
       console.error('❌ Failed to initialize app keys:', error);
-      // Still allow app to continue, but warn user
       setKeysInitialized(false);
     }
     
@@ -73,17 +56,14 @@ export default function MainMenu() {
   const generateAndStoreNewKeys = async () => {
     try {
       // Generate new keys for this app installation
-      const newKeyPair = await generateNobleEd25519KeyPair();
-      await storeNobleEd25519KeyPair(newKeyPair.privateKey, newKeyPair.publicKey, newKeyPair.fingerprint);
+      const newKeyPair = await generateSecp256k1KeyPair();
+      await storeSecp256k1KeyPair(newKeyPair.privateKey, newKeyPair.publicKey, newKeyPair.fingerprint);
       
       // Verify keys were stored correctly
-      const verification = await getStoredNobleEd25519KeyPair();
+      const verification = await getStoredSecp256k1KeyPair();
       if (verification) {
         console.log('✅ App keys successfully generated and verified');
         setKeysInitialized(true);
-        
-        // After new keys are generated, automatically register device
-        await handleDeviceRegistration();
       } else {
         throw new Error('Key storage verification failed');
       }
@@ -94,69 +74,6 @@ export default function MainMenu() {
     }
   };
 
-  const handleDeviceRegistration = async () => {
-    setDeviceRegistrationStatus(prev => ({ ...prev, isRegistering: true }));
-    
-    try {
-      console.log('🔍 Checking device registration status...');
-      
-      // First check if device is already registered
-      const isAlreadyRegistered = await checkDeviceRegistration();
-      
-      if (isAlreadyRegistered) {
-        console.log('✅ Device is already registered');
-        setDeviceRegistrationStatus({
-          isRegistered: true,
-          isRegistering: false,
-          registrationMessage: 'Device already registered'
-        });
-        return;
-      }
-      
-      console.log('📱 Device not registered, starting registration...');
-      
-      // Register the device
-      const registrationResult = await registerDevice();
-      
-      if (registrationResult.success) {
-        console.log('✅ Device registration successful:', registrationResult);
-        setDeviceRegistrationStatus({
-          isRegistered: true,
-          isRegistering: false,
-          registrationMessage: registrationResult.message || 'Device registered successfully'
-        });
-      } else {
-        console.error('❌ Device registration failed:', registrationResult);
-        setDeviceRegistrationStatus({
-          isRegistered: false,
-          isRegistering: false,
-          registrationMessage: registrationResult.message || 'Registration failed'
-        });
-      }
-    } catch (error) {
-      console.error('❌ Device registration error:', error);
-      setDeviceRegistrationStatus({
-        isRegistered: false,
-        isRegistering: false,
-        registrationMessage: 'Registration failed due to network error'
-      });
-    }
-  };
-
-  const testBackendConnectivity = async () => {
-    setIsTestingBackend(true);
-    try {
-      console.log('🌐 Testing backend connectivity...');
-      const status = await testAllServices();
-      setBackendStatus(status);
-      console.log('📡 Backend connectivity test completed:', status);
-    } catch (error) {
-      console.error('❌ Backend connectivity test failed:', error);
-      setBackendStatus({ api: false, steganography: false });
-    }
-    setIsTestingBackend(false);
-  };
-
   return (
     <ImageBackground
       source={require('../assets/background.jpg')}
@@ -164,44 +81,10 @@ export default function MainMenu() {
       resizeMode="cover"
     >
       <Text style={styles.title}>GeoCam</Text>
-      <Text style={styles.subtitle}>Hardware-Secured Photo Authentication</Text>
       
       {isInitializingKeys && (
         <View style={styles.initializingContainer}>
           <Text style={styles.initializingText}>Initializing security keys...</Text>
-        </View>
-      )}
-
-      {(isTestingBackend || backendStatus) && (
-        <View style={styles.statusContainer}>
-          {isTestingBackend ? (
-            <Text style={styles.statusText}>Testing backend connection...</Text>
-          ) : backendStatus ? (
-            <View>
-              <Text style={styles.statusText}>
-                🌐 API: {backendStatus.api ? '✅ Connected' : '❌ Offline'}
-              </Text>
-              <Text style={styles.statusText}>
-                🔧 Services: {backendStatus.steganography ? '✅ Ready' : '❌ Offline'}
-              </Text>
-            </View>
-          ) : null}
-        </View>
-      )}
-
-      {/* Device Registration Status */}
-      {(deviceRegistrationStatus.isRegistering || deviceRegistrationStatus.registrationMessage) && (
-        <View style={styles.registrationContainer}>
-          {deviceRegistrationStatus.isRegistering ? (
-            <Text style={styles.registrationText}>📱 Registering device...</Text>
-          ) : (
-            <Text style={[
-              styles.registrationText,
-              deviceRegistrationStatus.isRegistered ? styles.registrationSuccess : styles.registrationError
-            ]}>
-              {deviceRegistrationStatus.isRegistered ? '✅' : '❌'} {deviceRegistrationStatus.registrationMessage}
-            </Text>
-          )}
         </View>
       )}
       
@@ -267,14 +150,6 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 10,
   },
-  subtitle: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.9)',
-    marginTop: 8,
-    textShadowColor: 'rgba(0, 0, 0, 0.8)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 5,
-  },
   initializingContainer: {
     marginTop: 40,
     padding: 15,
@@ -285,24 +160,6 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     textAlign: 'center',
-  },
-  registrationContainer: {
-    marginTop: 20,
-    padding: 15,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  registrationText: {
-    color: 'white',
-    fontSize: 14,
-    textAlign: 'center',
-  },
-  registrationSuccess: {
-    color: '#90ee90',
-  },
-  registrationError: {
-    color: '#ffb3b3',
   },
   bottomContainer: {
     position: 'absolute',
@@ -354,18 +211,5 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 10,
     paddingHorizontal: 20,
-  },
-  statusContainer: {
-    marginTop: 30,
-    padding: 15,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  statusText: {
-    color: 'white',
-    fontSize: 14,
-    textAlign: 'center',
-    marginVertical: 2,
   },
 });

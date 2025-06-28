@@ -67,36 +67,49 @@ export default function ImageDetail() {
     }
   };
 
-  const formatEncodedInfo = (encodedInfo: string) => {
+  const formatEncodedInfo = (encodedInfo: string, signature?: string, publicKey?: string) => {
     try {
       const parsed = JSON.parse(encodedInfo);
       let formatted = '';
       
-      // Only show user-friendly information, hide technical details
-      const userFriendlyFields = ['deviceModel', 'Time', 'location'];
+      // Device Information - combined format
+      const geocamDevice = parsed.geocamDevice;
+      const deviceModel = parsed.deviceModel;
       
-      for (const key in parsed) {
-        if (parsed.hasOwnProperty(key) && userFriendlyFields.includes(key)) {
-          if (key === 'location' && parsed[key]) {
-            formatted += `Location:\n  Lat: ${parsed[key].latitude.toFixed(6)}\n  Lon: ${parsed[key].longitude.toFixed(6)}\n\n`;
-          } else if (key === 'deviceModel') {
-            formatted += `Device: ${parsed[key]}\n\n`;
-          } else if (key === 'Time') {
-            formatted += `Captured: ${parsed[key]}\n\n`;
-          }
-        }
+      if (geocamDevice && deviceModel) {
+        formatted += ` Device: ${geocamDevice} (${deviceModel})\n`;
+      } else if (geocamDevice) {
+        formatted += ` Device: ${geocamDevice}\n`;
+      } else if (deviceModel) {
+        formatted += ` Device: ${deviceModel}\n`;
       }
       
-      // Add signature status if available
-      if (parsed.signature) {
-        formatted += `🔐 Digitally Signed: Yes\n`;
-        formatted += `🔑 Authentication: Hardware-secured\n`;
+      // Timestamp
+      if (parsed.Time) {
+        formatted += `Captured: ${parsed.Time}\n`;
+      }
+      
+      // Location Information
+      if (parsed.location) {
+        formatted += `Location:\n`;
+        formatted += `   Lat: ${parsed.location.latitude.toFixed(6)}\n`;
+        formatted += `   Lon: ${parsed.location.longitude.toFixed(6)}\n`;
+      }
+      
+      formatted += '\n'; // Add spacing
+      
+      // Security and Authentication - simplified
+      const hasSignature = signature || parsed.signature;
+      
+      if (hasSignature) {
+        formatted += ` Digital Signed: YES\n`;
       } else {
-        formatted += `🔐 Digitally Signed: No\n`;
+        formatted += ` Digital Signed: NO\n`;
       }
       
       return formatted.trim();
     } catch (e) {
+      console.error('Error parsing encoded info:', e);
       return 'Unable to read photo information';
     }
   };
@@ -189,16 +202,14 @@ export default function ImageDetail() {
         <Image source={{ uri: image.uri }} style={styles.fullImage} />
         
         <View style={styles.metaContainer}>
-          <Text style={styles.timestamp}>
-            Taken: {new Date(image.timestamp).toLocaleString()}
-          </Text>
+          
           
           {renderMap()}
 
           <View style={styles.infoContainer}>
             <Text style={styles.infoTitle}>Photo Information:</Text>
             <Text style={styles.infoText}>
-              {formatEncodedInfo(image.encodedInfo)}
+              {formatEncodedInfo(image.encodedInfo, image.signature, image.publicKey)}
             </Text>
           </View>
         </View>
@@ -269,11 +280,6 @@ const styles = StyleSheet.create({
     padding: 20,
     borderRadius: 8,
     gap: 15,
-  },
-  timestamp: {
-    color: 'white',
-    fontSize: 16,
-    textAlign: 'center',
   },
   infoContainer: {
     backgroundColor: '#25292e',
