@@ -527,7 +527,7 @@ const styles = StyleSheet.create({
   },
   topBar: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 10,
@@ -539,6 +539,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 2,
+    position: 'relative',
   },
   backButton: {
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
@@ -547,12 +548,16 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
+    position: 'absolute',
+    left: 16,
+    zIndex: 10,
   },
   topBarTitle: {
     fontSize: 20,
     fontWeight: 'bold',
     color: 'white',
     textAlign: 'center',
+    flex: 1,
   },
   statusIndicator: {
     flexDirection: 'row',
@@ -561,6 +566,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
+    position: 'absolute',
+    right: 16,
+    zIndex: 10,
   },
   statusDot: {
     width: 8,

@@ -317,7 +317,7 @@ const styles = StyleSheet.create({
     width: 130,
     height: 130,
     borderRadius: 65,
-    backgroundColor: 'rgba(15, 23, 36, 0.7)',
+    backgroundColor: 'rgba(24, 20, 21, 0.7)',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
@@ -330,7 +330,7 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   disabledMainButton: {
-    backgroundColor: 'rgba(15, 23, 36, 0.5)',
+    backgroundColor: 'rgba(24, 20, 21, 0.5)',
     borderColor: 'rgba(255, 255, 255, 0.5)',
     opacity: 0.7,
   },
@@ -383,7 +383,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   secondaryButton: {
-    backgroundColor: 'rgba(15, 23, 36, 0.7)',
+    backgroundColor: 'rgba(24, 20, 21, 0.7)',
     padding: 12,
     borderRadius: 15,
     width: 80,
@@ -452,7 +452,7 @@ const styles = StyleSheet.create({
     padding: 15,
   },
   landscapeSecondaryButton: {
-    backgroundColor: 'rgba(15, 23, 36, 0.7)',
+    backgroundColor: 'rgba(24, 20, 21, 0.7)',
     padding: 10,
     borderRadius: 15,
     width: 70,
