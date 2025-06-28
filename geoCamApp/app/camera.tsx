@@ -1,7 +1,18 @@
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View, TouchableOpacity, Image, ActivityIndicator, Animated } from 'react-native';
+import { 
+  StyleSheet, 
+  Text, 
+  View, 
+  TouchableOpacity, 
+  Image, 
+  ActivityIndicator, 
+  Animated, 
+  Platform,
+  BackHandler,
+  NativeEventSubscription
+} from 'react-native';
 import { CameraView, CameraType, FlashMode, useCameraPermissions } from 'expo-camera';
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect, useCallback } from 'react';
 import * as MediaLibrary from 'expo-media-library';
 import { WebView } from 'react-native-webview';
 import * as Device from 'expo-device';
@@ -137,6 +148,20 @@ export default function CameraScreen() {
   useEffect(() => {
     loadExistingKeys();
   }, []); // Empty dependency array means it only runs once on mount
+
+  // Hardware Button Camera Control
+  /**
+   * Volume Button Camera Capture
+   * 
+   * NOTE: This is a placeholder for native functionality that would require:
+   * - iOS: Native module to capture volume button events
+   * - Android: JNI integration to capture KeyEvent.KEYCODE_VOLUME_UP
+   * 
+   * True hardware volume button support requires native code integration,
+   * which is beyond the scope of this JavaScript/TypeScript implementation.
+   * 
+   * No UI hints are shown for this functionality since it requires native code.
+   */
 
   const loadExistingKeys = async () => {
     setIsLoadingKeys(true);
@@ -298,13 +323,8 @@ export default function CameraScreen() {
         // Log the file path for debugging
         console.log('📁 Image file path:', filePath);
         
-        // Show animation and navigate to image detail after a short delay
-        setTimeout(() => {
-          router.push({
-            pathname: '/image-detail',
-            params: { imageUri: encodeURIComponent(filePath) }
-          });
-        }, 800); // Short delay to see completion animation
+        // No longer automatically navigating to image detail
+        // User needs to tap the preview thumbnail to see the image
       } catch (galleryError) {
         console.error('Failed to save to gallery storage:', galleryError);
       }
@@ -479,13 +499,8 @@ export default function CameraScreen() {
           await saveImageToGallery(galleryData);
           console.log('💾 Final image saved to gallery storage');
           
-          // Show animation and navigate to image detail after a short delay
-          setTimeout(() => {
-            router.push({
-              pathname: '/image-detail',
-              params: { imageUri: encodeURIComponent(filename) }
-            });
-          }, 800); // Short delay to see completion animation
+          // No longer automatically navigating to image detail
+          // User needs to tap the preview thumbnail to see the image
         } catch (galleryError) {
           console.error('Failed to save to gallery storage:', galleryError);
         }
@@ -545,13 +560,8 @@ export default function CameraScreen() {
           await saveImageToGallery(galleryData);
           console.log('💾 Final image saved to gallery storage');
           
-          // Show animation and navigate to image detail after a short delay
-          setTimeout(() => {
-            router.push({
-              pathname: '/image-detail',
-              params: { imageUri: encodeURIComponent(filename) }
-            });
-          }, 800); // Short delay to see completion animation
+          // No longer automatically navigating to image detail
+          // User needs to tap the preview thumbnail to see the image
         } catch (galleryError) {
           console.error('Failed to save to gallery storage:', galleryError);
         }
@@ -598,13 +608,8 @@ export default function CameraScreen() {
           await saveImageToGallery(galleryData);
           console.log('💾 Final image saved to gallery storage');
           
-          // Show animation and navigate to image detail after a short delay
-          setTimeout(() => {
-            router.push({
-              pathname: '/image-detail',
-              params: { imageUri: encodeURIComponent(filename) }
-            });
-          }, 800); // Short delay to see completion animation
+          // No longer automatically navigating to image detail
+          // User needs to tap the preview thumbnail to see the image
         } catch (galleryError) {
           console.error('Failed to save to gallery storage:', galleryError);
         }
@@ -633,6 +638,7 @@ export default function CameraScreen() {
         style={styles.camera}
         facing={type}
         flash={flash}
+        onCameraReady={() => console.log('Camera ready for capture')}
       />
 
       {/* Top Bar */}
@@ -947,5 +953,17 @@ const styles = StyleSheet.create({
     fontSize: 18,
     textAlign: 'center',
     padding: 20,
+  },
+  hardwareButtonHint: {
+    display: 'none', // Hide this element
+  },
+  hardwareButtonText: {
+    display: 'none', // Hide this element
+  },
+  hintButton: {
+    display: 'none', // Hide this element
+  },
+  hintButtonText: {
+    display: 'none', // Hide this element
   },
 });

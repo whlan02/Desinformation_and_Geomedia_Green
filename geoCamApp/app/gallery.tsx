@@ -1,12 +1,28 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, RefreshControl, Alert, Dimensions, Platform } from 'react-native';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  FlatList, 
+  TouchableOpacity, 
+  Image, 
+  RefreshControl, 
+  Alert, 
+  Dimensions, 
+  Platform,
+  Animated,
+  ActivityIndicator,
+  StatusBar
+} from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { getGalleryImages, deleteImageFromGallery, type GalleryImage } from '../utils/galleryStorage';
 import * as FileSystem from 'expo-file-system';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Ionicons } from '@expo/vector-icons';
 
 const { width } = Dimensions.get('window');
-const ITEM_SIZE = (width - 60) / 3; // 3 columns with margins
+const ITEM_SIZE = (width - 48) / 3; // 3 columns with smaller margins for a tighter grid
+const ANIMATION_DURATION = 300; // Duration for animations in ms
 
 export default function Gallery() {
   const router = useRouter();
@@ -16,16 +32,26 @@ export default function Gallery() {
   const [loading, setLoading] = useState(true);
   const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
+  
+  // Animation values
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.95)).current;
+  const headerHeight = useRef(new Animated.Value(50)).current;
+  
+  // Filtering and sorting
+  const [sortOrder, setSortOrder] = useState<'newest'|'oldest'>('newest');
+  const [isGridView, setIsGridView] = useState(true);
 
+  // Load and process images
   const loadImages = useCallback(async () => {
     try {
       const galleryImages = await getGalleryImages();
       
-      // 确保所有图片URI都是有效的文件URL
+      // Validate image URIs and ensure they're proper file URLs
       const validatedImages = galleryImages.map(img => {
         if (!img.uri) return img;
         
-        // 如果是iOS的photo URL，转换为文件URL
+        // Convert iOS photo URLs to file URLs if needed
         if (img.uri.startsWith('ph://')) {
           const fileName = img.uri.split('/').pop();
           if (fileName && FileSystem.documentDirectory) {
@@ -38,14 +64,38 @@ export default function Gallery() {
         return img;
       });
       
-      setImages(validatedImages);
+      // Apply sorting
+      const sortedImages = [...validatedImages].sort((a, b) => {
+        if (sortOrder === 'newest') {
+          return b.timestamp - a.timestamp;
+        } else {
+          return a.timestamp - b.timestamp;
+        }
+      });
+      
+      setImages(sortedImages);
+      
+      // Start animations when images are loaded
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: ANIMATION_DURATION,
+          useNativeDriver: true
+        }),
+        Animated.timing(scaleAnim, {
+          toValue: 1,
+          duration: ANIMATION_DURATION,
+          useNativeDriver: true
+        })
+      ]).start();
+      
     } catch (error) {
       console.error('Error loading gallery images:', error);
       Alert.alert('Error', 'Failed to load gallery images');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [fadeAnim, scaleAnim, sortOrder]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -53,13 +103,44 @@ export default function Gallery() {
     setRefreshing(false);
   }, [loadImages]);
 
+  // Animation when component mounts
   useEffect(() => {
+    // Animate header on mount
+    Animated.timing(headerHeight, {
+      toValue: 100,
+      duration: ANIMATION_DURATION,
+      useNativeDriver: false
+    }).start();
+    
     loadImages();
-  }, [loadImages]);
+  }, [loadImages, headerHeight]);
+  
+  // Reset animations when sort order changes
+  useEffect(() => {
+    fadeAnim.setValue(0);
+    scaleAnim.setValue(0.95);
+    setLoading(true);
+    loadImages();
+  }, [sortOrder, fadeAnim, scaleAnim, loadImages]);
 
   const handleImagePress = async (image: GalleryImage) => {
+    // Play a tap animation
+    const imageScale = new Animated.Value(1);
+    Animated.sequence([
+      Animated.timing(imageScale, {
+        toValue: 0.95,
+        duration: 100,
+        useNativeDriver: true
+      }),
+      Animated.timing(imageScale, {
+        toValue: 1,
+        duration: 100,
+        useNativeDriver: true
+      })
+    ]).start();
+    
     if (isMultiSelectMode) {
-      // In multi-select mode, toggle selection
+      // In multi-select mode, toggle selection with visual feedback
       setSelectedImages(prev => {
         if (prev.includes(image.id)) {
           return prev.filter(id => id !== image.id);
@@ -68,7 +149,7 @@ export default function Gallery() {
         }
       });
     } else if (mode === 'select') {
-      // If in select mode, pass URI back to the previous screen and go back.
+      // If in select mode, pass URI back to the previous screen and go back
       try {
         await AsyncStorage.setItem('selectedUriForVerify', image.uri);
         router.back();
@@ -77,7 +158,7 @@ export default function Gallery() {
         Alert.alert('Error', 'Could not select the image.');
       }
     } else {
-      // Normal gallery view mode
+      // Normal gallery view mode - open detail with smooth transition
       router.push({
         pathname: '/image-detail',
         params: { 
@@ -89,8 +170,34 @@ export default function Gallery() {
     }
   };
 
+  // Toggle view mode between grid and list
+  const toggleViewMode = () => {
+    setIsGridView(prev => !prev);
+  };
+  
+  // Toggle sort order between newest and oldest
+  const toggleSortOrder = () => {
+    setSortOrder(prev => prev === 'newest' ? 'oldest' : 'newest');
+  };
+
   const handleLongPress = (image: GalleryImage) => {
     if (!mode && !isMultiSelectMode) {
+      // Haptic feedback would be added here in a real app
+      
+      // Enter multi-select mode with visual feedback
+      Animated.sequence([
+        Animated.timing(headerHeight, {
+          toValue: 80,
+          duration: 150,
+          useNativeDriver: false
+        }),
+        Animated.timing(headerHeight, {
+          toValue: 100,
+          duration: 150,
+          useNativeDriver: false
+        })
+      ]).start();
+      
       setIsMultiSelectMode(true);
       setSelectedImages([image.id]);
     }
@@ -109,15 +216,28 @@ export default function Gallery() {
           style: 'destructive',
           onPress: async () => {
             try {
+              // Show loading indicator during deletion
+              setLoading(true);
+              
               for (const imageId of selectedImages) {
                 await deleteImageFromGallery(imageId);
               }
+              
+              // Exit multi-select mode
               setSelectedImages([]);
               setIsMultiSelectMode(false);
-              await loadImages(); // Reload images after deletion
+              
+              // Reset animations and reload
+              fadeAnim.setValue(0);
+              scaleAnim.setValue(0.95);
+              await loadImages();
+              
+              // Show confirmation
+              Alert.alert('Success', `${selectedImages.length} image${selectedImages.length > 1 ? 's' : ''} deleted successfully.`);
             } catch (error) {
               console.error('Error deleting images:', error);
               Alert.alert('Error', 'Failed to delete images');
+              setLoading(false);
             }
           },
         },
@@ -125,52 +245,165 @@ export default function Gallery() {
     );
   };
 
-  const renderImage = ({ item }: { item: GalleryImage }) => (
-    <TouchableOpacity
-      style={[
-        styles.imageContainer,
-        selectedImages.includes(item.id) && styles.selectedImageContainer
-      ]}
-      onPress={() => handleImagePress(item)}
-      onLongPress={() => handleLongPress(item)}
-    >
-      <Image source={{ uri: item.uri }} style={styles.thumbnail} />
-      {isMultiSelectMode && (
-        <View style={[
-          styles.checkmark,
-          selectedImages.includes(item.id) && styles.checkmarkSelected
-        ]}>
-          {selectedImages.includes(item.id) && (
-            <Text style={styles.checkmarkText}>✓</Text>
+  // Format date in a more readable way
+  const formatDate = (timestamp: number) => {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const isToday = date.toDateString() === now.toDateString();
+    
+    if (isToday) {
+      return `Today, ${date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
+    }
+    
+    const yesterday = new Date();
+    yesterday.setDate(now.getDate() - 1);
+    const isYesterday = date.toDateString() === yesterday.toDateString();
+    
+    if (isYesterday) {
+      return `Yesterday, ${date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
+    }
+    
+    return date.toLocaleDateString([], {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const renderGridImage = ({ item, index }: { item: GalleryImage, index: number }) => {
+    // Calculate staggered animation delay based on index
+    const animDelay = index * 50;
+    
+    return (
+      <Animated.View
+        style={{
+          opacity: fadeAnim,
+          transform: [{ scale: scaleAnim }],
+        }}
+      >
+        <TouchableOpacity
+          style={[
+            styles.imageContainer,
+            selectedImages.includes(item.id) && styles.selectedImageContainer
+          ]}
+          onPress={() => handleImagePress(item)}
+          onLongPress={() => handleLongPress(item)}
+          activeOpacity={0.7}
+          delayLongPress={300}
+        >
+          <Image 
+            source={{ uri: item.uri }} 
+            style={styles.thumbnail}
+            resizeMode="cover" 
+          />
+          
+          {isMultiSelectMode && (
+            <View style={[
+              styles.checkmark,
+              selectedImages.includes(item.id) && styles.checkmarkSelected
+            ]}>
+              {selectedImages.includes(item.id) && (
+                <Ionicons name="checkmark" size={18} color="white" />
+              )}
+            </View>
           )}
-        </View>
-      )}
-      <Text style={styles.timestamp}>
-        {new Date(item.timestamp).toLocaleDateString()}
-      </Text>
-    </TouchableOpacity>
-  );
+          
+          <View style={styles.imageFooter}>
+            <Text style={styles.timestamp} numberOfLines={1}>
+              {formatDate(item.timestamp)}
+            </Text>
+          </View>
+        </TouchableOpacity>
+      </Animated.View>
+    );
+  };
+  
+  const renderListImage = ({ item, index }: { item: GalleryImage, index: number }) => {
+    return (
+      <Animated.View
+        style={{
+          opacity: fadeAnim,
+          transform: [{ scale: scaleAnim }],
+        }}
+      >
+        <TouchableOpacity
+          style={[
+            styles.listItemContainer,
+            selectedImages.includes(item.id) && styles.selectedImageContainer
+          ]}
+          onPress={() => handleImagePress(item)}
+          onLongPress={() => handleLongPress(item)}
+          activeOpacity={0.7}
+        >
+          <Image 
+            source={{ uri: item.uri }} 
+            style={styles.listThumbnail} 
+          />
+          
+          <View style={styles.listItemDetails}>
+            <Text style={styles.listItemDate}>
+              {formatDate(item.timestamp)}
+            </Text>
+            
+            <Text style={styles.listItemInfo}>
+              GeoCam Image
+            </Text>
+          </View>
+          
+          {isMultiSelectMode ? (
+            <View style={[
+              styles.listCheckmark,
+              selectedImages.includes(item.id) && styles.checkmarkSelected
+            ]}>
+              {selectedImages.includes(item.id) && (
+                <Ionicons name="checkmark" size={18} color="white" />
+              )}
+            </View>
+          ) : (
+            <Ionicons name="chevron-forward" size={20} color="#999" />
+          )}
+        </TouchableOpacity>
+      </Animated.View>
+    );
+  };
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
+      <StatusBar barStyle="light-content" />
+      
+      {/* Animated Header */}
+      <Animated.View style={[styles.header, { height: headerHeight }]}>
         {isMultiSelectMode ? (
           <>
             <TouchableOpacity 
               style={styles.backButton} 
               onPress={() => {
-                setIsMultiSelectMode(false);
-                setSelectedImages([]);
+                // Exit multi-select with animation
+                Animated.parallel([
+                  Animated.timing(headerHeight, {
+                    toValue: 60,
+                    duration: 200,
+                    useNativeDriver: false
+                  })
+                ]).start(() => {
+                  setIsMultiSelectMode(false);
+                  setSelectedImages([]);
+                });
               }}
             >
-              <Text style={styles.backButtonText}>Cancel</Text>
+              <Ionicons name="close-outline" size={24} color="white" />
             </TouchableOpacity>
-            <Text style={styles.title}>{selectedImages.length} Selected</Text>
+            <Text style={styles.title}>
+              {selectedImages.length} Selected
+            </Text>
             <TouchableOpacity 
               style={[styles.deleteButton, selectedImages.length === 0 && styles.disabledButton]} 
               onPress={handleDeleteSelected}
               disabled={selectedImages.length === 0}
             >
+              <Ionicons name="trash-outline" size={20} color="white" style={{marginRight: 5}} />
               <Text style={[styles.deleteButtonText, selectedImages.length === 0 && styles.disabledButtonText]}>
                 Delete
               </Text>
@@ -182,22 +415,48 @@ export default function Gallery() {
               style={styles.backButton} 
               onPress={() => router.back()}
             >
-              <Text style={styles.backButtonText}>← Back</Text>
+              <Ionicons name="arrow-back" size={24} color="white" />
             </TouchableOpacity>
             <Text style={styles.title}>
-              {mode === 'select' ? 'Select Image' : 'Gallery'}
+              {mode === 'select' ? 'Select Image' : 'GeoCam Gallery'}
             </Text>
-            <View style={styles.placeholder} />
+            
+            {/* Controls section - only show when not in selection mode */}
+            <View style={styles.controlsContainer}>
+              <TouchableOpacity 
+                style={styles.controlButton} 
+                onPress={toggleSortOrder}
+              >
+                <Ionicons 
+                  name={sortOrder === 'newest' ? 'time-outline' : 'time'} 
+                  size={20} 
+                  color="white" 
+                />
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.controlButton} 
+                onPress={toggleViewMode}
+              >
+                <Ionicons 
+                  name={isGridView ? 'list' : 'grid'} 
+                  size={20} 
+                  color="white" 
+                />
+              </TouchableOpacity>
+            </View>
           </>
         )}
-      </View>
+      </Animated.View>
 
       {loading ? (
         <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color="#1e88e5" />
           <Text style={styles.loadingText}>Loading gallery...</Text>
         </View>
       ) : images.length === 0 ? (
         <View style={styles.centerContainer}>
+          <Ionicons name="images-outline" size={60} color="#555" style={{marginBottom: 20}} />
           <Text style={styles.emptyText}>No photos yet</Text>
           <Text style={styles.emptySubText}>
             {mode === 'select' 
@@ -206,20 +465,51 @@ export default function Gallery() {
           </Text>
         </View>
       ) : (
-        <FlatList
-          data={images}
-          renderItem={renderImage}
-          keyExtractor={(item) => item.id}
-          numColumns={3}
-          contentContainerStyle={styles.gridContainer}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor="#ffffff"
+        <>
+          {isGridView ? (
+            <FlatList
+              data={images}
+              renderItem={renderGridImage}
+              keyExtractor={(item) => item.id}
+              numColumns={3}
+              key="grid" 
+              contentContainerStyle={styles.gridContainer}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={onRefresh}
+                  tintColor="#1e88e5"
+                  colors={['#1e88e5']}
+                />
+              }
+              showsVerticalScrollIndicator={false}
+              initialNumToRender={12}
+              maxToRenderPerBatch={8}
+              windowSize={11}
             />
-          }
-        />
+          ) : (
+            <FlatList
+              data={images}
+              renderItem={renderListImage}
+              keyExtractor={(item) => item.id}
+              numColumns={1}
+              key="list" 
+              contentContainerStyle={styles.listContainer}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={onRefresh}
+                  tintColor="#1e88e5"
+                  colors={['#1e88e5']}
+                />
+              }
+              showsVerticalScrollIndicator={false}
+              initialNumToRender={8}
+              maxToRenderPerBatch={6}
+              windowSize={9}
+            />
+          )}
+        </>
       )}
     </View>
   );
@@ -228,32 +518,57 @@ export default function Gallery() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#25292e',
+    backgroundColor: '#1a1a1a', // Darker background for better contrast
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 50,
-    paddingBottom: 20,
-    backgroundColor: '#373c40',
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'ios' ? 50 : 30,
+    paddingBottom: 16,
+    backgroundColor: '#222222',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.1)',
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    zIndex: 10,
   },
   backButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: 15,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   backButtonText: {
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '600',
     color: 'white',
   },
   title: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: 'bold',
     color: 'white',
+    textAlign: 'center',
+  },
+  controlsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  controlButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
   },
   placeholder: {
     width: 60, // Same width as back button for centering
@@ -265,86 +580,98 @@ const styles = StyleSheet.create({
     paddingHorizontal: 40,
   },
   loadingText: {
-    color: 'white',
-    fontSize: 18,
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: 16,
+    marginTop: 16,
   },
   emptyText: {
     color: 'white',
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: 'bold',
     textAlign: 'center',
-    marginBottom: 10,
+    marginBottom: 12,
   },
   emptySubText: {
-    color: '#cccccc',
+    color: 'rgba(255, 255, 255, 0.7)',
     fontSize: 16,
     textAlign: 'center',
     lineHeight: 24,
+    maxWidth: 300,
   },
   gridContainer: {
-    padding: 15,
+    padding: 8,
+  },
+  listContainer: {
+    padding: 8,
   },
   imageContainer: {
-    backgroundColor: '#373c40',
+    backgroundColor: '#2c2c2c',
     borderRadius: 12,
-    margin: 5,
+    margin: 4,
     overflow: 'hidden',
     width: ITEM_SIZE,
-    elevation: 3,
-    shadowColor: '#000',
+    height: ITEM_SIZE + 40, // Extra height for footer
+    elevation: 4,
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
   },
   thumbnail: {
     width: ITEM_SIZE,
     height: ITEM_SIZE,
-    resizeMode: 'cover',
+  },
+  imageFooter: {
+    padding: 6,
+    height: 40,
+    backgroundColor: '#2c2c2c',
+    justifyContent: 'center',
   },
   timestamp: {
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: 'rgba(255, 255, 255, 0.7)',
     fontSize: 11,
-    padding: 6,
     textAlign: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
   },
   selectedImageContainer: {
-    borderWidth: 2,
-    borderColor: '#007AFF',
+    borderWidth: 3,
+    borderColor: '#1e88e5', // Material blue
   },
   checkmark: {
     position: 'absolute',
     top: 8,
     right: 8,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: 'rgba(30, 136, 229, 0.3)',
     borderWidth: 2,
     borderColor: 'white',
     justifyContent: 'center',
     alignItems: 'center',
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
   },
   checkmarkSelected: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#1e88e5', // Material blue
   },
   checkmarkText: {
     color: 'white',
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: 'bold',
   },
   deleteButton: {
-    backgroundColor: '#FF3B30',
+    backgroundColor: '#f44336', // Material red
     paddingHorizontal: 15,
     paddingVertical: 8,
     borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   disabledButton: {
-    backgroundColor: 'rgba(255, 59, 48, 0.3)',
+    backgroundColor: 'rgba(244, 67, 54, 0.3)',
   },
   deleteButtonText: {
     fontSize: 16,
@@ -353,5 +680,53 @@ const styles = StyleSheet.create({
   },
   disabledButtonText: {
     color: 'rgba(255, 255, 255, 0.5)',
+  },
+  
+  // List view styles
+  listItemContainer: {
+    backgroundColor: '#2c2c2c',
+    borderRadius: 12,
+    margin: 4,
+    marginBottom: 8,
+    overflow: 'hidden',
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 8,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+  },
+  listThumbnail: {
+    width: 70,
+    height: 70,
+    borderRadius: 8,
+  },
+  listItemDetails: {
+    flex: 1,
+    paddingHorizontal: 12,
+    justifyContent: 'center',
+  },
+  listItemDate: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  listItemInfo: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: 14,
+  },
+  listCheckmark: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: 'rgba(30, 136, 229, 0.3)',
+    borderWidth: 2,
+    borderColor: 'white',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
   },
 });
