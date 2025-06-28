@@ -6,6 +6,32 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { PNG } = require('pngjs');
+const sharp = require('sharp');
+
+// Helper function to create RGBA buffer from Sharp output
+async function createRGBABuffer(sharpInstance) {
+  const { data, info } = await sharpInstance
+    .raw()
+    .ensureAlpha()
+    .toBuffer({ resolveWithObject: true });
+  
+  return {
+    data: new Uint8Array(data),
+    width: info.width,
+    height: info.height
+  };
+}
+
+// Helper function to create image from RGBA data
+async function createImageFromRGBA(rgbaData, width, height) {
+  return sharp(Buffer.from(rgbaData), {
+    raw: {
+      width,
+      height,
+      channels: 4
+    }
+  });
+}
 
 // Logging utility for consistent formatting
 const LOG_LEVELS = {
@@ -116,13 +142,14 @@ class SimpleSteganography {
     return done;
   }
 
-  decode(canvas) {
+  async decode(imageBuffer) {
     try {
       log('INFO', 'Starting steganography decode...');
       
-      const ctx = canvas.getContext('2d');
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const data = imageData.data;
+      // Convert image to RGBA using Sharp
+      const { data, width, height } = await createRGBABuffer(
+        sharp(imageBuffer).rotate() // Auto-rotate based on EXIF
+      );
       
       const t = this.config.t;
       const threshold = this.config.threshold;
@@ -177,13 +204,14 @@ class SimpleSteganography {
     }
   }
 
-  encode(message, canvas) {
+  async encode(message, imageBuffer) {
     try {
       log('INFO', 'Starting steganography encode...');
       
-      const ctx = canvas.getContext('2d');
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const data = imageData.data;
+      // Convert image to RGBA using Sharp
+      const { data, width, height } = await createRGBABuffer(
+        sharp(imageBuffer).rotate() // Auto-rotate based on EXIF
+      );
       
       const t = this.config.t;
       const threshold = this.config.threshold;
@@ -262,9 +290,12 @@ class SimpleSteganography {
         data[i] = 255;
       }
       
-      ctx.putImageData(imageData, 0, 0);
+      // Create new image from modified RGBA data
+      const modifiedImage = await createImageFromRGBA(data, width, height);
+      const outputBuffer = await modifiedImage.png().toBuffer();
+      
       log('INFO', 'Steganography encode completed');
-      return canvas;
+      return outputBuffer;
       
     } catch (error) {
       log('ERROR', 'Steganography encode error:', error);
@@ -998,12 +1029,7 @@ app.post('/decode-image', upload.single('image'), async (req, res) => {
       console.log('⚠️ Not a PNG file, falling back to legacy steganography...');
       
       // Fallback to legacy steganography for non-PNG files
-      const image = await loadImage(req.file.path);
-      const canvas = createCanvas(image.width, image.height);
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(image, 0, 0);
-      
-      const decodedMessage = steg.decode(canvas);
+      const decodedMessage = await steg.decode(imageBuffer);
       
       // Clean up temp file
       fs.unlink(req.file.path, () => {});
@@ -2669,20 +2695,18 @@ app.post('/process-geocam-image', upload.single('image'), async (req, res) => {
     console.log('📝 Basic info length:', basicInfo.length);
     console.log('🔑 Public key length:', publicKey.length);
 
-    // Load JPEG image using Canvas
-    const img = await loadImage(tempFilePath);
-    console.log('✅ JPEG loaded:', img.width, 'x', img.height);
+    // Process image using Sharp
+    const { data: rgbaData, width, height } = await createRGBABuffer(
+      sharp(tempFilePath)
+        .rotate() // Auto-rotate based on EXIF
+    );
+    
+    console.log('✅ JPEG → RGBA completed');
+    console.log('📊 RGBA array length:', rgbaData.length);
+    console.log('📊 Image dimensions:', width, 'x', height);
 
-    // Create canvas and get RGBA data
-    const canvas = createCanvas(img.width, img.height);
-    const ctx = canvas.getContext('2d');
-    
-    // Ensure correct orientation (fix rotation issue)
-    ctx.imageSmoothingEnabled = true;
-    ctx.drawImage(img, 0, 0, img.width, img.height);
-    
-    const imageData = ctx.getImageData(0, 0, img.width, img.height);
-    const rgbaArray = Array.from(imageData.data);
+    // Convert to array for compatibility with existing code
+    const rgbaArray = Array.from(rgbaData);
     
     console.log('✅ JPEG → Canvas → RGBA completed');
     console.log('📊 RGBA array length:', rgbaArray.length);
@@ -2690,8 +2714,8 @@ app.post('/process-geocam-image', upload.single('image'), async (req, res) => {
     // Encode basic info into RGBA
     const rgbaWithBasicInfo = backendSteg.encodeBasicInfoIntoRGBA(
       rgbaArray,
-      img.width,
-      img.height,
+      width,
+      height,
       basicInfo
     );
 
