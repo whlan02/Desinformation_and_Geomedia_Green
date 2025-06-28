@@ -1,6 +1,18 @@
-import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, Alert, ActivityIndicator, Platform, Dimensions } from 'react-native';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  TouchableOpacity, 
+  Image, 
+  ScrollView, 
+  Alert, 
+  ActivityIndicator, 
+  Platform, 
+  Dimensions,
+  Animated
+} from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { getGalleryImages, type GalleryImage } from '../utils/galleryStorage';
 import * as Sharing from 'expo-sharing';
 import MapView, { Marker, UrlTile } from 'react-native-maps';
@@ -15,6 +27,10 @@ export default function ImageDetail() {
   const [loading, setLoading] = useState(true);
   const [sharing, setSharing] = useState(false);
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  
+  // Animation values
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const { height } = Dimensions.get('window');
 
   useEffect(() => {
     loadImage();
@@ -114,53 +130,20 @@ export default function ImageDetail() {
     }
   };
 
-  const renderMap = () => {
-    if (!location) return null;
-
-    return (
-      <View style={styles.mapContainer}>
-        <Text style={styles.sectionTitle}>Photo Location</Text>
-        <MapView
-          style={styles.map}
-          initialRegion={{
-            latitude: location.latitude,
-            longitude: location.longitude,
-            latitudeDelta: 0.008, // Closer zoom for better detail
-            longitudeDelta: 0.008,
-          }}
-          mapType="none"
-          zoomEnabled={true}
-          pitchEnabled={true}
-          rotateEnabled={true}
-        >
-          <UrlTile
-            urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-            maximumZ={19}
-          />
-          <Marker
-            coordinate={{
-              latitude: location.latitude,
-              longitude: location.longitude,
-            }}
-            title="Photo Location"
-            pinColor="#6200EE" // Match with share button color for cohesive design
-          />
-        </MapView>
-      </View>
-    );
-  };
+  // Map rendering is now handled directly in the JSX for animation purposes
 
   if (loading) {
     return (
       <View style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <Text style={styles.backButtonText}>← Back</Text>
-          </TouchableOpacity>
-          <Text style={styles.title}>Loading...</Text>
-        </View>
+        <TouchableOpacity 
+          style={styles.floatingBackButton} 
+          onPress={() => router.back()}
+        >
+          <Text style={styles.backButtonText}>←</Text>
+        </TouchableOpacity>
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color="#ffffff" />
+          <Text style={styles.loadingText}>Loading photo...</Text>
         </View>
       </View>
     );
@@ -169,12 +152,12 @@ export default function ImageDetail() {
   if (!image) {
     return (
       <View style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <Text style={styles.backButtonText}>← Back</Text>
-          </TouchableOpacity>
-          <Text style={styles.title}>Image Not Found</Text>
-        </View>
+        <TouchableOpacity 
+          style={styles.floatingBackButton} 
+          onPress={() => router.back()}
+        >
+          <Text style={styles.backButtonText}>←</Text>
+        </TouchableOpacity>
         <View style={styles.centerContainer}>
           <Text style={styles.errorText}>Image not found</Text>
         </View>
@@ -182,9 +165,43 @@ export default function ImageDetail() {
     );
   }
 
+  // Calculate animation values
+  const headerOpacity = scrollY.interpolate({
+    inputRange: [0, 50],
+    outputRange: [0, 1],
+    extrapolate: 'clamp'
+  });
+
+  const mapOpacity = scrollY.interpolate({
+    inputRange: [height * 0.3, height * 0.5],
+    outputRange: [0, 1],
+    extrapolate: 'clamp'
+  });
+  
+  const mapTranslateY = scrollY.interpolate({
+    inputRange: [height * 0.3, height * 0.5],
+    outputRange: [50, 0],
+    extrapolate: 'clamp'
+  });
+
+  const infoOpacity = scrollY.interpolate({
+    inputRange: [height * 0.5, height * 0.7],
+    outputRange: [0, 1],
+    extrapolate: 'clamp'
+  });
+  
+  const infoTranslateY = scrollY.interpolate({
+    inputRange: [height * 0.5, height * 0.7],
+    outputRange: [50, 0],
+    extrapolate: 'clamp'
+  });
+
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
+      <Animated.View style={[
+        styles.header, 
+        { opacity: headerOpacity }
+      ]}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <Text style={styles.backButtonText}>← Back</Text>
         </TouchableOpacity>
@@ -200,18 +217,81 @@ export default function ImageDetail() {
             <Text style={styles.shareButtonText}>Share</Text>
           )}
         </TouchableOpacity>
-      </View>
+      </Animated.View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        <Image source={{ uri: image.uri }} style={styles.fullImage} />
-        {renderMap()}
-        <View style={styles.infoContainer}>
+      <Animated.ScrollView 
+        style={styles.content} 
+        showsVerticalScrollIndicator={false}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: true }
+        )}
+        scrollEventThrottle={16}
+      >
+        <Image source={{ uri: image.uri }} style={[styles.fullImage, {height: height}]} />
+        
+        {location && (
+          <Animated.View style={[
+            styles.mapContainer, 
+            { 
+              opacity: mapOpacity,
+              transform: [{ translateY: mapTranslateY }] 
+            }
+          ]}>
+            <Text style={styles.sectionTitle}>Photo Location</Text>
+            <MapView
+              style={styles.map}
+              initialRegion={{
+                latitude: location.latitude,
+                longitude: location.longitude,
+                latitudeDelta: 0.008,
+                longitudeDelta: 0.008,
+              }}
+              mapType="none"
+              zoomEnabled={true}
+              pitchEnabled={true}
+              rotateEnabled={true}
+            >
+              <UrlTile
+                urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+                maximumZ={19}
+              />
+              <Marker
+                coordinate={{
+                  latitude: location.latitude,
+                  longitude: location.longitude,
+                }}
+                title="Photo Location"
+                pinColor="#6200EE"
+              />
+            </MapView>
+          </Animated.View>
+        )}
+        
+        <Animated.View style={[
+          styles.infoContainer, 
+          { 
+            opacity: infoOpacity,
+            transform: [{ translateY: infoTranslateY }] 
+          }
+        ]}>
           <Text style={styles.infoTitle}>Photo Information</Text>
           <Text style={styles.infoText}>
             {formatEncodedInfo(image.encodedInfo, image.signature, image.publicKey)}
           </Text>
-        </View>
-      </ScrollView>
+        </Animated.View>
+        
+        {/* Empty space to allow scrolling beyond the content for animation effect */}
+        <View style={{height: 100}} />
+      </Animated.ScrollView>
+      
+      {/* Fixed back button overlay for easy navigation when header is hidden */}
+      <TouchableOpacity 
+        style={styles.floatingBackButton} 
+        onPress={() => router.back()}
+      >
+        <Text style={styles.backButtonText}>←</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -222,13 +302,18 @@ const styles = StyleSheet.create({
     backgroundColor: '#25292e',
   },
   header: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 100,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingTop: 50,
     paddingBottom: 15,
-    backgroundColor: '#373c40',
+    backgroundColor: 'rgba(55, 60, 64, 0.95)', // Semi-transparent header
   },
   backButton: {
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
@@ -240,6 +325,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: 'white',
+  },
+  floatingBackButton: {
+    position: 'absolute',
+    top: 50,
+    left: 20,
+    zIndex: 90,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   title: {
     fontSize: 20,
@@ -263,11 +360,11 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 0,
     backgroundColor: '#25292e',
+    // Padding to account for the absolute positioned header
+    paddingTop: 0,
   },
   fullImage: {
     width: '100%',
-    height: undefined,
-    aspectRatio: 4/5, // Different aspect ratio for full screen feel
     resizeMode: 'cover',
     backgroundColor: 'transparent',
     marginBottom: 0,
@@ -301,8 +398,10 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 18,
   },
-  detailsContainer: {
-    paddingTop: 0, // No padding to create seamless experience
+  loadingText: {
+    color: 'white',
+    fontSize: 16,
+    marginTop: 12,
   },
   mapContainer: {
     backgroundColor: '#25292e',
