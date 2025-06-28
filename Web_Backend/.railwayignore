@@ -1,0 +1,18 @@
+# Ignore Python files - we only want to deploy Node.js steganography service
+*.py
+__pycache__/
+requirements.txt
+Dockerfile.python
+
+# Ignore other non-Node.js files
+docker-compose.yml
+database.py
+app.py
+config.py
+
+# Keep only Node.js related files
+!package.json
+!package-lock.json
+!steganography-service.js
+!Dockerfile.railway
+!nixpacks.toml 
