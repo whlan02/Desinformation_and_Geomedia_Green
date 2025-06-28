@@ -27,9 +27,8 @@ RUN npm ci --only=production
 
 # Copy application code
 COPY steganography-service.js ./
-COPY temp_images ./temp_images
 
-# Create temp directory if it doesn't exist
+# Create temp directory (don't copy from host, create fresh)
 RUN mkdir -p temp_images
 
 # Expose port (Cloud Run uses PORT env variable)
