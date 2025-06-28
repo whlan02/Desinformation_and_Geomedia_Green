@@ -40,16 +40,22 @@ function log(level, message, data = null) {
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// CORS configuration
+// CORS configuration - support environment variable for additional origins
+const defaultOrigins = [
+  'http://localhost:3000',
+  'http://localhost:3002',
+  'http://localhost:5173',
+  'http://localhost:19006',
+  'https://geocam-web-frontend.onrender.com',
+  'https://geocam-api.onrender.com'
+];
+
+// Add custom origins from environment variable
+const customOrigins = process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',') : [];
+const allOrigins = [...defaultOrigins, ...customOrigins];
+
 const corsOptions = {
-  origin: [
-    'http://localhost:3000',
-    'http://localhost:3002',
-    'http://localhost:5173',
-    'http://localhost:19006',
-    'https://geocam-web-frontend.onrender.com',
-    'https://geocam-api.onrender.com'
-  ],
+  origin: allOrigins,
   methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Accept'],
   credentials: true,

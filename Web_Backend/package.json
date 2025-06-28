@@ -5,10 +5,11 @@
   "main": "dist/steganography-service.js",
   "scripts": {
     "build": "tsc",
-    "start": "node dist/steganography-service.js",
+    "start": "node steganography-service.js",
     "dev": "ts-node steganography-service.ts",
     "dev:watch": "nodemon --exec ts-node steganography-service.ts",
-    "test-verification": "ts-node test-verification.ts"
+    "test-verification": "ts-node test-verification.ts",
+    "railway:start": "node steganography-service.js"
   },
   "dependencies": {
     "@noble/curves": "^1.9.2",

@@ -1,0 +1,49 @@
+# Use Node.js 18 with Alpine for smaller image size
+FROM node:18-alpine
+
+# Install system dependencies required for canvas and image processing
+RUN apk add --no-cache \
+    cairo-dev \
+    jpeg-dev \
+    pango-dev \
+    giflib-dev \
+    librsvg-dev \
+    pixman-dev \
+    pkgconfig \
+    python3 \
+    make \
+    g++ \
+    curl
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files first for better Docker layer caching
+COPY package*.json ./
+
+# Install dependencies
+RUN npm ci --only=production
+
+# Copy source code
+COPY steganography-service.js ./
+
+# Create temp directory for image processing
+RUN mkdir -p temp_images
+
+# Create non-root user for security
+RUN addgroup -g 1001 -S nodejs
+RUN adduser -S nextjs -u 1001
+
+# Change ownership of app directory
+RUN chown -R nextjs:nodejs /app
+USER nextjs
+
+# Expose port (Railway will automatically detect this)
+EXPOSE 3001
+
+# Health check for Railway
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+  CMD curl -f http://localhost:3001/health || exit 1
+
+# Start the service
+CMD ["npm", "start"] 
