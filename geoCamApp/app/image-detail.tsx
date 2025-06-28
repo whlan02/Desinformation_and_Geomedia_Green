@@ -119,16 +119,19 @@ export default function ImageDetail() {
 
     return (
       <View style={styles.mapContainer}>
-        <Text style={styles.mapTitle}>Photo Location</Text>
+        <Text style={styles.sectionTitle}>Photo Location</Text>
         <MapView
           style={styles.map}
           initialRegion={{
             latitude: location.latitude,
             longitude: location.longitude,
-            latitudeDelta: 0.01,
-            longitudeDelta: 0.01,
+            latitudeDelta: 0.008, // Closer zoom for better detail
+            longitudeDelta: 0.008,
           }}
           mapType="none"
+          zoomEnabled={true}
+          pitchEnabled={true}
+          rotateEnabled={true}
         >
           <UrlTile
             urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -140,6 +143,7 @@ export default function ImageDetail() {
               longitude: location.longitude,
             }}
             title="Photo Location"
+            pinColor="#6200EE" // Match with share button color for cohesive design
           />
         </MapView>
       </View>
@@ -198,20 +202,14 @@ export default function ImageDetail() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent}>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <Image source={{ uri: image.uri }} style={styles.fullImage} />
-        
-        <View style={styles.metaContainer}>
-          
-          
-          {renderMap()}
-
-          <View style={styles.infoContainer}>
-            <Text style={styles.infoTitle}>Photo Information:</Text>
-            <Text style={styles.infoText}>
-              {formatEncodedInfo(image.encodedInfo, image.signature, image.publicKey)}
-            </Text>
-          </View>
+        {renderMap()}
+        <View style={styles.infoContainer}>
+          <Text style={styles.infoTitle}>Photo Information</Text>
+          <Text style={styles.infoText}>
+            {formatEncodedInfo(image.encodedInfo, image.signature, image.publicKey)}
+          </Text>
         </View>
       </ScrollView>
     </View>
@@ -263,42 +261,36 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-  },
-  scrollContent: {
-    padding: 20,
+    paddingHorizontal: 0,
+    backgroundColor: '#25292e',
   },
   fullImage: {
     width: '100%',
-    height: 300,
-    resizeMode: 'contain',
-    backgroundColor: '#373c40',
-    borderRadius: 8,
-    marginBottom: 20,
-  },
-  metaContainer: {
-    backgroundColor: '#373c40',
-    padding: 20,
-    borderRadius: 8,
-    gap: 15,
+    height: undefined,
+    aspectRatio: 4/5, // Different aspect ratio for full screen feel
+    resizeMode: 'cover',
+    backgroundColor: 'transparent',
+    marginBottom: 0,
   },
   infoContainer: {
-    backgroundColor: '#25292e',
-    padding: 15,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#555',
+    backgroundColor: '#373c40',
+    padding: 20,
+    paddingBottom: 40,
   },
   infoTitle: {
     color: 'white',
     fontSize: 18,
     fontWeight: 'bold',
-    marginBottom: 10,
+    marginBottom: 15,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#444',
   },
   infoText: {
     color: '#e0e0e0',
     fontSize: 14,
     fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace',
-    lineHeight: 20,
+    lineHeight: 22,
   },
   centerContainer: {
     flex: 1,
@@ -309,21 +301,25 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 18,
   },
+  detailsContainer: {
+    paddingTop: 0, // No padding to create seamless experience
+  },
   mapContainer: {
     backgroundColor: '#25292e',
-    borderRadius: 8,
     overflow: 'hidden',
-    marginVertical: 10,
+    marginBottom: 0,
   },
-  mapTitle: {
+  sectionTitle: {
     color: 'white',
     fontSize: 16,
     fontWeight: 'bold',
-    padding: 10,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    padding: 15,
+    backgroundColor: '#373c40',
+    borderBottomWidth: 1,
+    borderBottomColor: '#444',
   },
   map: {
     width: '100%',
-    height: MAP_HEIGHT,
+    height: 250, // Larger map for better visibility
   },
-}); 
+});
