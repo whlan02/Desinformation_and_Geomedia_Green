@@ -1,8 +1,9 @@
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Animated, StatusBar, Platform, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ImageBackground } from 'react-native';
 import { SvgXml } from 'react-native-svg';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { generateSecp256k1KeyPair, getStoredSecp256k1KeyPair, storeSecp256k1KeyPair, hasStoredSecp256k1KeyPair } from '../utils/secp256k1Utils';
 
 // Define SVG strings directly
@@ -16,12 +17,54 @@ const securityIconXml = `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.
 
 export default function MainMenu() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
   const [keysInitialized, setKeysInitialized] = useState(false);
   const [isInitializingKeys, setIsInitializingKeys] = useState(true);
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const glowAnim = useRef(new Animated.Value(0)).current;
+  
+  // Determine if we're in landscape mode
+  const isLandscape = width > height;
 
   useEffect(() => {
     initializeAppKeys();
-  }, []);
+    
+    // Start animations for camera button
+    if (!isInitializingKeys && keysInitialized) {
+      // Pulsing animation
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1.1,
+            duration: 1200,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 1200,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+      
+      // Glow effect animation
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(glowAnim, {
+            toValue: 1,
+            duration: 1500,
+            useNativeDriver: false,
+          }),
+          Animated.timing(glowAnim, {
+            toValue: 0.3,
+            duration: 1500,
+            useNativeDriver: false,
+          }),
+        ])
+      ).start();
+    }
+  }, [isInitializingKeys, keysInitialized]);
 
   const initializeAppKeys = async () => {
     try {
@@ -74,84 +117,212 @@ export default function MainMenu() {
     }
   };
 
+  // Calculate dynamic glow color based on animation
+  const glowColor = glowAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['rgba(25, 118, 210, 0.5)', 'rgba(25, 118, 210, 0.9)']
+  });
+
   return (
-    <ImageBackground
-      source={require('../assets/background.jpg')}
-      style={styles.container}
-      resizeMode="cover"
-    >
-      <Text style={styles.title}>GeoCam</Text>
-      
-      {isInitializingKeys && (
-        <View style={styles.initializingContainer}>
-          <Text style={styles.initializingText}>Initializing security keys...</Text>
-        </View>
-      )}
-      
-      <View style={styles.bottomContainer}>
-        <View style={styles.buttonGrid}>
-          <TouchableOpacity 
-            style={[styles.button, (!keysInitialized || isInitializingKeys) && styles.disabledButton]}
-            onPress={() => router.push('/camera')}
-            disabled={!keysInitialized || isInitializingKeys}
-          >
-            <SvgXml xml={cameraIconXml} width={30} height={30} />
-            <Text style={styles.buttonLabel}>Camera</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={styles.button}
-            onPress={() => router.push('/gallery')}
-          >
-            <SvgXml xml={galleryIconXml} width={30} height={30} />
-            <Text style={styles.buttonLabel}>Gallery</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={styles.button}
-            onPress={() => router.push('/verify')}
-          >
-            <SvgXml xml={verifyIconXml} width={30} height={30} />
-            <Text style={styles.buttonLabel}>Verify</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={styles.button}
-            onPress={() => router.push('/security-info')}
-          >
-            <SvgXml xml={securityIconXml} width={30} height={30} />
-            <Text style={styles.buttonLabel}>Security</Text>
-          </TouchableOpacity>
-        </View>
+    <>
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+      <ImageBackground
+        source={require('../assets/background.jpg')}
+        style={styles.container}
+        resizeMode="cover"
+      >
+        <View style={styles.overlay} />
         
-        {!keysInitialized && !isInitializingKeys && (
-          <Text style={styles.warningText}>
-            ⚠️ Security keys not initialized. Camera features may not work properly.
-          </Text>
+        {!isLandscape ? (
+          // Portrait layout
+          <>
+            <View style={[styles.headerContainer, { marginTop: insets.top + 20 }]}>
+              <Text style={styles.title}>GeoCam</Text>
+              <Text style={styles.subtitle}>Secure Geo-Verified Photography</Text>
+            </View>
+            
+            {isInitializingKeys && (
+              <View style={styles.initializingContainer}>
+                <Text style={styles.initializingText}>Initializing security keys...</Text>
+              </View>
+            )}
+            
+            <View style={styles.mainButtonContainer}>
+              <Animated.View style={[
+                styles.buttonGlow,
+                { 
+                  shadowOpacity: glowAnim,
+                  backgroundColor: glowColor
+                }
+              ]} />
+              <TouchableOpacity 
+                style={[styles.mainButton, (!keysInitialized || isInitializingKeys) && styles.disabledMainButton]}
+                onPress={() => router.push('/camera')}
+                disabled={!keysInitialized || isInitializingKeys}
+                activeOpacity={0.8}
+              >
+                <Animated.View style={[styles.mainButtonInner, { transform: [{ scale: pulseAnim }] }]}>
+                  <SvgXml xml={cameraIconXml} width={55} height={55} />
+                  <Text style={styles.mainButtonLabel}>CAPTURE</Text>
+                </Animated.View>
+              </TouchableOpacity>
+              <Text style={[styles.cameraHintText, { marginTop: 8 }]}>Secure, Geotagged Photos</Text>
+              <Text style={styles.cameraHintText}>Secure, Geotagged Photos</Text>
+            </View>
+            
+            <View style={[styles.bottomContainer, { marginBottom: Math.max(insets.bottom + 10, 30) }]}>
+              <View style={styles.buttonGrid}>
+                <TouchableOpacity 
+                  style={styles.secondaryButton}
+                  onPress={() => router.push('/gallery')}
+                  activeOpacity={0.7}
+                >
+                  <SvgXml xml={galleryIconXml} width={26} height={26} />
+                  <Text style={styles.buttonLabel}>Gallery</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity 
+                  style={styles.secondaryButton}
+                  onPress={() => router.push('/verify')}
+                  activeOpacity={0.7}
+                >
+                  <SvgXml xml={verifyIconXml} width={26} height={26} />
+                  <Text style={styles.buttonLabel}>Verify</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity 
+                  style={styles.secondaryButton}
+                  onPress={() => router.push('/security-info')}
+                  activeOpacity={0.7}
+                >
+                  <SvgXml xml={securityIconXml} width={26} height={26} />
+                  <Text style={styles.buttonLabel}>Security</Text>
+                </TouchableOpacity>
+              </View>
+              
+              {!keysInitialized && !isInitializingKeys && (
+                <Text style={styles.warningText}>
+                  ⚠️ Security keys not initialized. Camera features may not work properly.
+                </Text>
+              )}
+            </View>
+          </>
+        ) : (
+          // Landscape layout
+          <View style={styles.landscapeContainer}>
+            <View style={[styles.landscapeLeftSection, { marginLeft: insets.left }]}>
+              <View style={[styles.headerContainer, { alignItems: 'flex-start' }]}>
+                <Text style={styles.title}>GeoCam</Text>
+                <Text style={styles.subtitle}>Secure Geo-Verified Photography</Text>
+              </View>
+              
+              {isInitializingKeys && (
+                <View style={[styles.initializingContainer, { alignSelf: 'flex-start', marginTop: 20 }]}>
+                  <Text style={styles.initializingText}>Initializing security keys...</Text>
+                </View>
+              )}
+              
+              {!keysInitialized && !isInitializingKeys && (
+                <Text style={[styles.warningText, { alignSelf: 'flex-start', marginTop: 20 }]}>
+                  ⚠️ Security keys not initialized. Camera features may not work properly.
+                </Text>
+              )}
+            </View>
+            
+            <View style={styles.landscapeRightSection}>
+              <View style={styles.landscapeCameraSection}>
+                <Animated.View style={[
+                  styles.buttonGlow,
+                  { 
+                    shadowOpacity: glowAnim,
+                    backgroundColor: glowColor
+                  }
+                ]} />
+                <TouchableOpacity 
+                  style={[styles.mainButton, (!keysInitialized || isInitializingKeys) && styles.disabledMainButton]}
+                  onPress={() => router.push('/camera')}
+                  disabled={!keysInitialized || isInitializingKeys}
+                  activeOpacity={0.8}
+                >
+                  <Animated.View style={[styles.mainButtonInner, { transform: [{ scale: pulseAnim }] }]}>
+                    <SvgXml xml={cameraIconXml} width={55} height={55} />
+                    <Text style={styles.mainButtonLabel}>CAPTURE</Text>
+                  </Animated.View>
+                </TouchableOpacity>
+              </View>
+              
+              <View style={[styles.landscapeButtonGrid, { marginRight: insets.right + 10 }]}>
+                <TouchableOpacity 
+                  style={styles.landscapeSecondaryButton}
+                  onPress={() => router.push('/gallery')}
+                  activeOpacity={0.7}
+                >
+                  <SvgXml xml={galleryIconXml} width={24} height={24} />
+                  <Text style={styles.buttonLabel}>Gallery</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity 
+                  style={styles.landscapeSecondaryButton}
+                  onPress={() => router.push('/verify')}
+                  activeOpacity={0.7}
+                >
+                  <SvgXml xml={verifyIconXml} width={24} height={24} />
+                  <Text style={styles.buttonLabel}>Verify</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity 
+                  style={styles.landscapeSecondaryButton}
+                  onPress={() => router.push('/security-info')}
+                  activeOpacity={0.7}
+                >
+                  <SvgXml xml={securityIconXml} width={24} height={24} />
+                  <Text style={styles.buttonLabel}>Security</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
         )}
-      </View>
-    </ImageBackground>
+      </ImageBackground>
+    </>
   );
 }
 
 const windowHeight = Dimensions.get('window').height;
+const windowWidth = Dimensions.get('window').width;
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     alignItems: 'center',
   },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+  },
+  headerContainer: {
+    alignItems: 'center',
+    marginTop: windowHeight * 0.08,
+    paddingHorizontal: 20,
+  },
   title: {
     fontSize: 42,
     fontWeight: 'bold',
     color: 'white',
-    marginTop: windowHeight * 0.1,
     textShadowColor: 'rgba(0, 0, 0, 0.8)',
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 10,
   },
+  subtitle: {
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 16,
+    marginTop: 8,
+    fontWeight: '500',
+    textShadowColor: 'rgba(0, 0, 0, 0.6)',
+    textShadowOffset: { width: 0.5, height: 0.5 },
+    textShadowRadius: 3,
+  },
   initializingContainer: {
-    marginTop: 40,
+    marginTop: 30,
     padding: 15,
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
     borderRadius: 10,
@@ -161,26 +332,87 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
   },
-  bottomContainer: {
-    position: 'absolute',
-    bottom: 40,
-    left: 0,
-    right: 0,
+  mainButtonContainer: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
+    paddingBottom: 40,
+    position: 'relative',
+  },
+  buttonGlow: {
+    position: 'absolute',
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    shadowColor: '#1976D2',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: 20,
+    elevation: 15,
+  },
+  mainButton: {
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: 'rgba(25, 118, 210, 0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 10,
+    elevation: 12,
+    borderWidth: 3,
+    borderColor: 'white',
+    zIndex: 2,
+  },
+  disabledMainButton: {
+    backgroundColor: 'rgba(25, 118, 210, 0.5)',
+    borderColor: 'rgba(255, 255, 255, 0.5)',
+    opacity: 0.7,
+  },
+  mainButtonInner: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cameraHintText: {
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 14,
+    textAlign: 'center',
+    marginTop: 12,
+    fontStyle: 'italic',
+    textShadowColor: 'rgba(0, 0, 0, 0.7)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
+  },
+  mainButtonLabel: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginTop: 10,
+    letterSpacing: 1.5,
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 0.5, height: 0.5 },
+    textShadowRadius: 1,
+  },
+  bottomContainer: {
+    width: '100%',
+    alignItems: 'center',
+    marginBottom: 40,
   },
   buttonGrid: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: 15,
-    backgroundColor: 'rgba(25, 118, 210, 0.9)',
-    padding: 20,
-    borderRadius: 25,
-    width: '95%',
+    justifyContent: 'space-evenly',
+    gap: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    paddingVertical: 18,
+    paddingHorizontal: 24,
+    borderRadius: 30,
+    width: '90%',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
     elevation: 8,
   },
   button: {
@@ -194,22 +426,91 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  secondaryButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    padding: 12,
+    borderRadius: 15,
+    width: 80,
+    height: 80,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.5)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3,
+  },
   disabledButton: {
     borderColor: 'rgba(255, 255, 255, 0.5)',
     opacity: 0.6,
   },
   buttonLabel: {
     color: 'white',
-    fontSize: 10,
-    fontWeight: 'bold',
-    marginTop: 4,
+    fontSize: 11,
+    fontWeight: '500',
+    marginTop: 6,
     textAlign: 'center',
   },
   warningText: {
     color: '#ffdddd',
     fontSize: 12,
     textAlign: 'center',
-    marginTop: 10,
+    marginTop: 15,
     paddingHorizontal: 20,
+    backgroundColor: 'rgba(255, 0, 0, 0.2)',
+    borderRadius: 8,
+    padding: 8,
   },
+  // Landscape mode styles
+  landscapeContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingTop: 30,
+  },
+  landscapeLeftSection: {
+    flex: 0.4,
+    height: '100%',
+    paddingVertical: 40,
+    paddingHorizontal: 20,
+    justifyContent: 'flex-start',
+  },
+  landscapeRightSection: {
+    flex: 0.6,
+    height: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+  },
+  landscapeCameraSection: {
+    position: 'relative',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  landscapeButtonGrid: {
+    flexDirection: 'column',
+    justifyContent: 'center',
+    gap: 15,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    padding: 15,
+    borderRadius: 25,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 6,
+  },
+  landscapeSecondaryButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    padding: 10,
+    borderRadius: 15,
+    width: 70,
+    height: 70,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.5)',
+  }
 });
