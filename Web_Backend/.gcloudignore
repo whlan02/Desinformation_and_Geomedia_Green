@@ -1,0 +1,35 @@
+# Ignore Python files and related directories
+app.py
+config.py
+database.py
+requirements.txt
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Ignore Docker files for different services
+Dockerfile.python
+docker-compose.yml
+
+# Ignore development files
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+dist/
+
+# Ignore temp and cache files
+temp_images/*
+!temp_images/.gitkeep
+
+# Ignore IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Ignore OS files
+.DS_Store
+Thumbs.db 

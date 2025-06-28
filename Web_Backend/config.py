@@ -7,8 +7,8 @@ class Config:
     # Database configuration
     DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://geocam:geocam@localhost:5432/geocam_db')
     
-    # Service URLs
-    STEGANOGRAPHY_SERVICE_URL = os.getenv('STEGANOGRAPHY_SERVICE_URL', 'https://geocam-steganography.onrender.com')
+    # Service URLs - Updated for Cloud Run deployment
+    STEGANOGRAPHY_SERVICE_URL = os.getenv('STEGANOGRAPHY_SERVICE_URL', 'https://your-service-url.a.run.app')
     
     # Flask configuration
     SECRET_KEY = os.getenv('SECRET_KEY', 'your-secret-key-here')
