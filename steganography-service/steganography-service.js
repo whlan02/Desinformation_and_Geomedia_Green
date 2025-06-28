@@ -1753,7 +1753,6 @@ app.post('/verify-geocam-rgba', upload.single('image'), async (req, res) => {
         signature_valid: verificationResult.verification.valid,
         decoded_info: parsedBasicData,
         is_authentic: verificationResult.verification.valid,
-        device_info: verificationResult.extractedData.signatureData,
         message: verificationResult.verification.valid ? 'Signature is valid' : 'Signature is invalid'
       },
       extractedData: {
@@ -1799,13 +1798,14 @@ class PurePngProcessor {
       codeUnitSize: 16,
       delimiter: '###END###'
     };
+    this.PNG = PNG;
   }
 
   /**
    * Convert Buffer to Uint8Array safely
    */
   toUint8Array(data) {
-    return data instanceof Uint8Array ? data : new Uint8Array(data);
+    return new Uint8Array(data);
   }
 
   /**
@@ -1999,19 +1999,30 @@ class PurePngProcessor {
   /**
    * Parse PNG buffer to RGBA (using pngjs)
    */
-  parsePngToRgba(pngBuffer) {
-    console.log('📖 Parsing PNG to RGBA (using pngjs)...');
-    
-    const png = pngjs.PNG.sync.read(pngBuffer);
-    
-    console.log('✅ PNG parsed:', png.width, 'x', png.height);
-    console.log('📊 RGBA data length:', png.data.length);
-    
-    return {
-      width: png.width,
-      height: png.height,
-      data: this.toUint8Array(png.data)
-    };
+  async parsePngToRgba(pngBuffer) {
+    return new Promise((resolve, reject) => {
+      const png = new PNG();
+      const chunks = [];
+      let totalLength = 0;
+
+      png.on('parsed', function() {
+        resolve({
+          data: this.data,
+          width: this.width,
+          height: this.height
+        });
+      });
+
+      png.on('error', reject);
+
+      // Process the buffer in chunks
+      const chunkSize = 1024 * 1024; // 1MB chunks
+      for (let i = 0; i < pngBuffer.length; i += chunkSize) {
+        const chunk = pngBuffer.slice(i, i + chunkSize);
+        png.write(chunk);
+      }
+      png.end();
+    });
   }
 
   /**
@@ -2287,67 +2298,60 @@ class PurePngProcessor {
    * Complete GeoCam PNG Verification Workflow
    */
   async verifyGeoCamPNG(pngBuffer) {
+    console.log('🔍 Starting image verification process');
+    console.log('📊 Processing verification request');
+
     try {
-      console.log('🚀 Starting GeoCam PNG Verification Workflow...');
+      console.log('📖 Parsing PNG to RGBA (using pngjs)...');
+      const { data: rgbaData, width, height } = await this.parsePngToRgba(pngBuffer);
+      console.log(`✅ PNG parsed: ${width} x ${height}`);
+      console.log(`📊 RGBA data length: ${rgbaData.length}`);
+
+      // Extract signature from last row
+      console.log('🔍 Extracting signature from last row...');
+      const signatureData = await this.extractSignatureFromLastRow(rgbaData, width, height);
+      console.log('✅ Signature extracted:', signatureData.version);
+      console.log('📊 Signature package:', signatureData);
+
+      // Reset last row to clean state
+      console.log('🧹 Resetting last row to clean state...');
+      this.resetLastRow(rgbaData, width, height);
+      console.log('✅ Last row reset');
+
+      // Extract basic info from alpha channels
+      console.log('🔍 Extracting basic info from alpha channels...');
+      const basicInfo = this.extractBasicInfo(rgbaData, width, height);
+
+      // Process data in chunks to reduce memory usage
+      const chunkSize = width * 4; // Process one row at a time
+      let hash = crypto.createHash('sha256');
       
-      // Step 1-2: Parse PNG directly from buffer
-      const imageData = await this.parsePngFromBuffer(pngBuffer);
-      const { width, height, data: rgbaData } = imageData;
-      
-      // Step 3: Extract signature from last row
-      const signatureData = this.extractSignatureFromLastRow(rgbaData, width, height);
-      
-      // Step 4: Reset last row alpha channels
-      const cleanedRgbaData = this.resetLastRow(rgbaData, width, height);
-      
-      // Step 5: Extract Basic Data
-      const basicDataStr = this.extractBasicDataFromAlphaChannels(cleanedRgbaData, width, height);
-      
-      // Step 6: Rebuild clean PNG
-      const cleanPngBuffer = await this.rebuildCleanPNG(cleanedRgbaData, width, height);
-      
-      // Step 7: Compute hash
-      const pngHash = await this.hashPngBuffer(cleanPngBuffer);
-      
-      // Step 8: Verify signature
-      const verificationResult = await this.verifySignatureWithExtractedKey(
-        pngHash,
+      for (let i = 0; i < rgbaData.length; i += chunkSize) {
+        const chunk = rgbaData.slice(i, Math.min(i + chunkSize, rgbaData.length));
+        hash.update(chunk);
+      }
+
+      const imageHash = hash.digest('base64');
+      console.log('📊 Image hash computed');
+
+      // Verify signature
+      const isValid = await this.verifySignature(
+        imageHash,
         signatureData.signature,
         signatureData.publicKey
       );
-      
-      console.log('🎉 GeoCam PNG Verification Workflow completed!');
-      
+
       return {
-        success: true,
-        verification: verificationResult,
-        extractedData: {
-          basicInfo: basicDataStr,
-          signatureData: {
-            timestamp: signatureData.timestamp,
-            version: signatureData.version,
-            publicKeyLength: signatureData.publicKey ? signatureData.publicKey.length : 0,
-            signatureLength: signatureData.signature ? signatureData.signature.length : 0
-          }
-        },
-        imageInfo: {
-          width,
-          height,
-          originalSize: pngBuffer.length,
-          cleanSize: cleanPngBuffer.length
+        success: isValid,
+        info: {
+          ...basicInfo,
+          ...signatureData,
+          dimensions: { width, height }
         }
       };
-      
     } catch (error) {
-      console.error('❌ GeoCam PNG Verification failed:', error);
-      return {
-        success: false,
-        error: error.message,
-        verification: {
-          valid: false,
-          message: `Verification failed: ${error.message}`
-        }
-      };
+      console.error('❌ Verification error:', error);
+      throw error;
     }
   }
 }
@@ -2554,8 +2558,18 @@ app.post('/pure-png-sign', async (req, res) => {
   }
 });
 
-// Image verification endpoint
-app.post('/pure-png-verify', async (req, res) => {
+// Add memory monitoring middleware
+function logMemoryUsage(req, res, next) {
+  const used = process.memoryUsage();
+  console.log('🧮 Memory Usage:');
+  for (let key in used) {
+    console.log(`${key}: ${Math.round(used[key] / 1024 / 1024 * 100) / 100} MB`);
+  }
+  next();
+}
+
+// Add memory monitoring to verification endpoint
+app.post('/pure-png-verify', logMemoryUsage, async (req, res) => {
   console.log('🔍 Starting image verification process');
   
   try {
@@ -2568,63 +2582,27 @@ app.post('/pure-png-verify', async (req, res) => {
       });
     }
     
-    console.log('📊 Processing verification request');
+    // Log estimated memory requirements
+    const estimatedMemoryMB = (pngBase64.length * 1.5) / (1024 * 1024);
+    console.log(`📊 Estimated memory requirement: ${estimatedMemoryMB.toFixed(2)}MB`);
     
-    // Convert base64 to buffer
     const pngBuffer = Buffer.from(pngBase64, 'base64');
+    const processor = new PurePngProcessor();
+    const result = await processor.verifyGeoCamPNG(pngBuffer);
     
-    // Extract and verify data
-    const { width, height, data: rgbaData } = await purePngProcessor.parsePngToRgba(pngBuffer);
-    const signatureData = purePngProcessor.extractSignatureFromLastRow(rgbaData, width, height);
-    const cleanedRgba = purePngProcessor.resetLastRow(rgbaData, width, height);
-    const basicInfo = purePngProcessor.extractBasicInfo(cleanedRgba, width, height);
-    
-    // Verify signature - using cleanedRgba directly without re-encoding
-    const pngWithInfo = purePngProcessor.rgbaToPng(cleanedRgba, width, height);
-    const hash = await purePngProcessor.hashPngBuffer(pngWithInfo);
-    const verification = await purePngProcessor.verifySignature(hash, signatureData.signature, signatureData.publicKey);
-    
-    console.log('✅ Verification completed');
-    console.log('   - Signature valid:', verification.valid);
-    console.log('   - Image dimensions:', width, 'x', height);
-    
-    // Parse basic info
-    let parsedBasicInfo = null;
-    try {
-      parsedBasicInfo = JSON.parse(basicInfo);
-    } catch (parseError) {
-      parsedBasicInfo = {
-        rawData: basicInfo,
-        note: 'Data is not in JSON format'
-      };
+    // Log final memory usage
+    const finalMemory = process.memoryUsage();
+    console.log('🧮 Final Memory Usage:');
+    for (let key in finalMemory) {
+      console.log(`${key}: ${Math.round(finalMemory[key] / 1024 / 1024 * 100) / 100} MB`);
     }
     
-    return res.json({
-      success: true,
-      verification_result: {
-        signature_valid: verification.valid,
-        decoded_info: parsedBasicInfo,
-        is_authentic: verification.valid,
-        message: verification.valid ? 'Image verification successful' : 'Image verification failed'
-      },
-      imageInfo: {
-        width,
-        height,
-        size: pngBuffer.length
-      }
-    });
-    
+    res.json(result);
   } catch (error) {
-    console.error('❌ Verification failed:', error);
-    
-    // Return a user-friendly error message
-    return res.status(200).json({
+    console.error('❌ Verification error:', error);
+    res.status(500).json({
       success: false,
-      verification_result: {
-        signature_valid: false,
-        is_authentic: false,
-        message: 'Image verification failed. Please make sure this is a GeoCam image.'
-      }
+      error: error.message
     });
   }
 });
