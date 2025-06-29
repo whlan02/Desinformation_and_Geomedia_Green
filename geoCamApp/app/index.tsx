@@ -350,10 +350,10 @@ const styles = StyleSheet.create({
   },
   mainButtonLabel: {
     color: 'white',
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: 'bold',
-    marginTop: 10,
-    letterSpacing: 1.5,
+    marginTop: 8,
+    letterSpacing: 1.2,
     textShadowColor: 'rgba(0, 0, 0, 0.5)',
     textShadowOffset: { width: 0.5, height: 0.5 },
     textShadowRadius: 1,
