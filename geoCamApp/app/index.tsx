@@ -180,14 +180,6 @@ export default function MainMenu() {
               <Text style={styles.subtitle}>Secure Geo-Verified Photography</Text>
             </View>
             
-            {(isInitializingKeys || registrationStatus.isChecking) && (
-              <View style={styles.initializingContainer}>
-                <Text style={styles.initializingText}>
-                  {isInitializingKeys ? 'Initializing security keys...' : 'Checking device registration...'}
-                </Text>
-              </View>
-            )}
-            
             <View style={styles.mainButtonContainer}>
               <TouchableOpacity 
                 style={[styles.mainButton, (!keysInitialized || isInitializingKeys || !registrationStatus.isRegistered || registrationStatus.isChecking) && styles.disabledMainButton]}
@@ -244,14 +236,6 @@ export default function MainMenu() {
                 <Text style={styles.title}>GeoCam</Text>
                 <Text style={styles.subtitle}>Secure Geo-Verified Photography</Text>
               </View>
-              
-              {(isInitializingKeys || registrationStatus.isChecking) && (
-                <View style={[styles.initializingContainer, { alignSelf: 'flex-start', marginTop: 20 }]}>
-                  <Text style={styles.initializingText}>
-                    {isInitializingKeys ? 'Initializing security keys...' : 'Checking device registration...'}
-                  </Text>
-                </View>
-              )}
               
 
             </View>
@@ -341,17 +325,6 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0, 0, 0, 0.6)',
     textShadowOffset: { width: 0.5, height: 0.5 },
     textShadowRadius: 3,
-  },
-  initializingContainer: {
-    marginTop: 30,
-    padding: 15,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    borderRadius: 10,
-  },
-  initializingText: {
-    color: 'white',
-    fontSize: 16,
-    textAlign: 'center',
   },
   mainButtonContainer: {
     flex: 1,
