@@ -25,10 +25,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import CircularProgress from '../components/CircularProgress';
 import { useTheme } from '../contexts/ThemeContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function CameraScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
   const [type, setType] = useState<CameraType>('back');
   const [flash, setFlash] = useState<FlashMode>('off');
   const [lastPhoto, setLastPhoto] = useState<string | null>(null);
@@ -726,7 +728,7 @@ export default function CameraScreen() {
       />
 
       {/* Top Bar */}
-      <View style={styles.topBar}>
+      <View style={[styles.topBar, { top: insets.top + 10 }]}>
         <View style={styles.topBarLeft}>
           <TouchableOpacity 
             style={styles.topBarButton} 
@@ -943,7 +945,6 @@ const styles = StyleSheet.create({
   },
   topBar: {
     position: 'absolute',
-    top: 50,
     left: 0,
     right: 0,
     flexDirection: 'row',
