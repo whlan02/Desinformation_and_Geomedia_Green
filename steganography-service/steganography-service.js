@@ -8,6 +8,28 @@ const crypto = require('crypto');
 const { PNG } = require('pngjs');
 const sharp = require('sharp');
 
+// Helper function to create PNG from buffer
+function createPNGFromBuffer(buffer) {
+  return new Promise((resolve, reject) => {
+    const png = new PNG();
+    png.parse(buffer, (error, data) => {
+      if (error) reject(error);
+      else resolve(data);
+    });
+  });
+}
+
+// Helper function to create PNG from RGBA data
+function createPNGFromRGBA(rgbaData, width, height) {
+  const png = new PNG({
+    width: width,
+    height: height,
+    filterType: -1
+  });
+  png.data = Buffer.from(rgbaData);
+  return PNG.sync.write(png);
+}
+
 // Helper function to create RGBA buffer from Sharp output
 async function createRGBABuffer(sharpInstance) {
   const { data, info } = await sharpInstance
@@ -66,6 +88,14 @@ function log(level, message, data = null) {
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Increase timeout limits
+app.use((req, res, next) => {
+  // Set timeout to 2 minutes
+  req.setTimeout(120000);
+  res.setTimeout(120000);
+  next();
+});
+
 // CORS configuration - support environment variable for additional origins
 const defaultOrigins = [
   'http://localhost:3000',
@@ -105,19 +135,6 @@ const upload = multer({
 if (!fs.existsSync('temp_images')) {
   fs.mkdirSync('temp_images');
 }
-
-// Add timeout middleware
-const TIMEOUT = 120000; // 2 minutes
-app.use((req, res, next) => {
-  res.setTimeout(TIMEOUT, () => {
-    console.error('Request timeout');
-    res.status(408).json({
-      success: false,
-      error: 'Request timeout'
-    });
-  });
-  next();
-});
 
 // Simplified steganography implementation for Node.js
 class SimpleSteganography {
@@ -2013,29 +2030,17 @@ class PurePngProcessor {
    * Parse PNG buffer to RGBA (using pngjs)
    */
   async parsePngToRgba(pngBuffer) {
-    return new Promise((resolve, reject) => {
-      const png = new PNG();
-      const chunks = [];
-      let totalLength = 0;
-
-      png.on('parsed', function() {
-        resolve({
-          data: this.data,
-          width: this.width,
-          height: this.height
-        });
-      });
-
-      png.on('error', reject);
-
-      // Process the buffer in chunks
-      const chunkSize = 1024 * 1024; // 1MB chunks
-      for (let i = 0; i < pngBuffer.length; i += chunkSize) {
-        const chunk = pngBuffer.slice(i, i + chunkSize);
-        png.write(chunk);
-      }
-      png.end();
-    });
+    try {
+      const png = await createPNGFromBuffer(pngBuffer);
+      return {
+        data: png.data,
+        width: png.width,
+        height: png.height
+      };
+    } catch (error) {
+      console.error('Error parsing PNG:', error);
+      throw error;
+    }
   }
 
   /**
@@ -2315,17 +2320,12 @@ class PurePngProcessor {
     console.log('📊 Processing verification request');
 
     try {
-      // Process in smaller chunks
-      const chunkSize = 1024 * 1024; // 1MB chunks
-      let processedBytes = 0;
-      const totalBytes = pngBuffer.length;
-
       console.log('📖 Parsing PNG to RGBA (using pngjs)...');
       const { data: rgbaData, width, height } = await this.parsePngToRgba(pngBuffer);
       console.log(`✅ PNG parsed: ${width} x ${height}`);
       console.log(`📊 RGBA data length: ${rgbaData.length}`);
 
-      // Extract signature from last row with progress tracking
+      // Extract signature from last row
       console.log('🔍 Extracting signature from last row...');
       const signatureData = await this.extractSignatureFromLastRow(rgbaData, width, height);
       console.log('✅ Signature extracted:', signatureData.version);
@@ -2340,31 +2340,24 @@ class PurePngProcessor {
       console.log('🔍 Extracting basic info from alpha channels...');
       const basicInfo = this.extractBasicInfo(rgbaData, width, height);
 
-      // Compute hash in chunks
-      console.log('🔍 Computing image hash...');
-      const hash = crypto.createHash('sha256');
+      // Process data in chunks to reduce memory usage
+      const chunkSize = width * 4; // Process one row at a time
+      let hash = crypto.createHash('sha256');
       
       for (let i = 0; i < rgbaData.length; i += chunkSize) {
         const chunk = rgbaData.slice(i, Math.min(i + chunkSize, rgbaData.length));
         hash.update(chunk);
-        
-        processedBytes = i + chunkSize;
-        if (processedBytes % (5 * chunkSize) === 0) { // Log every 5MB
-          console.log(`📊 Processed ${Math.round(processedBytes / 1024 / 1024)}MB of ${Math.round(totalBytes / 1024 / 1024)}MB`);
-        }
       }
 
       const imageHash = hash.digest('base64');
-      console.log('✅ Image hash computed');
+      console.log('📊 Image hash computed');
 
       // Verify signature
-      console.log('🔍 Verifying signature...');
       const isValid = await this.verifySignature(
         imageHash,
         signatureData.signature,
         signatureData.publicKey
       );
-      console.log('✅ Signature verification complete:', isValid);
 
       return {
         success: isValid,
@@ -2613,17 +2606,7 @@ app.post('/pure-png-verify', logMemoryUsage, async (req, res) => {
     
     const pngBuffer = Buffer.from(pngBase64, 'base64');
     const processor = new PurePngProcessor();
-    
-    // Add timeout promise
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Operation timed out')), TIMEOUT - 1000);
-    });
-    
-    // Race between verification and timeout
-    const result = await Promise.race([
-      processor.verifyGeoCamPNG(pngBuffer),
-      timeoutPromise
-    ]);
+    const result = await processor.verifyGeoCamPNG(pngBuffer);
     
     // Log final memory usage
     const finalMemory = process.memoryUsage();
@@ -2635,7 +2618,7 @@ app.post('/pure-png-verify', logMemoryUsage, async (req, res) => {
     res.json(result);
   } catch (error) {
     console.error('❌ Verification error:', error);
-    res.status(error.message === 'Operation timed out' ? 408 : 500).json({
+    res.status(500).json({
       success: false,
       error: error.message
     });
