@@ -1,10 +1,11 @@
+import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Animated, StatusBar, Platform, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ImageBackground } from 'react-native';
 import { SvgXml } from 'react-native-svg';
-import { useEffect, useState, useRef } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { generateSecp256k1KeyPair, getStoredSecp256k1KeyPair, storeSecp256k1KeyPair, hasStoredSecp256k1KeyPair } from '../utils/secp256k1Utils';
+import { ensureDeviceRegistration } from '../utils/backendService';
 import { useTheme } from '../contexts/ThemeContext';
 
 // Define SVG strings directly
@@ -23,6 +24,16 @@ export default function MainMenu() {
   const { width, height } = useWindowDimensions();
   const [keysInitialized, setKeysInitialized] = useState(false);
   const [isInitializingKeys, setIsInitializingKeys] = useState(true);
+  const [registrationStatus, setRegistrationStatus] = useState<{
+    isRegistered: boolean;
+    isChecking: boolean;
+    message: string;
+    geocamName?: string;
+  }>({
+    isRegistered: false,
+    isChecking: false,
+    message: 'Not checked',
+  });
   const pulseAnim = useRef(new Animated.Value(1)).current;
   
   // Determine if we're in landscape mode
@@ -32,7 +43,7 @@ export default function MainMenu() {
     initializeAppKeys();
     
     // Start animations for camera button
-    if (!isInitializingKeys && keysInitialized) {
+    if (!isInitializingKeys && keysInitialized && registrationStatus.isRegistered) {
       // Pulsing animation
       Animated.loop(
         Animated.sequence([
@@ -49,7 +60,7 @@ export default function MainMenu() {
         ])
       ).start();
     }
-  }, [isInitializingKeys, keysInitialized]);
+  }, [isInitializingKeys, keysInitialized, registrationStatus.isRegistered]);
 
   const initializeAppKeys = async () => {
     try {
@@ -65,6 +76,8 @@ export default function MainMenu() {
         if (keyPair) {
           console.log('✅ Key validation successful');
           setKeysInitialized(true);
+          // Now check and ensure device registration
+          await handleDeviceRegistration();
         } else {
           console.warn('⚠️ Keys flag exists but keys not loadable - regenerating...');
           await generateAndStoreNewKeys();
@@ -92,6 +105,8 @@ export default function MainMenu() {
       if (verification) {
         console.log('✅ App keys successfully generated and verified');
         setKeysInitialized(true);
+        // Now check and ensure device registration
+        await handleDeviceRegistration();
       } else {
         throw new Error('Key storage verification failed');
       }
@@ -99,6 +114,35 @@ export default function MainMenu() {
       console.error('❌ Failed to generate/store keys:', error);
       setKeysInitialized(false);
       throw error;
+    }
+  };
+
+  const handleDeviceRegistration = async () => {
+    try {
+      setRegistrationStatus(prev => ({ ...prev, isChecking: true, message: 'Checking registration...' }));
+      console.log('🔄 Handling device registration...');
+      
+      const result = await ensureDeviceRegistration();
+      
+      setRegistrationStatus({
+        isRegistered: result.isRegistered,
+        isChecking: false,
+        message: result.message,
+        geocamName: result.geocamName,
+      });
+      
+      if (result.success) {
+        console.log('✅ Device registration handled successfully:', result.message);
+      } else {
+        console.error('❌ Device registration failed:', result.message);
+      }
+    } catch (error) {
+      console.error('❌ Device registration error:', error);
+      setRegistrationStatus({
+        isRegistered: false,
+        isChecking: false,
+        message: `Registration error: ${error instanceof Error ? error.message : String(error)}`,
+      });
     }
   };
 
@@ -136,17 +180,19 @@ export default function MainMenu() {
               <Text style={styles.subtitle}>Secure Geo-Verified Photography</Text>
             </View>
             
-            {isInitializingKeys && (
+            {(isInitializingKeys || registrationStatus.isChecking) && (
               <View style={styles.initializingContainer}>
-                <Text style={styles.initializingText}>Initializing security keys...</Text>
+                <Text style={styles.initializingText}>
+                  {isInitializingKeys ? 'Initializing security keys...' : 'Checking device registration...'}
+                </Text>
               </View>
             )}
             
             <View style={styles.mainButtonContainer}>
               <TouchableOpacity 
-                style={[styles.mainButton, (!keysInitialized || isInitializingKeys) && styles.disabledMainButton]}
+                style={[styles.mainButton, (!keysInitialized || isInitializingKeys || !registrationStatus.isRegistered || registrationStatus.isChecking) && styles.disabledMainButton]}
                 onPress={() => router.push('/camera')}
-                disabled={!keysInitialized || isInitializingKeys}
+                disabled={!keysInitialized || isInitializingKeys || !registrationStatus.isRegistered || registrationStatus.isChecking}
                 activeOpacity={0.8}
               >
                 <Animated.View style={[styles.mainButtonInner, { transform: [{ scale: pulseAnim }] }]}>
@@ -187,11 +233,7 @@ export default function MainMenu() {
                 </TouchableOpacity>
               </View>
               
-              {!keysInitialized && !isInitializingKeys && (
-                <Text style={styles.warningText}>
-                  ⚠️ Security keys not initialized. Camera features may not work properly.
-                </Text>
-              )}
+
             </View>
           </>
         ) : (
@@ -203,25 +245,23 @@ export default function MainMenu() {
                 <Text style={styles.subtitle}>Secure Geo-Verified Photography</Text>
               </View>
               
-              {isInitializingKeys && (
+              {(isInitializingKeys || registrationStatus.isChecking) && (
                 <View style={[styles.initializingContainer, { alignSelf: 'flex-start', marginTop: 20 }]}>
-                  <Text style={styles.initializingText}>Initializing security keys...</Text>
+                  <Text style={styles.initializingText}>
+                    {isInitializingKeys ? 'Initializing security keys...' : 'Checking device registration...'}
+                  </Text>
                 </View>
               )}
               
-              {!keysInitialized && !isInitializingKeys && (
-                <Text style={[styles.warningText, { alignSelf: 'flex-start', marginTop: 20 }]}>
-                  ⚠️ Security keys not initialized. Camera features may not work properly.
-                </Text>
-              )}
+
             </View>
             
             <View style={styles.landscapeRightSection}>
               <View style={styles.landscapeCameraSection}>
                 <TouchableOpacity 
-                  style={[styles.mainButton, (!keysInitialized || isInitializingKeys) && styles.disabledMainButton]}
+                  style={[styles.mainButton, (!keysInitialized || isInitializingKeys || !registrationStatus.isRegistered || registrationStatus.isChecking) && styles.disabledMainButton]}
                   onPress={() => router.push('/camera')}
-                  disabled={!keysInitialized || isInitializingKeys}
+                  disabled={!keysInitialized || isInitializingKeys || !registrationStatus.isRegistered || registrationStatus.isChecking}
                   activeOpacity={0.8}
                 >
                   <Animated.View style={[styles.mainButtonInner, { transform: [{ scale: pulseAnim }] }]}>
@@ -427,16 +467,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
     textAlign: 'center',
   },
-  warningText: {
-    color: '#ffdddd',
-    fontSize: 12,
-    textAlign: 'center',
-    marginTop: 15,
-    paddingHorizontal: 20,
-    backgroundColor: 'rgba(255, 0, 0, 0.2)',
-    borderRadius: 8,
-    padding: 8,
-  },
+
   // Landscape mode styles
   landscapeContainer: {
     flex: 1,

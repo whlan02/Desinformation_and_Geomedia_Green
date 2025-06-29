@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { generateSecuritySummary, getSecurityRecommendations, supportsHardwareSecurity } from '../utils/deviceSecurityInfo';
 import { deleteSecp256k1Keys, hasStoredSecp256k1KeyPair } from '../utils/secp256k1Utils';
 import { testAllServices } from '../utils/backendConfig';
-import { checkDeviceRegistration, getStoredGeoCamDeviceName } from '../utils/backendService';
+import { checkDeviceRegistration, getStoredGeoCamDeviceName, registerDevice, clearGeoCamDeviceName, performFreshDeviceStart } from '../utils/backendService';
 import { useTheme } from '../contexts/ThemeContext';
 
 export default function SecurityInfo() {
@@ -108,23 +108,119 @@ export default function SecurityInfo() {
 
   const handleResetKeys = async () => {
     Alert.alert(
-      '🚨 Reset Device Keys',
-      'This will permanently delete your device\'s cryptographic keys. All previously signed photos will show as invalid. Are you sure?',
+      '🔄 Fresh Device Start',
+      'This will completely reset your device:\n\n• Delete device from database\n• Reset cryptographic keys\n• Generate new keys\n• Re-register with new identity\n\nAll previous photos will show as invalid. Continue?',
       [
         {
           text: 'Cancel',
           style: 'cancel',
         },
         {
-          text: 'Reset Keys',
+          text: 'Fresh Start',
           style: 'destructive',
           onPress: async () => {
-            const success = await deleteSecp256k1Keys();
-            if (success) {
-              Alert.alert('✅ Success', 'Device keys have been reset. New keys will be generated on next photo.');
-              loadSecurityInfo(); // Refresh the display
-            } else {
-              Alert.alert('❌ Error', 'Failed to reset device keys.');
+            // Show loading state
+            setDeviceRegistrationStatus({ 
+              isRegistered: false, 
+              isChecking: true, 
+              registrationMessage: 'Performing fresh device start...' 
+            });
+            setGeocamDeviceName(null);
+            
+            try {
+              const result = await performFreshDeviceStart();
+              
+              if (result.success) {
+                Alert.alert(
+                  '✅ Fresh Start Complete', 
+                  `${result.message}\n\nSteps completed:\n${
+                    result.steps.databaseDeletion.success ? '✅' : '❌'
+                  } Database deletion\n${
+                    result.steps.keyReset.success ? '✅' : '❌'
+                  } Key reset\n${
+                    result.steps.keyGeneration.success ? '✅' : '❌'
+                  } New key generation\n${
+                    result.steps.registration.success ? '✅' : '❌'
+                  } Re-registration`
+                );
+                
+                // Refresh all UI states
+                loadSecurityInfo();
+                checkKeys();
+                loadGeoCamDeviceName();
+                checkDeviceRegistrationStatus();
+              } else {
+                Alert.alert(
+                  '❌ Fresh Start Failed', 
+                  `${result.message}\n\nPlease check the logs and try again.`
+                );
+                
+                // Still refresh UI to show current state
+                loadSecurityInfo();
+                checkKeys();
+                loadGeoCamDeviceName();
+                checkDeviceRegistrationStatus();
+              }
+            } catch (error) {
+              Alert.alert(
+                '❌ Fresh Start Error', 
+                `Unexpected error: ${error instanceof Error ? error.message : String(error)}`
+              );
+              
+              // Refresh UI
+              loadSecurityInfo();
+              checkKeys();
+              loadGeoCamDeviceName();
+              checkDeviceRegistrationStatus();
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const handleManualRegistration = async () => {
+    if (!keysInitialized) {
+      Alert.alert('❌ Error', 'Device keys must be initialized before registration.');
+      return;
+    }
+
+    Alert.alert(
+      '📱 Register Device',
+      'This will register your device with the backend. Continue?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Register',
+          onPress: async () => {
+            setDeviceRegistrationStatus(prev => ({ ...prev, isChecking: true }));
+            try {
+              // Clear any stale device name first
+              await clearGeoCamDeviceName();
+              
+              const result = await registerDevice();
+              if (result.success) {
+                Alert.alert('✅ Success', `Device registered as ${result.geocam_name || `GeoCam${result.geocam_sequence}`}`);
+                loadGeoCamDeviceName(); // Refresh device name
+                checkDeviceRegistrationStatus(); // Refresh registration status
+              } else {
+                Alert.alert('❌ Registration Failed', result.message || 'Unknown error');
+                setDeviceRegistrationStatus({
+                  isRegistered: false,
+                  isChecking: false,
+                  registrationMessage: result.message || 'Registration failed'
+                });
+              }
+            } catch (error) {
+              Alert.alert('❌ Error', `Registration error: ${error instanceof Error ? error.message : String(error)}`);
+              setDeviceRegistrationStatus({
+                isRegistered: false,
+                isChecking: false,
+                registrationMessage: 'Registration error'
+              });
             }
           },
         },
@@ -193,6 +289,16 @@ export default function SecurityInfo() {
               {deviceRegistrationStatus.isRegistered ? '✅' : '❌'} {deviceRegistrationStatus.registrationMessage}
             </Text>
           )}
+          
+          {/* Manual Registration Button */}
+          {!deviceRegistrationStatus.isRegistered && !deviceRegistrationStatus.isChecking && keysInitialized && (
+            <TouchableOpacity 
+              style={[styles.registerButton, { backgroundColor: colors.accent, marginTop: 12 }]} 
+              onPress={handleManualRegistration}
+            >
+              <Text style={[styles.buttonText, { color: colors.buttonText }]}>Register Device</Text>
+            </TouchableOpacity>
+          )}
         </View>
         
         {supportsHardwareSecurity() && (
@@ -249,7 +355,7 @@ export default function SecurityInfo() {
           </TouchableOpacity>
 
           <TouchableOpacity style={[styles.resetButton, { backgroundColor: colors.error }]} onPress={handleResetKeys}>
-            <Text style={[styles.buttonText, { color: colors.buttonText }]}>Reset Keys</Text>
+            <Text style={[styles.buttonText, { color: colors.buttonText }]}>Fresh Start</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -376,6 +482,12 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginLeft: 8,
     alignItems: 'center',
+  },
+  registerButton: {
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    alignSelf: 'stretch',
   },
   buttonText: {
     fontSize: 16,

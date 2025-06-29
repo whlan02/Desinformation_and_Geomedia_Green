@@ -41,6 +41,20 @@ export const storeGeoCamDeviceName = async (name: string): Promise<boolean> => {
   }
 };
 
+/**
+ * Clear stored GeoCam device name (used when device is not found in database)
+ */
+export const clearGeoCamDeviceName = async (): Promise<boolean> => {
+  try {
+    await SecureStore.deleteItemAsync(GEOCAM_DEVICE_NAME_KEY);
+    console.log('🗑️ Cleared stored GeoCam device name');
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to clear GeoCam device name:', error);
+    return false;
+  }
+};
+
 export interface ImageVerificationResponse {
   success: boolean;
   message: string;
@@ -171,14 +185,21 @@ export const checkDeviceRegistration = async (): Promise<boolean> => {
         (device.public_key_data && device.public_key_data.hash === keyPair.fingerprint)
       );
       
-      // If device is registered, save the GeoCam device name
       if (registeredDevice && registeredDevice.geocam_sequence) {
+        // Device is registered, save the GeoCam device name
         const geocamName = `GeoCam${registeredDevice.geocam_sequence}`;
         await storeGeoCamDeviceName(geocamName);
         console.log('💾 Saved GeoCam device name from registration check:', geocamName);
+        return true;
+      } else {
+        // Device is not registered, clear any stale local device name
+        const currentStoredName = await getStoredGeoCamDeviceName();
+        if (currentStoredName) {
+          console.log('🗑️ Device not found in database, clearing stale local name:', currentStoredName);
+          await clearGeoCamDeviceName();
+        }
+        return false;
       }
-      
-      return !!registeredDevice;
     } else {
       console.warn('⚠️ Registration check failed:', response.status);
       return false;
@@ -186,6 +207,234 @@ export const checkDeviceRegistration = async (): Promise<boolean> => {
   } catch (error) {
     console.error('❌ Registration check error:', error);
     return false;
+  }
+};
+
+/**
+ * Automatic registration: Check if device is registered, and register if not
+ */
+export const ensureDeviceRegistration = async (): Promise<{
+  success: boolean;
+  isRegistered: boolean;
+  wasRegistered: boolean;
+  message: string;
+  geocamName?: string;
+}> => {
+  try {
+    console.log('🔄 Ensuring device registration...');
+    
+    // First check if device is already registered
+    const wasRegistered = await checkDeviceRegistration();
+    
+    if (wasRegistered) {
+      const geocamName = await getStoredGeoCamDeviceName();
+      console.log('✅ Device already registered:', geocamName);
+      return {
+        success: true,
+        isRegistered: true,
+        wasRegistered: true,
+        message: `Device already registered as ${geocamName}`,
+        geocamName: geocamName || undefined,
+      };
+    }
+    
+    // Device not registered, attempt registration
+    console.log('📱 Device not registered, attempting registration...');
+    const registrationResult = await registerDevice();
+    
+    if (registrationResult.success) {
+      const geocamName = registrationResult.geocam_name || 
+                        (registrationResult.geocam_sequence ? `GeoCam${registrationResult.geocam_sequence}` : null);
+      console.log('✅ Device registration successful:', geocamName);
+      return {
+        success: true,
+        isRegistered: true,
+        wasRegistered: false,
+        message: `Device registered successfully as ${geocamName}`,
+        geocamName: geocamName || undefined,
+      };
+    } else {
+      console.error('❌ Device registration failed:', registrationResult.message);
+      return {
+        success: false,
+        isRegistered: false,
+        wasRegistered: false,
+        message: `Registration failed: ${registrationResult.message}`,
+      };
+    }
+  } catch (error) {
+    console.error('❌ Device registration check/registration error:', error);
+    return {
+      success: false,
+      isRegistered: false,
+      wasRegistered: false,
+      message: `Error: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+};
+
+/**
+ * Delete current device from database (used for fresh start/reset)
+ */
+export const deleteCurrentDeviceFromDatabase = async (): Promise<{
+  success: boolean;
+  message: string;
+}> => {
+  try {
+    console.log('🗑️ Deleting current device from database...');
+    
+    const keyPair = await getStoredSecp256k1KeyPair();
+    if (!keyPair) {
+      console.log('❌ No keys found - cannot identify device for deletion');
+      return {
+        success: false,
+        message: 'No device keys found to identify device for deletion',
+      };
+    }
+
+    // Use a hypothetical delete endpoint (you may need to implement this in backend)
+    const response = await fetch(buildApiUrl('/api/delete-device'), {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        installation_id: keyPair.privateKey.installationId,
+        key_fingerprint: keyPair.fingerprint,
+      }),
+    });
+
+    if (response.ok) {
+      const result = await response.json();
+      console.log('✅ Device deleted from database:', result);
+      return {
+        success: true,
+        message: result.message || 'Device deleted from database',
+      };
+    } else if (response.status === 404) {
+      // Device not found in database - that's OK for our purposes
+      console.log('ℹ️ Device not found in database (already deleted or never registered)');
+      return {
+        success: true,
+        message: 'Device was not in database',
+      };
+    } else {
+      const errorResult = await response.json().catch(() => ({}));
+      console.error('❌ Failed to delete device from database:', errorResult);
+      return {
+        success: false,
+        message: errorResult.message || `Database deletion failed: ${response.status}`,
+      };
+    }
+  } catch (error) {
+    console.error('❌ Error deleting device from database:', error);
+    return {
+      success: false,
+      message: `Network error: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+};
+
+/**
+ * Complete Fresh Start: Delete from DB + Reset Keys + Re-register
+ */
+export const performFreshDeviceStart = async (): Promise<{
+  success: boolean;
+  message: string;
+  geocamName?: string;
+  steps: {
+    databaseDeletion: { success: boolean; message: string };
+    keyReset: { success: boolean; message: string };
+    keyGeneration: { success: boolean; message: string };
+    registration: { success: boolean; message: string; geocamName?: string };
+  };
+}> => {
+  const steps = {
+    databaseDeletion: { success: false, message: '' },
+    keyReset: { success: false, message: '' },
+    keyGeneration: { success: false, message: '' },
+    registration: { success: false, message: '', geocamName: undefined as string | undefined },
+  };
+
+  try {
+    console.log('🔄 === FRESH DEVICE START WORKFLOW ===');
+
+    // Step 1: Delete from database first (while we still have keys to identify device)
+    console.log('🗑️ Step 1: Deleting device from database...');
+    const deletionResult = await deleteCurrentDeviceFromDatabase();
+    steps.databaseDeletion = deletionResult;
+    console.log('📊 Database deletion result:', deletionResult);
+
+    // Step 2: Reset local keys and device name
+    console.log('🔑 Step 2: Resetting local keys and device name...');
+    const { deleteSecp256k1Keys } = await import('./secp256k1Utils');
+    const keyResetSuccess = await deleteSecp256k1Keys();
+    const deviceNameClearSuccess = await clearGeoCamDeviceName();
+    
+    steps.keyReset = {
+      success: keyResetSuccess && deviceNameClearSuccess,
+      message: keyResetSuccess && deviceNameClearSuccess ? 
+        'Keys and device name cleared' : 
+        'Failed to clear keys or device name'
+    };
+    console.log('📊 Key reset result:', steps.keyReset);
+
+    if (!steps.keyReset.success) {
+      throw new Error('Failed to reset local keys and device name');
+    }
+
+    // Step 3: Generate new keys
+    console.log('🔐 Step 3: Generating new keys...');
+    const { generateSecp256k1KeyPair, storeSecp256k1KeyPair } = await import('./secp256k1Utils');
+    
+    try {
+      const newKeyPair = await generateSecp256k1KeyPair();
+      await storeSecp256k1KeyPair(newKeyPair.privateKey, newKeyPair.publicKey, newKeyPair.fingerprint);
+      
+      steps.keyGeneration = {
+        success: true,
+        message: 'New keys generated and stored'
+      };
+      console.log('📊 Key generation result:', steps.keyGeneration);
+    } catch (keyGenError) {
+      steps.keyGeneration = {
+        success: false,
+        message: `Key generation failed: ${keyGenError instanceof Error ? keyGenError.message : String(keyGenError)}`
+      };
+      throw keyGenError;
+    }
+
+    // Step 4: Register with new keys
+    console.log('📱 Step 4: Registering device with new keys...');
+    const registrationResult = await registerDevice();
+    
+    steps.registration = {
+      success: registrationResult.success,
+      message: registrationResult.message,
+      geocamName: registrationResult.geocam_name || 
+                 (registrationResult.geocam_sequence ? `GeoCam${registrationResult.geocam_sequence}` : undefined)
+    };
+    console.log('📊 Registration result:', steps.registration);
+
+    if (registrationResult.success) {
+      console.log('✅ === FRESH START COMPLETED SUCCESSFULLY ===');
+      return {
+        success: true,
+        message: `Fresh start completed! Device registered as ${steps.registration.geocamName}`,
+        geocamName: steps.registration.geocamName,
+        steps
+      };
+    } else {
+      throw new Error(`Registration failed: ${registrationResult.message}`);
+    }
+
+  } catch (error) {
+    console.error('❌ === FRESH START FAILED ===', error);
+    return {
+      success: false,
+      message: `Fresh start failed: ${error instanceof Error ? error.message : String(error)}`,
+      steps
+    };
   }
 };
 

@@ -5,7 +5,7 @@ const isDevelopment = __DEV__ || process.env.NODE_ENV === 'development';
 
 // Production URLs (your deployed Render services)
 const PRODUCTION_BASE_URL = 'https://geocam-api.onrender.com';
-const PRODUCTION_STEG_URL = 'https://geocam-steganography.onrender.com';
+const PRODUCTION_STEG_URL = 'https://desinformationandgeomediagreen-production.up.railway.app';
 
 // Development URLs
 const DEV_BASE_URL = Platform.OS === 'web' ? 'http://localhost:5000' : 'http://192.168.178.52:5000';
@@ -13,7 +13,7 @@ const DEV_STEG_URL = Platform.OS === 'web' ? 'http://localhost:3001' : 'http://1
 
 // HYBRID TESTING MODE: Use production for API, local for steganography
 const USE_LOCAL_FOR_TESTING = false;
-const USE_LOCAL_STEGANOGRAPHY_ONLY = false; // Set to false for production
+const USE_LOCAL_STEGANOGRAPHY_ONLY = true; // Set to false for production
 
 // Backend configuration
 export const BACKEND_CONFIG = {
