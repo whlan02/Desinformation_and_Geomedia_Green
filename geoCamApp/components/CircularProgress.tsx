@@ -13,6 +13,7 @@ interface CircularProgressProps {
   estimatedDuration?: number; // Total estimated duration in milliseconds
   smoothAnimation?: boolean; // Whether to use smooth interpolated animation
   showPercentage?: boolean; // Whether to show percentage in center
+  showTimeRemaining?: boolean; // Whether to show estimated time remaining
 }
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
@@ -26,7 +27,8 @@ export const CircularProgress: React.FC<CircularProgressProps> = ({
   acceleratedCompletion = false,
   estimatedDuration,
   smoothAnimation = true,
-  showPercentage = false,
+  showPercentage = true,
+  showTimeRemaining = false,
 }) => {
   const { colors } = useTheme();
   const animatedValue = useRef(new Animated.Value(0)).current;
@@ -97,6 +99,52 @@ export const CircularProgress: React.FC<CircularProgressProps> = ({
     }).start();
   }, [progress, acceleratedCompletion, estimatedDuration, smoothAnimation]);
 
+  // Calculate estimated time remaining
+  const getTimeRemaining = (): string => {
+    if (!estimatedDuration || !startTime.current || progress <= 0) {
+      return '';
+    }
+
+    const elapsedTime = Date.now() - startTime.current;
+    const remainingProgress = Math.max(100 - progress, 0);
+    
+    // Calculate remaining time based on the original estimated duration
+    const estimatedRemainingTime = (remainingProgress / 100) * estimatedDuration;
+    
+    const seconds = Math.max(Math.ceil(estimatedRemainingTime / 1000), 0);
+    
+    if (progress >= 95) {
+      return 'Almost done...';
+    } else if (seconds <= 1) {
+      return 'Few seconds...';
+    } else if (seconds < 60) {
+      return `~${seconds} sec`;
+    } else {
+      const minutes = Math.floor(seconds / 60);
+      const remainingSeconds = seconds % 60;
+      if (remainingSeconds === 0) {
+        return `~${minutes} min`;
+      } else if (remainingSeconds <= 30) {
+        return `~${minutes} min`;
+      } else {
+        return `~${minutes + 1} min`;
+      }
+    }
+  };
+
+  // Get dynamic message based on progress
+  const getDynamicMessage = (): string => {
+    if (progress >= 90) {
+      return 'Finalizing...';
+    } else if (progress >= 70) {
+      return 'Almost ready...';
+    } else if (progress >= 30) {
+      return 'Processing...';
+    } else {
+      return message;
+    }
+  };
+
   const strokeDashoffset = animatedValue.interpolate({
     inputRange: [0, 100],
     outputRange: [circumference, 0],
@@ -130,18 +178,25 @@ export const CircularProgress: React.FC<CircularProgressProps> = ({
           />
         </Svg>
         
-        {/* Percentage display in center */}
-        {showPercentage && (
-          <View style={styles.percentageContainer}>
-            <Text style={[styles.percentageText, { color: colors.text }]}>
-              {Math.round(progress)}%
-            </Text>
+        {/* Percentage and time display in center */}
+        {(showPercentage || showTimeRemaining) && (
+          <View style={styles.centerContainer}>
+            {showPercentage && (
+              <Text style={[styles.percentageText, { color: colors.text }]}>
+                {Math.round(progress)}%
+              </Text>
+            )}
+            {showTimeRemaining && estimatedDuration && (
+              <Text style={[styles.timeText, { color: colors.textSecondary || colors.text }]}>
+                {getTimeRemaining()}
+              </Text>
+            )}
           </View>
         )}
       </View>
       
       {/* Status message */}
-      <Text style={[styles.messageText, { color: colors.text }]}>{message}</Text>
+      <Text style={[styles.messageText, { color: colors.text }]}>{getDynamicMessage()}</Text>
     </View>
   );
 };
@@ -163,6 +218,13 @@ const styles = StyleSheet.create({
   svg: {
     position: 'absolute',
   },
+  centerContainer: {
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+    height: '100%',
+  },
   percentageContainer: {
     position: 'absolute',
     alignItems: 'center',
@@ -175,6 +237,13 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     textAlign: 'center',
   },
+  timeText: {
+    fontSize: 12,
+    fontWeight: '500',
+    textAlign: 'center',
+    marginTop: 2,
+    opacity: 0.8,
+  },
   messageText: {
     fontSize: 16,
     textAlign: 'center',
@@ -182,4 +251,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default CircularProgress; 
+export default CircularProgress;
