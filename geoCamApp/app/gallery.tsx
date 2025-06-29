@@ -20,6 +20,7 @@ import * as FileSystem from 'expo-file-system';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
+import * as DocumentPicker from 'expo-document-picker';
 
 const { width } = Dimensions.get('window');
 const ITEM_SIZE = (width - 48) / 3; // 3 columns with smaller margins for a tighter grid
@@ -371,6 +372,35 @@ export default function Gallery() {
     );
   };
 
+  const handleImportPress = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: 'image/*',
+        copyToCacheDirectory: true
+      });
+
+      if (result.canceled) {
+        return;
+      }
+
+      const selectedFile = result.assets[0];
+      if (!selectedFile || !selectedFile.uri) {
+        Alert.alert('Error', 'Failed to get the selected file');
+        return;
+      }
+
+      // Store the URI for verification
+      await AsyncStorage.setItem('selectedUriForVerify', selectedFile.uri);
+      await AsyncStorage.setItem('isImportMode', 'true');
+      
+      // Navigate to verify screen
+      router.push('/verify');
+    } catch (error) {
+      console.error('Error picking document:', error);
+      Alert.alert('Error', 'Failed to import image');
+    }
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
@@ -520,6 +550,14 @@ export default function Gallery() {
           )}
         </>
       )}
+
+      {/* Import Button */}
+      <TouchableOpacity 
+        style={styles.importButton} 
+        onPress={handleImportPress}
+      >
+        <Ionicons name="add-circle" size={50} color={colors.primary || '#03DAC6'} />
+      </TouchableOpacity>
     </View>
   );
 }
@@ -733,5 +771,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 8,
+  },
+  importButton: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    zIndex: 1000,
   },
 });
