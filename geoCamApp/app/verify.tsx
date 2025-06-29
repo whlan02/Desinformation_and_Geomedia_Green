@@ -29,7 +29,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 
 const { width, height } = Dimensions.get('window');
-const MAP_HEIGHT = 150;
 const BOTTOM_SHEET_HEIGHT = 200;
 
 export default function Verify() {
@@ -352,48 +351,6 @@ export default function Verify() {
     showBottomSheetModal();
   };
 
-  const renderMap = () => {
-    if (!location) return null;
-
-    return (
-      <View style={styles.mapContainer}>
-        <View style={styles.mapHeader}>
-          <View style={styles.mapTitle}>
-            <Ionicons name="location" size={24} color="#03A9F4" style={{marginRight: 8}} />
-            <View>
-              <Text style={styles.mapTitleText}>Image Location</Text>
-              <Text style={styles.mapSubtitle}>GPS coordinates embedded in image</Text>
-            </View>
-          </View>
-        </View>
-        <MapView
-          style={styles.map}
-          initialRegion={{
-            latitude: location.latitude,
-            longitude: location.longitude,
-            latitudeDelta: 0.01,
-            longitudeDelta: 0.01,
-          }}
-          mapType="none"
-        >
-          <UrlTile
-            urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-            maximumZ={19}
-          />
-          <Marker
-            coordinate={{
-              latitude: location.latitude,
-              longitude: location.longitude,
-            }}
-            title="Photo Location"
-            pinColor="#03DAC6"
-            tracksViewChanges={false}
-          />
-        </MapView>
-      </View>
-    );
-  };
-
   const renderVerificationResult = () => {
     if (isVerifying) {
       return (
@@ -479,44 +436,78 @@ export default function Verify() {
           </View>
         )}
 
-        {decodedInfo && decodedInfo.length > 0 && (
+{(decodedInfo && decodedInfo.length > 0) || location ? (
           <View style={[styles.infoCard, styles.infoCardSpacing]}>
             <View style={styles.resultHeaderRow}>
               <Ionicons name="information-circle" size={32} color="#03DAC6" />
               <View style={styles.resultHeaderText}>
-                <Text style={styles.resultTitle}>Image Metadata</Text>
-                <Text style={styles.resultSubtitle}>Embedded information</Text>
+                <Text style={styles.resultTitle}>Image Information</Text>
+                <Text style={styles.resultSubtitle}>Metadata and location details</Text>
               </View>
             </View>
-            <View style={styles.metadataContainer}>
-              {decodedInfo.map((item, index) => (
-                <View key={index} style={styles.metadataItem}>
-                  <View style={styles.metadataIconContainer}>
-                    <Ionicons name={item.icon as any} size={20} color="#03DAC6" />
-                  </View>
-                  <View style={styles.metadataContent}>
-                    <Text style={styles.metadataLabel}>{item.label}</Text>
-                    <Text style={styles.metadataValue}>{item.value}</Text>
-                  </View>
+            
+            {/* Location Map Section - embedded within info card */}
+            {location && (
+              <View style={styles.embeddedMapContainer}>
+                <View style={styles.embeddedMapHeader}>
+                  <Ionicons name="location" size={20} color="#03A9F4" style={{marginRight: 8}} />
+                  <Text style={styles.embeddedMapTitle}>Image Location</Text>
                 </View>
-              ))}
-            </View>
+                <MapView
+                  style={styles.embeddedMap}
+                  initialRegion={{
+                    latitude: location.latitude,
+                    longitude: location.longitude,
+                    latitudeDelta: 0.01,
+                    longitudeDelta: 0.01,
+                  }}
+                  mapType="none"
+                >
+                  <UrlTile
+                    urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    maximumZ={19}
+                  />
+                  <Marker
+                    coordinate={{
+                      latitude: location.latitude,
+                      longitude: location.longitude,
+                    }}
+                    title="Photo Location"
+                    pinColor="#03DAC6"
+                    tracksViewChanges={false}
+                  />
+                </MapView>
+              </View>
+            )}
+            
+            {/* Metadata Section */}
+            {decodedInfo && decodedInfo.length > 0 && (
+              <View style={styles.metadataContainer}>
+                {decodedInfo.map((item, index) => (
+                  <View key={index} style={styles.metadataItem}>
+                    <View style={styles.metadataIconContainer}>
+                      <Ionicons name={item.icon as any} size={20} color="#03DAC6" />
+                    </View>
+                    <View style={styles.metadataContent}>
+                      <Text style={styles.metadataLabel}>{item.label}</Text>
+                      <Text style={styles.metadataValue}>{item.value}</Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
           </View>
-        )}
-
-        {decodedInfo !== null && decodedInfo.length === 0 && (
+        ) : decodedInfo !== null && decodedInfo.length === 0 && (
           <View style={[styles.infoCard, styles.infoCardSpacing]}>
             <View style={styles.resultHeaderRow}>
               <Ionicons name="information-circle-outline" size={32} color="#888" />
               <View style={styles.resultHeaderText}>
-                <Text style={styles.resultTitle}>No Metadata Found</Text>
-                <Text style={styles.resultSubtitle}>No hidden information detected</Text>
+                <Text style={styles.resultTitle}>No Information Found</Text>
+                <Text style={styles.resultSubtitle}>No metadata or location detected</Text>
               </View>
             </View>
           </View>
         )}
-
-        {renderMap()}
         
         {errorText && (
           <View style={[styles.resultCard, styles.errorCard, styles.infoCardSpacing]}>
@@ -977,45 +968,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
   },
-  mapContainer: {
-    backgroundColor: '#373c40',
-    borderRadius: 16,
-    overflow: 'hidden',
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-    elevation: 4,
-    borderLeftWidth: 4,
-    borderLeftColor: '#03A9F4',
-  },
-  mapHeader: {
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  mapTitle: {
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  mapTitleText: {
-    color: 'white',
-    fontWeight: 'bold',
-    fontSize: 17,
-  },
-  mapSubtitle: {
-    color: '#ccc',
-    fontSize: 13,
-    marginTop: 2,
-  },
-  map: {
-    width: '100%',
-    height: MAP_HEIGHT + 30, // Make map taller
-  },
   newImageButton: {
     backgroundColor: '#03DAC6',
     paddingVertical: 16,
@@ -1102,5 +1054,31 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#ffffff',
     letterSpacing: 0.2,
+  },
+  // Embedded map styles for unified card
+  embeddedMapContainer: {
+    marginTop: 16,
+    marginBottom: 8,
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  embeddedMapHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  embeddedMapTitle: {
+    color: 'white',
+    fontWeight: '600',
+    fontSize: 15,
+  },
+  embeddedMap: {
+    width: '100%',
+    height: 140,
   },
 }); 
