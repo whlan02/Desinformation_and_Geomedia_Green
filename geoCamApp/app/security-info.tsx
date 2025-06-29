@@ -244,7 +244,8 @@ export default function SecurityInfo() {
           Device Information
         </Text>
         
-        <View style={{width: 40}} /> {/* Empty view for balanced layout */}
+        {/* Empty view for balanced layout */}
+        <View style={{width: 40}} />
       </View>
       
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
