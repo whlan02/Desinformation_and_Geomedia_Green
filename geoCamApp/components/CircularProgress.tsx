@@ -30,6 +30,8 @@ export const CircularProgress: React.FC<RotatingGlobeProps> = ({
   const rotationValue = useRef(new Animated.Value(0)).current;
   const scaleValue = useRef(new Animated.Value(1)).current;
   const progressValue = useRef(new Animated.Value(0)).current;
+  const pulseValue = useRef(new Animated.Value(1)).current;
+  const glowValue = useRef(new Animated.Value(0)).current;
   const currentProgress = useRef(0);
   const startTime = useRef<number | null>(null);
   const lastUpdateTime = useRef<number>(Date.now());
@@ -43,18 +45,60 @@ export const CircularProgress: React.FC<RotatingGlobeProps> = ({
       Animated.loop(
         Animated.timing(rotationValue, {
           toValue: 1,
-          duration: 3000, // 3 seconds per rotation
+          duration: 4000, // Slightly slower, more elegant rotation
           useNativeDriver: true,
         }),
         { iterations: -1 } // Infinite loop
       ).start();
     };
 
-    // Start rotation immediately
+    // Start subtle pulsing animation
+    const startPulse = () => {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseValue, {
+            toValue: 1.05,
+            duration: 2000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseValue, {
+            toValue: 1,
+            duration: 2000,
+            useNativeDriver: true,
+          })
+        ]),
+        { iterations: -1 }
+      ).start();
+    };
+
+    // Start glow animation
+    const startGlow = () => {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(glowValue, {
+            toValue: 1,
+            duration: 1500,
+            useNativeDriver: false,
+          }),
+          Animated.timing(glowValue, {
+            toValue: 0,
+            duration: 1500,
+            useNativeDriver: false,
+          })
+        ]),
+        { iterations: -1 }
+      ).start();
+    };
+
+    // Start all animations
     startRotation();
+    startPulse();
+    startGlow();
 
     return () => {
       rotationValue.stopAnimation();
+      pulseValue.stopAnimation();
+      glowValue.stopAnimation();
     };
   }, []);
 
@@ -109,16 +153,16 @@ export const CircularProgress: React.FC<RotatingGlobeProps> = ({
     }).start();
 
     // Add subtle scale animation for progress milestones
-    if (progress > 0 && progress % 20 === 0) {
+    if (progress > 0 && progress % 25 === 0) {
       Animated.sequence([
         Animated.timing(scaleValue, {
-          toValue: 1.1,
-          duration: 150,
+          toValue: 1.15,
+          duration: 200,
           useNativeDriver: true,
         }),
         Animated.timing(scaleValue, {
           toValue: 1,
-          duration: 150,
+          duration: 200,
           useNativeDriver: true,
         })
       ]).start();
@@ -177,9 +221,95 @@ export const CircularProgress: React.FC<RotatingGlobeProps> = ({
     outputRange: ['0deg', '360deg'],
   });
 
+  // Create glow effect
+  const glowOpacity = glowValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.3, 0.8],
+  });
+
+  const progressPercentage = progressValue.interpolate({
+    inputRange: [0, 100],
+    outputRange: [0, 1],
+    extrapolate: 'clamp',
+  });
+
   return (
     <View style={[styles.container, { backgroundColor: colors.overlay }]}>
-      <View style={[styles.globeContainer, { width: size, height: size }]}>
+      <View style={[styles.globeContainer, { width: size + 40, height: size + 40 }]}>
+        {/* Outer glow ring */}
+        <Animated.View
+          style={[
+            styles.outerGlow,
+            {
+              width: size + 60,
+              height: size + 60,
+              borderRadius: (size + 60) / 2,
+              opacity: glowOpacity,
+              backgroundColor: `${globeColor}20`,
+            }
+          ]}
+        />
+
+        {/* Progress Ring around Globe */}
+        <Animated.View
+          style={[
+            styles.progressRing,
+            {
+              width: size + 30,
+              height: size + 30,
+              borderRadius: (size + 30) / 2,
+              borderColor: globeColor,
+              borderWidth: 3,
+              opacity: progressValue.interpolate({
+                inputRange: [0, 100],
+                outputRange: [0.4, 1],
+              }),
+              transform: [
+                {
+                  rotate: progressValue.interpolate({
+                    inputRange: [0, 100],
+                    outputRange: ['0deg', '360deg'],
+                  })
+                }
+              ]
+            }
+          ]}
+        />
+
+        {/* Inner progress dots */}
+        <Animated.View
+          style={[
+            styles.progressDots,
+            {
+              width: size + 15,
+              height: size + 15,
+              borderRadius: (size + 15) / 2,
+              opacity: progressPercentage,
+            }
+          ]}
+        >
+          {[...Array(8)].map((_, index) => (
+            <Animated.View
+              key={index}
+              style={[
+                styles.progressDot,
+                {
+                  backgroundColor: globeColor,
+                  transform: [
+                    { rotate: `${index * 45}deg` },
+                    { translateY: -(size + 15) / 2 + 5 },
+                  ],
+                  opacity: progressValue.interpolate({
+                    inputRange: [index * 12.5, (index + 1) * 12.5],
+                    outputRange: [0, 1],
+                    extrapolate: 'clamp',
+                  }),
+                }
+              ]}
+            />
+          ))}
+        </Animated.View>
+
         {/* Rotating Globe */}
         <Animated.View
           style={[
@@ -190,44 +320,47 @@ export const CircularProgress: React.FC<RotatingGlobeProps> = ({
               borderRadius: size / 2,
               transform: [
                 { rotate: rotation },
-                { scale: scaleValue }
+                { scale: scaleValue },
+                { scale: pulseValue }
               ]
             }
           ]}
         >
-          <Ionicons 
-            name="earth" 
-            size={size * 0.8} 
-            color={globeColor}
-            style={styles.globeIcon}
-          />
+          <View style={[styles.globeInner, { backgroundColor: `${globeColor}15` }]}>
+            <Ionicons 
+              name="earth" 
+              size={size * 0.7} 
+              color={globeColor}
+              style={styles.globeIcon}
+            />
+            
+            {/* Progress overlay on globe */}
+            <Animated.View
+              style={[
+                styles.progressOverlay,
+                {
+                  opacity: progressPercentage,
+                  backgroundColor: `${globeColor}30`,
+                }
+              ]}
+            />
+          </View>
         </Animated.View>
-
-        {/* Progress Ring around Globe */}
-        <Animated.View
-          style={[
-            styles.progressRing,
-            {
-              width: size + 20,
-              height: size + 20,
-              borderRadius: (size + 20) / 2,
-              borderColor: globeColor,
-              borderWidth: 3,
-              opacity: progressValue.interpolate({
-                inputRange: [0, 100],
-                outputRange: [0.3, 1],
-              }),
-            }
-          ]}
-        />
         
         {/* Percentage and time display */}
         {(showPercentage || showTimeRemaining) && (
           <View style={styles.infoContainer}>
             {showPercentage && (
-              <Text style={[styles.percentageText, { color: colors.text }]}>
-                {Math.round(progress)}%
-              </Text>
+              <Animated.View style={[
+                styles.percentageContainer,
+                {
+                  transform: [{ scale: scaleValue }]
+                }
+              ]}>
+                <Text style={[styles.percentageText, { color: colors.text }]}>
+                  {Math.round(progress)}%
+                </Text>
+              </Animated.View>
             )}
             {showTimeRemaining && estimatedDuration && (
               <Text style={[styles.timeText, { color: colors.textSecondary || colors.text }]}>
@@ -238,8 +371,15 @@ export const CircularProgress: React.FC<RotatingGlobeProps> = ({
         )}
       </View>
       
-      {/* Status message */}
-      <Text style={[styles.messageText, { color: colors.text }]}>{getDynamicMessage()}</Text>
+      {/* Status message with enhanced styling */}
+      <Animated.View style={[
+        styles.messageContainer,
+        {
+          transform: [{ scale: pulseValue }]
+        }
+      ]}>
+        <Text style={[styles.messageText, { color: colors.text }]}>{getDynamicMessage()}</Text>
+      </Animated.View>
     </View>
   );
 };
@@ -248,36 +388,87 @@ const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 30,
-    borderRadius: 16,
-    marginHorizontal: 40,
+    padding: 40,
+    borderRadius: 20,
+    marginHorizontal: 30,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  backgroundBlur: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 20,
   },
   globeContainer: {
     position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 20,
+    marginBottom: 25,
+  },
+  outerGlow: {
+    position: 'absolute',
+    borderRadius: 50,
   },
   globe: {
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.1)',
-    elevation: 8,
+    elevation: 12,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 4,
+      height: 6,
     },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    zIndex: 10,
+  },
+  globeInner: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    overflow: 'hidden',
   },
   globeIcon: {
     textAlign: 'center',
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+  },
+  progressOverlay: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    borderRadius: 50,
   },
   progressRing: {
     position: 'absolute',
     borderStyle: 'dashed',
     borderColor: 'transparent',
+    zIndex: 5,
+  },
+  progressDots: {
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 3,
+  },
+  progressDot: {
+    position: 'absolute',
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    elevation: 3,
   },
   infoContainer: {
     position: 'absolute',
@@ -285,25 +476,47 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     width: '100%',
     height: '100%',
-    top: '50%',
-    marginTop: 60,
+    top: '60%',
+    zIndex: 15,
+  },
+  percentageContainer: {
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginBottom: 4,
   },
   percentageText: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
     textAlign: 'center',
+    color: '#fff',
   },
   timeText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '500',
     textAlign: 'center',
     marginTop: 2,
-    opacity: 0.8,
+    opacity: 0.9,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    color: '#fff',
+  },
+  messageContainer: {
+    backgroundColor: 'rgba(0, 0, 0, 0.1)',
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   messageText: {
     fontSize: 16,
     textAlign: 'center',
-    fontWeight: '500',
+    fontWeight: '600',
+    letterSpacing: 0.5,
   },
 });
 
