@@ -433,13 +433,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.5,
     shadowRadius: 10,
     elevation: 12,
-    borderWidth: 2,
-    borderColor: 'white',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
     zIndex: 2,
   },
   disabledMainButton: {
     backgroundColor: 'rgba(24, 20, 21, 0.5)',
-    borderColor: 'rgba(255, 255, 255, 0.5)',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
     opacity: 0.7,
   },
   mainButtonInner: {
