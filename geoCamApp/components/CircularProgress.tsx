@@ -10,6 +10,9 @@ interface CircularProgressProps {
   strokeWidth?: number;
   color?: string;
   acceleratedCompletion?: boolean;
+  estimatedDuration?: number; // Total estimated duration in milliseconds
+  smoothAnimation?: boolean; // Whether to use smooth interpolated animation
+  showPercentage?: boolean; // Whether to show percentage in center
 }
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
@@ -21,10 +24,15 @@ export const CircularProgress: React.FC<CircularProgressProps> = ({
   strokeWidth = 8,
   color,
   acceleratedCompletion = false,
+  estimatedDuration,
+  smoothAnimation = true,
+  showPercentage = false,
 }) => {
   const { colors } = useTheme();
   const animatedValue = useRef(new Animated.Value(0)).current;
   const currentProgress = useRef(0);
+  const startTime = useRef<number | null>(null);
+  const lastUpdateTime = useRef<number>(Date.now());
   
   const radius = (size - strokeWidth) / 2;
   const circumference = radius * 2 * Math.PI;
@@ -33,19 +41,61 @@ export const CircularProgress: React.FC<CircularProgressProps> = ({
   const progressColor = color || colors.primary;
 
   useEffect(() => {
-    // Store current progress before animation
+    const now = Date.now();
     const startProgress = currentProgress.current;
+    const progressDelta = progress - startProgress;
+    
+    // Initialize start time on first progress update
+    if (startTime.current === null && progress > 0) {
+      startTime.current = now;
+    }
+    
+    // Calculate dynamic duration based on progress rate and estimation
+    let duration: number;
+    
+    if (estimatedDuration && startTime.current) {
+      // Use estimated duration proportionally
+      const elapsedTime = now - startTime.current;
+      const remainingProgress = 100 - progress;
+      const estimatedRemainingTime = (remainingProgress / 100) * estimatedDuration;
+      
+      if (smoothAnimation) {
+        // Smooth animation that adapts to the estimated completion time
+        duration = Math.min(Math.max(estimatedRemainingTime * 0.1, 100), 1000);
+      } else {
+        // Direct mapping to estimated time
+        duration = Math.max(estimatedRemainingTime * 0.05, 50);
+      }
+    } else {
+      // Fallback to adaptive duration based on progress delta and update frequency
+      const timeSinceLastUpdate = now - lastUpdateTime.current;
+      const progressRate = Math.abs(progressDelta) / Math.max(timeSinceLastUpdate, 1);
+      
+      if (acceleratedCompletion && progress >= 90) {
+        // Fast completion for final 10%
+        duration = 150;
+      } else if (progressRate > 20) {
+        // Fast progress updates - shorter animation
+        duration = 200;
+      } else if (progressRate > 5) {
+        // Medium progress updates
+        duration = 400;
+      } else {
+        // Slow progress updates - longer animation
+        duration = 600;
+      }
+    }
+    
+    // Update tracking variables
     currentProgress.current = progress;
-
-    // If acceleratedCompletion is true and we're not at 100%, use a faster animation
-    const duration = acceleratedCompletion && progress < 100 ? 300 : 500;
+    lastUpdateTime.current = now;
 
     Animated.timing(animatedValue, {
       toValue: progress,
       duration: duration,
       useNativeDriver: false,
     }).start();
-  }, [progress, acceleratedCompletion]);
+  }, [progress, acceleratedCompletion, estimatedDuration, smoothAnimation]);
 
   const strokeDashoffset = animatedValue.interpolate({
     inputRange: [0, 100],
@@ -79,6 +129,15 @@ export const CircularProgress: React.FC<CircularProgressProps> = ({
             transform={`rotate(-90 ${size / 2} ${size / 2})`}
           />
         </Svg>
+        
+        {/* Percentage display in center */}
+        {showPercentage && (
+          <View style={styles.percentageContainer}>
+            <Text style={[styles.percentageText, { color: colors.text }]}>
+              {Math.round(progress)}%
+            </Text>
+          </View>
+        )}
       </View>
       
       {/* Status message */}
@@ -103,6 +162,18 @@ const styles = StyleSheet.create({
   },
   svg: {
     position: 'absolute',
+  },
+  percentageContainer: {
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+    height: '100%',
+  },
+  percentageText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    textAlign: 'center',
   },
   messageText: {
     fontSize: 16,
