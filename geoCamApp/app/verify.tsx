@@ -35,7 +35,7 @@ export default function Verify() {
   const router = useRouter();
   const { colors, isDark, toggleTheme } = useTheme();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [decodedInfo, setDecodedInfo] = useState<string | null>(null);
+  const [decodedInfo, setDecodedInfo] = useState<Array<{icon: string, label: string, value: string, type: string}> | null>(null);
   const [errorText, setErrorText] = useState<string | null>(null);
   const [signatureVerification, setSignatureVerification] = useState<{valid: boolean, message: string} | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
@@ -173,29 +173,43 @@ export default function Verify() {
       if (verificationResult.success) {
         if (verificationResult.verification_result?.decoded_data) {
           const decodedData = verificationResult.verification_result.decoded_data;
-          let formattedString = '';
           
-          // Format information in a more structured way
+          // Process the decoded data into structured metadata items
+          const metadataItems = [];
           
-          // Handle device information first with special formatting
-          if (decodedData.geocamDevice && decodedData.deviceModel) {
-            formattedString += `📱 Device:     ${decodedData.geocamDevice} (${decodedData.deviceModel})\n`;
-          } else if (decodedData.geocamDevice) {
-            formattedString += `📱 Device:     ${decodedData.geocamDevice}\n`;
-          } else if (decodedData.deviceModel) {
-            formattedString += `📱 Device:     ${decodedData.deviceModel}\n`;
+          // Handle device information
+          if (decodedData.geocamDevice || decodedData.deviceModel) {
+            const deviceInfo = decodedData.geocamDevice 
+              ? (decodedData.deviceModel ? `${decodedData.geocamDevice} (${decodedData.deviceModel})` : decodedData.geocamDevice)
+              : decodedData.deviceModel;
+            metadataItems.push({
+              icon: 'phone-portrait-outline',
+              label: 'Device',
+              value: deviceInfo,
+              type: 'device'
+            });
           }
           
-          // Add time information with formatting if available
+          // Add time information
           if (decodedData.Time || decodedData.time) {
             const timeValue = decodedData.Time || decodedData.time;
-            formattedString += `🕒 Captured:   ${timeValue}\n`;
+            metadataItems.push({
+              icon: 'time-outline',
+              label: 'Captured',
+              value: timeValue,
+              type: 'time'
+            });
           }
           
-          // Format location information separately (we'll display it in a map)
+          // Handle location information
           if (decodedData.location) {
             setLocation(decodedData.location); // Set location for map
-            formattedString += `📍 Location:   ${decodedData.location.latitude.toFixed(6)}, ${decodedData.location.longitude.toFixed(6)}\n`;
+            metadataItems.push({
+              icon: 'location-outline',
+              label: 'Location',
+              value: `${decodedData.location.latitude.toFixed(6)}, ${decodedData.location.longitude.toFixed(6)}`,
+              type: 'location'
+            });
           }
           
           // Add any other information
@@ -205,17 +219,20 @@ export default function Verify() {
                 // Skip keys we've already processed
                 continue;
               } else {
-                // Format key with proper spacing
                 const formattedKey = key.charAt(0).toUpperCase() + key.slice(1);
-                const spacePadding = ' '.repeat(Math.max(1, 12 - formattedKey.length));
-                formattedString += `${formattedKey}:${spacePadding}${decodedData[key]}\n`;
+                metadataItems.push({
+                  icon: 'information-circle-outline',
+                  label: formattedKey,
+                  value: String(decodedData[key]),
+                  type: 'other'
+                });
               }
             }
           }
           
-          setDecodedInfo(formattedString.trim());
+          setDecodedInfo(metadataItems);
         } else {
-          setDecodedInfo('No hidden information found in the image');
+          setDecodedInfo([]);
         }
         
         setSignatureVerification({
@@ -416,7 +433,7 @@ export default function Verify() {
           </View>
         )}
 
-        {decodedInfo && (
+        {decodedInfo && decodedInfo.length > 0 && (
           <View style={styles.infoCard}>
             <View style={styles.resultHeaderRow}>
               <Ionicons name="information-circle" size={32} color="#03DAC6" />
@@ -425,8 +442,30 @@ export default function Verify() {
                 <Text style={styles.resultSubtitle}>Embedded information</Text>
               </View>
             </View>
-            <View style={styles.infoContainer}>
-              <Text style={styles.decodedText}>{decodedInfo}</Text>
+            <View style={styles.metadataContainer}>
+              {decodedInfo.map((item, index) => (
+                <View key={index} style={styles.metadataItem}>
+                  <View style={styles.metadataIconContainer}>
+                    <Ionicons name={item.icon as any} size={20} color="#03DAC6" />
+                  </View>
+                  <View style={styles.metadataContent}>
+                    <Text style={styles.metadataLabel}>{item.label}</Text>
+                    <Text style={styles.metadataValue}>{item.value}</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {decodedInfo !== null && decodedInfo.length === 0 && (
+          <View style={styles.infoCard}>
+            <View style={styles.resultHeaderRow}>
+              <Ionicons name="information-circle-outline" size={32} color="#888" />
+              <View style={styles.resultHeaderText}>
+                <Text style={styles.resultTitle}>No Metadata Found</Text>
+                <Text style={styles.resultSubtitle}>No hidden information detected</Text>
+              </View>
             </View>
           </View>
         )}
@@ -792,6 +831,45 @@ const styles = StyleSheet.create({
     borderLeftWidth: 4,
     borderLeftColor: '#03DAC6',
     marginTop: 12,
+  },
+  metadataContainer: {
+    marginTop: 12,
+  },
+  metadataItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: '#03DAC6',
+  },
+  metadataIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(3, 218, 198, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  metadataContent: {
+    flex: 1,
+  },
+  metadataLabel: {
+    fontSize: 13,
+    color: '#03DAC6',
+    fontWeight: '600',
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  metadataValue: {
+    fontSize: 16,
+    color: '#ffffff',
+    lineHeight: 22,
+    fontWeight: '500',
   },
   buttonContent: {
     flexDirection: 'row',
