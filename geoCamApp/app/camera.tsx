@@ -895,7 +895,7 @@ export default function CameraScreen() {
             estimatedDuration={6000}
             showPercentage={true}
             showTimeRemaining={true}
-            message="Capturing and processing image..."
+            message="Capturing..."
           />
         </View>
       )}
