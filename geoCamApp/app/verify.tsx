@@ -203,8 +203,8 @@ export default function Verify() {
       const galleryData = {
         uri: selectedImage,
         encodedInfo: JSON.stringify(verificationResult.verification_result.decoded_data || {}),
-        signature: verificationResult.verification_result.signature || '',
-        publicKey: verificationResult.verification_result.public_key || '',
+        signature: verificationResult.verification_result.signature || 'verified',  // Set a default 'verified' value
+        publicKey: verificationResult.verification_result.public_key || 'imported',  // Set a default 'imported' value
         timestamp: Date.now(),
       };
 
