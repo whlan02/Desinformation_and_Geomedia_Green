@@ -343,26 +343,14 @@ export default function ImageDetail() {
     extrapolate: 'clamp'
   });
 
-  const mapOpacity = scrollY.interpolate({
-    inputRange: [height * 0.3, height * 0.5],
-    outputRange: [0, 1],
-    extrapolate: 'clamp'
-  });
-  
-  const mapTranslateY = scrollY.interpolate({
-    inputRange: [height * 0.3, height * 0.5],
-    outputRange: [50, 0],
-    extrapolate: 'clamp'
-  });
-
   const infoOpacity = scrollY.interpolate({
-    inputRange: [height * 0.5, height * 0.7],
+    inputRange: [height * 0.3, height * 0.5],
     outputRange: [0, 1],
     extrapolate: 'clamp'
   });
   
   const infoTranslateY = scrollY.interpolate({
-    inputRange: [height * 0.5, height * 0.7],
+    inputRange: [height * 0.3, height * 0.5],
     outputRange: [50, 0],
     extrapolate: 'clamp'
   });
@@ -419,54 +407,6 @@ export default function ImageDetail() {
           />
         </View>
         
-        {location && (
-          <Animated.View style={[
-            styles.mapContainer, 
-            { 
-              opacity: mapOpacity,
-              transform: [{ translateY: mapTranslateY }],
-              backgroundColor: colors.surface
-            }
-          ]}>
-            <View style={styles.mapHeader}>
-              <View style={styles.mapTitle}>
-                <Ionicons name="location" size={24} color="#03A9F4" style={{marginRight: 8}} />
-                <View>
-                  <Text style={styles.mapTitleText}>Image Location</Text>
-                  <Text style={styles.mapSubtitle}>GPS coordinates embedded in image</Text>
-                </View>
-              </View>
-            </View>
-            <MapView
-              style={styles.map}
-              initialRegion={{
-                latitude: location.latitude,
-                longitude: location.longitude,
-                latitudeDelta: 0.008,
-                longitudeDelta: 0.008,
-              }}
-              mapType="none"
-              zoomEnabled={true}
-              pitchEnabled={true}
-              rotateEnabled={true}
-            >
-              <UrlTile
-                urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-                maximumZ={19}
-              />
-              <Marker
-                coordinate={{
-                  latitude: location.latitude,
-                  longitude: location.longitude,
-                }}
-                title="Photo Location"
-                pinColor="#03DAC6"
-                tracksViewChanges={false}
-              />
-            </MapView>
-          </Animated.View>
-        )}
-        
         <Animated.View style={[
           styles.infoContainer, 
           { 
@@ -480,10 +420,49 @@ export default function ImageDetail() {
               <View style={styles.resultHeaderRow}>
                 <Ionicons name="information-circle" size={32} color="#03DAC6" />
                 <View style={styles.resultHeaderText}>
-                  <Text style={styles.resultTitle}>Image Metadata</Text>
-                  <Text style={styles.resultSubtitle}>Embedded information</Text>
+                  <Text style={styles.resultTitle}>Image Information</Text>
+                  <Text style={styles.resultSubtitle}>Metadata and location details</Text>
                 </View>
               </View>
+              
+              {/* Location Map Section - embedded within info card */}
+              {location && (
+                <View style={styles.embeddedMapContainer}>
+                  <View style={styles.embeddedMapHeader}>
+                    <Ionicons name="location" size={20} color="#03A9F4" style={{marginRight: 8}} />
+                    <Text style={styles.embeddedMapTitle}>Capture Location</Text>
+                  </View>
+                  <MapView
+                    style={styles.embeddedMap}
+                    initialRegion={{
+                      latitude: location.latitude,
+                      longitude: location.longitude,
+                      latitudeDelta: 0.008,
+                      longitudeDelta: 0.008,
+                    }}
+                    mapType="none"
+                    zoomEnabled={true}
+                    pitchEnabled={true}
+                    rotateEnabled={true}
+                  >
+                    <UrlTile
+                      urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+                      maximumZ={19}
+                    />
+                    <Marker
+                      coordinate={{
+                        latitude: location.latitude,
+                        longitude: location.longitude,
+                      }}
+                      title="Photo Location"
+                      pinColor="#03DAC6"
+                      tracksViewChanges={false}
+                    />
+                  </MapView>
+                </View>
+              )}
+              
+              {/* Metadata Section */}
               <View style={styles.metadataContainer}>
                 {metadataItems.map((item, index) => (
                   <View key={index} style={styles.metadataItem}>
@@ -503,8 +482,8 @@ export default function ImageDetail() {
               <View style={styles.resultHeaderRow}>
                 <Ionicons name="information-circle-outline" size={32} color="#888" />
                 <View style={styles.resultHeaderText}>
-                  <Text style={styles.resultTitle}>Processing Metadata</Text>
-                  <Text style={styles.resultSubtitle}>Image information is being processed</Text>
+                  <Text style={styles.resultTitle}>Processing Information</Text>
+                  <Text style={styles.resultSubtitle}>Image metadata is being processed</Text>
                 </View>
               </View>
               <View style={styles.fallbackContainer}>
@@ -660,6 +639,32 @@ const styles = StyleSheet.create({
   metadataContainer: {
     marginTop: 12,
   },
+  embeddedMapContainer: {
+    marginTop: 16,
+    marginBottom: 16,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    borderWidth: 1,
+    borderColor: 'rgba(3, 169, 244, 0.3)',
+  },
+  embeddedMapHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  embeddedMapTitle: {
+    color: '#03A9F4',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  embeddedMap: {
+    width: '100%',
+    height: 160,
+  },
   metadataItem: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -742,51 +747,6 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: 16,
     marginTop: 12,
-  },
-  mapContainer: {
-    backgroundColor: '#373c40',
-    borderRadius: 16,
-    overflow: 'hidden',
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-    elevation: 4,
-    borderLeftWidth: 4,
-    borderLeftColor: '#03A9F4',
-  },
-  mapHeader: {
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  mapTitle: {
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  mapTitleText: {
-    color: 'white',
-    fontWeight: 'bold',
-    fontSize: 17,
-  },
-  mapSubtitle: {
-    color: '#ccc',
-    fontSize: 13,
-    marginTop: 2,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    padding: 15,
-    borderBottomWidth: 1,
-  },
-  map: {
-    width: '100%',
-    height: 180, // Adjust height to match verification page
   },
   imageCounter: {
     position: 'absolute',
