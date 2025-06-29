@@ -404,7 +404,7 @@ export default function Verify() {
             estimatedDuration={20000}
             showPercentage={true}
             showTimeRemaining={true}
-            message="Verifying Authenticity..."
+            message="Authenticating..."
           />
         </View>
       );
