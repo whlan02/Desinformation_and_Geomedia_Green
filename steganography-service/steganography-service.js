@@ -7,6 +7,36 @@ const path = require('path');
 const crypto = require('crypto');
 const { PNG } = require('pngjs');
 const sharp = require('sharp');
+const { Worker } = require('worker_threads');
+const os = require('os');
+
+// Get number of CPU cores
+const numCPUs = os.cpus().length;
+
+// Create a worker pool
+const workerPool = [];
+const workerPath = path.join(__dirname, 'verificationWorker.js');
+for (let i = 0; i < numCPUs; i++) {
+  workerPool.push(new Worker(workerPath));
+}
+
+let currentWorker = 0;
+
+// Function to get next available worker
+function getNextWorker() {
+  const worker = workerPool[currentWorker];
+  currentWorker = (currentWorker + 1) % workerPool.length;
+  return worker;
+}
+
+// Function to process with worker
+function processWithWorker(worker, data) {
+  return new Promise((resolve, reject) => {
+    worker.once('message', resolve);
+    worker.once('error', reject);
+    worker.postMessage(data);
+  });
+}
 
 // Helper function to create RGBA buffer from Sharp output
 async function createRGBABuffer(sharpInstance) {
@@ -665,70 +695,43 @@ class GeoCamPNGVerifier {
    */
   async verifyGeoCamPNG(pngBuffer) {
     try {
-      log('INFO', 'Starting GeoCam PNG Verification Workflow');
+      console.log('🚀 Starting GeoCam PNG Verification Workflow with worker threads...');
+      console.log(`📊 Using ${numCPUs} CPU cores for parallel processing`);
       
-      // Step 1-2: Parse PNG directly from buffer
+      // Parse PNG to get RGBA data
       const imageData = await this.parsePngFromBuffer(pngBuffer);
       const { width, height, data: rgbaData } = imageData;
       
-      // Step 3: Extract signature from last row
-      const signatureData = this.extractSignatureFromLastRow(rgbaData, width, height);
+      // Get next available worker
+      const worker = getNextWorker();
       
-      // Step 4: Reset last row alpha channels
-      const cleanedRgbaData = this.resetLastRowAlpha(rgbaData, width, height);
-      
-      // Step 5: Extract Basic Data
-      const basicDataStr = this.extractBasicDataFromAlphaChannels(cleanedRgbaData, width, height);
-      
-      // Step 6: Rebuild clean PNG
-      const cleanPngBuffer = await this.rebuildCleanPNG(cleanedRgbaData, width, height);
-      
-      // Step 7: Compute hash
-      const pngHash = await this.computePngHash(cleanPngBuffer);
-      
-      // Step 8: Verify signature
-      const verificationResult = await this.verifySignature(
-        pngHash,
-        signatureData.signature,
-        signatureData.publicKey
-      );
-      
-      log('SUCCESS', 'GeoCam PNG Verification completed', {
-        success: true,
-        signatureValid: verificationResult.valid,
-        imageInfo: {
-          width,
-          height,
-          originalSize: pngBuffer.length,
-          cleanSize: cleanPngBuffer.length
-        }
+      // Process with worker
+      const result = await processWithWorker(worker, {
+        rgbaData,
+        width,
+        height
       });
+      
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+      
+      console.log('🎉 GeoCam PNG Verification completed successfully!');
+      console.log('✅ Signature valid:', result.verification.valid);
       
       return {
         success: true,
-        verification: verificationResult,
-        extractedData: {
-          basicInfo: basicDataStr,
-          signatureData: {
-            timestamp: signatureData.timestamp,
-            version: signatureData.version,
-            publicKeyLength: signatureData.publicKey ? signatureData.publicKey.length : 0,
-            signatureLength: signatureData.signature ? signatureData.signature.length : 0
-          }
-        },
+        verification: result.verification,
+        extractedData: result.extractedData,
         imageInfo: {
           width,
           height,
-          originalSize: pngBuffer.length,
-          cleanSize: cleanPngBuffer.length
+          originalSize: pngBuffer.length
         }
       };
       
     } catch (error) {
-      log('ERROR', 'GeoCam PNG Verification failed', {
-        error: error.message,
-        stack: error.stack
-      });
+      console.error('❌ GeoCam PNG verification failed:', error);
       return {
         success: false,
         error: error.message,
