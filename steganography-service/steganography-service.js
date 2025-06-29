@@ -1402,25 +1402,40 @@ class GeoCamRGBAVerifier {
     const maxHeight = height - 1; // Exclude last row
     let binaryData = '';
     
+    // Process in chunks to avoid memory issues
+    const CHUNK_SIZE = 1000; // Process 1000 pixels at a time
+    
     for (let y = 0; y < maxHeight; y++) {
-      for (let x = 0; x < width; x++) {
-        const pixelIndex = (y * width + x) * 4;
-        const alphaIndex = pixelIndex + 3; // Alpha channel only
-        const alphaValue = rgbaData[alphaIndex];
+      for (let chunkStart = 0; chunkStart < width; chunkStart += CHUNK_SIZE) {
+        const chunkEnd = Math.min(chunkStart + CHUNK_SIZE, width);
         
-        // Extract 8 bits from alpha channel
-        for (let bit = 0; bit < 8; bit++) {
-          binaryData += (alphaValue & (1 << (7 - bit))) ? '1' : '0';
-        }
-        
-        // Check if we found the delimiter every 16 bits (codeUnitSize)
-        if (binaryData.length >= this.STEG_PARAMS.codeUnitSize && binaryData.length % this.STEG_PARAMS.codeUnitSize === 0) {
-          const testStr = this.binaryToString(binaryData);
-          if (testStr.includes(this.STEG_PARAMS.delimiter)) {
-            const endIndex = testStr.indexOf(this.STEG_PARAMS.delimiter);
-            const result = testStr.substring(0, endIndex);
-            console.log('✅ Basic Data extracted from Alpha channels (' + result.length + ' chars)');
-            return result;
+        for (let x = chunkStart; x < chunkEnd; x++) {
+          const pixelIndex = (y * width + x) * 4;
+          const alphaIndex = pixelIndex + 3; // Alpha channel only
+          const alphaValue = rgbaData[alphaIndex];
+          
+          // Extract 8 bits from alpha channel
+          for (let bit = 0; bit < 8; bit++) {
+            binaryData += (alphaValue & (1 << (7 - bit))) ? '1' : '0';
+          }
+          
+          // Check if we found the delimiter every 16 bits (codeUnitSize)
+          if (binaryData.length >= this.STEG_PARAMS.codeUnitSize && 
+              binaryData.length % this.STEG_PARAMS.codeUnitSize === 0) {
+            const testStr = this.binaryToString(binaryData);
+            if (testStr.includes(this.STEG_PARAMS.delimiter)) {
+              const endIndex = testStr.indexOf(this.STEG_PARAMS.delimiter);
+              const result = testStr.substring(0, endIndex);
+              console.log('✅ Basic Data extracted from Alpha channels (' + result.length + ' chars)');
+              return result;
+            }
+          }
+          
+          // Memory optimization: if binary data gets too large without finding delimiter,
+          // we can discard the oldest part that we've already checked
+          if (binaryData.length > 1000000) { // 1MB of binary data
+            const keepLength = 1000; // Keep last 1000 bits in case delimiter is split
+            binaryData = binaryData.slice(-keepLength);
           }
         }
       }
@@ -1753,7 +1768,6 @@ app.post('/verify-geocam-rgba', upload.single('image'), async (req, res) => {
         signature_valid: verificationResult.verification.valid,
         decoded_info: parsedBasicData,
         is_authentic: verificationResult.verification.valid,
-        device_info: verificationResult.extractedData.signatureData,
         message: verificationResult.verification.valid ? 'Signature is valid' : 'Signature is invalid'
       },
       extractedData: {
