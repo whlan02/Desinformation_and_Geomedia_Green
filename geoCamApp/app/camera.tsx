@@ -318,8 +318,17 @@ export default function CameraScreen() {
       
       let locData = null;
       if (locationPermission && locationPermission.granted) {
-        const loc = await Location.getCurrentPositionAsync({});
-        locData = loc.coords;
+        try {
+          const loc = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.High,
+          });
+          locData = loc.coords;
+          console.log('📍 Location data retrieved:', locData);
+        } catch (locationError) {
+          console.error('Failed to get location:', locationError);
+        }
+      } else {
+        console.log('Location permission not granted');
       }
 
       // Get GeoCam device name
@@ -330,11 +339,16 @@ export default function CameraScreen() {
       const basicData = {
         deviceModel: Device.modelName,
         Time: new Date().toLocaleString(),
-        location: locData ? { latitude: locData.latitude, longitude: locData.longitude } : null,
+        location: locData ? { 
+          latitude: locData.latitude, 
+          longitude: locData.longitude,
+          accuracy: locData.accuracy || undefined,
+          altitude: locData.altitude || undefined
+        } : null,
         geocamDevice: geocamDeviceName || 'Unknown',
       };
 
-      console.log('📝 Prepared basic data for encoding');
+      console.log('📝 Prepared basic data for encoding:', basicData);
       const basicDataStr = JSON.stringify(basicData);
       
       console.log('📤 Sending image for processing and signing...');
@@ -757,18 +771,18 @@ export default function CameraScreen() {
           <View style={styles.zoomControls}>
             <TouchableOpacity 
               style={styles.zoomButton} 
-              onPress={() => adjustZoom(false)}
-              disabled={zoom <= 0}
+              onPress={() => adjustZoom(true)}
+              disabled={zoom >= 1}
             >
-              <Ionicons name="remove" size={20} color={zoom <= 0 ? "gray" : "white"} />
+              <Ionicons name="add" size={18} color={zoom >= 1 ? "gray" : "white"} />
             </TouchableOpacity>
             <Text style={styles.zoomText}>{zoom.toFixed(1)}x</Text>
             <TouchableOpacity 
               style={styles.zoomButton} 
-              onPress={() => adjustZoom(true)}
-              disabled={zoom >= 1}
+              onPress={() => adjustZoom(false)}
+              disabled={zoom <= 0}
             >
-              <Ionicons name="add" size={20} color={zoom >= 1 ? "gray" : "white"} />
+              <Ionicons name="remove" size={18} color={zoom <= 0 ? "gray" : "white"} />
             </TouchableOpacity>
           </View>
         </View>
@@ -940,10 +954,10 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    marginHorizontal: 5,
+    marginVertical: 4,
   },
   topBarControls: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     alignItems: 'center',
   },
   timerBadge: {
@@ -961,26 +975,27 @@ const styles = StyleSheet.create({
     lineHeight: 14,
   },
   zoomControls: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     alignItems: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    borderRadius: 20,
-    paddingHorizontal: 5,
-    marginLeft: 5,
+    borderRadius: 16,
+    paddingVertical: 6,
+    marginTop: 4,
+    width: 40,
   },
   zoomButton: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    width: 28,
+    height: 24,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
   zoomText: {
     color: 'white',
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: 'bold',
-    width: 30,
     textAlign: 'center',
+    marginVertical: 2,
   },
   bottomBar: {
     position: 'absolute',

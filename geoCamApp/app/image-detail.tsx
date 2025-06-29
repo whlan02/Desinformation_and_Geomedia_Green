@@ -16,19 +16,17 @@ import { useState, useEffect, useRef } from 'react';
 import { getGalleryImages, type GalleryImage } from '../utils/galleryStorage';
 import * as Sharing from 'expo-sharing';
 import MapView, { Marker, UrlTile } from 'react-native-maps';
-import { Ionicons } from '@expo/vector-icons';
 
 const { width } = Dimensions.get('window');
 const MAP_HEIGHT = 200;
 
 export default function ImageDetail() {
   const router = useRouter();
-  const { imageId, imageUri } = useLocalSearchParams<{ imageId: string, imageUri: string }>();
+  const { imageId } = useLocalSearchParams<{ imageId: string }>();
   const [image, setImage] = useState<GalleryImage | null>(null);
   const [loading, setLoading] = useState(true);
   const [sharing, setSharing] = useState(false);
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
-  const [directUriMode, setDirectUriMode] = useState<boolean>(false);
   
   // Animation values
   const scrollY = useRef(new Animated.Value(0)).current;
@@ -36,37 +34,16 @@ export default function ImageDetail() {
 
   useEffect(() => {
     loadImage();
-  }, [imageId, imageUri]);
+  }, [imageId]);
 
   const loadImage = async () => {
     try {
-      // Case 1: Direct URI provided from camera preview or other source
-      if (imageUri) {
-        console.log('Loading image from direct URI:', decodeURIComponent(imageUri));
-        const uri = decodeURIComponent(imageUri);
-        setDirectUriMode(true);
-        
-        // Create a simple image object with the URI
-        setImage({
-          id: 'preview-' + Date.now(),
-          uri: uri,
-          encodedInfo: '{}', // Default empty info
-          timestamp: Date.now()
-        });
-        
-        setLoading(false);
-        return;
-      }
-      
-      // Case 2: Loading from gallery by ID
       const images = await getGalleryImages();
       const foundImage = images.find(img => img.id === imageId);
+      setImage(foundImage || null);
       
+      // Extract location from encoded info
       if (foundImage) {
-        setImage(foundImage);
-        setDirectUriMode(false);
-        
-        // Extract location from encoded info
         try {
           const info = JSON.parse(foundImage.encodedInfo);
           if (info.location) {
@@ -75,9 +52,6 @@ export default function ImageDetail() {
         } catch (e) {
           console.error('Error parsing location:', e);
         }
-      } else {
-        console.log('Image not found by ID:', imageId);
-        setImage(null);
       }
     } catch (error) {
       console.error('Error loading image:', error);
@@ -111,11 +85,6 @@ export default function ImageDetail() {
 
   const formatEncodedInfo = (encodedInfo: string, signature?: string, publicKey?: string) => {
     try {
-      // Handle possible empty encodedInfo (for images loaded directly from URI)
-      if (!encodedInfo || encodedInfo === '{}') {
-        return 'Preview image - metadata not available\n\nThis image was opened directly from the camera preview.';
-      }
-      
       const parsed = JSON.parse(encodedInfo);
       let formatted = '';
       
@@ -170,7 +139,7 @@ export default function ImageDetail() {
           style={styles.floatingBackButton} 
           onPress={() => router.back()}
         >
-          <Ionicons name="arrow-back" size={24} color="white" />
+          <Text style={styles.backButtonText}>←</Text>
         </TouchableOpacity>
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color="#ffffff" />
@@ -187,7 +156,7 @@ export default function ImageDetail() {
           style={styles.floatingBackButton} 
           onPress={() => router.back()}
         >
-          <Ionicons name="arrow-back" size={24} color="white" />
+          <Text style={styles.backButtonText}>←</Text>
         </TouchableOpacity>
         <View style={styles.centerContainer}>
           <Text style={styles.errorText}>Image not found</Text>
@@ -234,7 +203,7 @@ export default function ImageDetail() {
         { opacity: headerOpacity }
       ]}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="white" />
+          <Text style={styles.backButtonText}>← Back</Text>
         </TouchableOpacity>
         <Text style={styles.title}>Photo Details</Text>
         <TouchableOpacity 
@@ -306,26 +275,10 @@ export default function ImageDetail() {
             transform: [{ translateY: infoTranslateY }] 
           }
         ]}>
-          <Text style={styles.infoTitle}>
-            {directUriMode ? 'Preview Image' : 'Photo Information'}
+          <Text style={styles.infoTitle}>Photo Information</Text>
+          <Text style={styles.infoText}>
+            {formatEncodedInfo(image.encodedInfo, image.signature, image.publicKey)}
           </Text>
-          {directUriMode ? (
-            <>
-              <Text style={styles.infoText}>
-                This is a preview of the image. No additional metadata is available in preview mode.
-              </Text>
-              <TouchableOpacity 
-                style={[styles.saveToGalleryButton, {marginTop: 20}]} 
-                onPress={() => router.push('/gallery')}
-              >
-                <Text style={styles.saveToGalleryButtonText}>Open Gallery</Text>
-              </TouchableOpacity>
-            </>
-          ) : (
-            <Text style={styles.infoText}>
-              {formatEncodedInfo(image.encodedInfo, image.signature, image.publicKey)}
-            </Text>
-          )}
         </Animated.View>
         
         {/* Empty space to allow scrolling beyond the content for animation effect */}
@@ -337,7 +290,7 @@ export default function ImageDetail() {
         style={styles.floatingBackButton} 
         onPress={() => router.back()}
       >
-        <Ionicons name="arrow-back" size={24} color="white" />
+        <Text style={styles.backButtonText}>←</Text>
       </TouchableOpacity>
     </View>
   );
@@ -363,19 +316,22 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(55, 60, 64, 0.95)', // Semi-transparent header
   },
   backButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  backButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: 'white',
   },
   floatingBackButton: {
     position: 'absolute',
     top: 50,
     left: 20,
     zIndex: 90,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     width: 40,
     height: 40,
     borderRadius: 20,
@@ -464,18 +420,5 @@ const styles = StyleSheet.create({
   map: {
     width: '100%',
     height: 250, // Larger map for better visibility
-  },
-  saveToGalleryButton: {
-    backgroundColor: '#4630EB',
-    padding: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 15,
-  },
-  saveToGalleryButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
   },
 });
