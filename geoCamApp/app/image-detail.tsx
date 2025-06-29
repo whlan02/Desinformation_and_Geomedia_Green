@@ -299,10 +299,14 @@ export default function ImageDetail() {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <TouchableOpacity 
-          style={styles.floatingBackButton} 
+          style={[styles.floatingBackButton, { 
+            backgroundColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.5)',
+            borderColor: isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.2)',
+            borderWidth: isDark ? 1 : 0
+          }]} 
           onPress={() => router.back()}
         >
-          <Text style={styles.backButtonText}>←</Text>
+          <Text style={[styles.backButtonText, { color: '#ffffff' }]}>←</Text>
         </TouchableOpacity>
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
@@ -316,10 +320,14 @@ export default function ImageDetail() {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <TouchableOpacity 
-          style={styles.floatingBackButton} 
+          style={[styles.floatingBackButton, { 
+            backgroundColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.5)',
+            borderColor: isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.2)',
+            borderWidth: isDark ? 1 : 0
+          }]} 
           onPress={() => router.back()}
         >
-          <Text style={styles.backButtonText}>←</Text>
+          <Text style={[styles.backButtonText, { color: '#ffffff' }]}>←</Text>
         </TouchableOpacity>
         <View style={styles.centerContainer}>
           <Text style={[styles.errorText, { color: colors.text }]}>Image not found</Text>
@@ -365,7 +373,16 @@ export default function ImageDetail() {
           backgroundColor: colors.headerBackground + 'F0' // Adding transparency
         }
       ]}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+        <TouchableOpacity 
+          style={[
+            styles.backButton, 
+            { 
+              backgroundColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.1)',
+              borderColor: isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.15)'
+            }
+          ]} 
+          onPress={() => router.back()}
+        >
           <Text style={[styles.backButtonText, { color: colors.text }]}>← Back</Text>
         </TouchableOpacity>
         <Text style={[styles.title, { color: colors.text }]}>Image Details</Text>
@@ -417,13 +434,21 @@ export default function ImageDetail() {
           }
         ]}>
           {metadataItems && metadataItems.length > 0 ? (
-            <View style={styles.enhancedInfoCard}>
+            <View style={[styles.enhancedInfoCard, { 
+              borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(26, 26, 26, 0.08)',
+              shadowColor: isDark ? 'rgba(0, 0, 0, 0.6)' : 'rgba(0, 0, 0, 0.15)'
+            }]}>
               <LinearGradient
-                colors={[
+                colors={isDark ? [
                   'rgba(45, 52, 60, 0.98)', 
                   'rgba(35, 42, 50, 0.99)', 
                   'rgba(30, 37, 45, 1)',
                   'rgba(25, 32, 40, 1)'
+                ] : [
+                  'rgba(248, 250, 252, 0.98)',
+                  'rgba(241, 245, 249, 0.99)',
+                  'rgba(236, 242, 247, 1)',
+                  'rgba(226, 234, 240, 1)'
                 ]}
                 locations={[0, 0.3, 0.7, 1]}
                 style={styles.enhancedCardGradient}
@@ -440,21 +465,21 @@ export default function ImageDetail() {
                       </LinearGradient>
                     </View>
                     <View style={styles.enhancedHeaderTextContainer}>
-                      <Text style={styles.enhancedTitle}>Image Information</Text>
-                      <Text style={styles.enhancedSubtitle}>Captured metadata and location data</Text>
+                      <Text style={[styles.enhancedTitle, { color: isDark ? '#ffffff' : '#1a1a1a' }]}>Image Information</Text>
+                      <Text style={[styles.enhancedSubtitle, { color: isDark ? 'rgba(255, 255, 255, 0.65)' : 'rgba(26, 26, 26, 0.65)' }]}>Captured metadata and location data</Text>
                     </View>
                   </View>
-                  <View style={styles.enhancedHeaderDivider} />
+                  <View style={[styles.enhancedHeaderDivider, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(26, 26, 26, 0.08)' }]} />
                 </View>
                 
                 {/* Enhanced Location Map Section */}
                 {location && (
                   <View style={styles.enhancedLocationSection}>
                     <View style={styles.enhancedSectionHeader}>
-                      <View style={styles.enhancedSectionIconContainer}>
+                      <View style={[styles.enhancedSectionIconContainer, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(26, 26, 26, 0.08)' }]}>
                         <Ionicons name="location" size={20} color="#03A9F4" />
                       </View>
-                      <Text style={styles.enhancedSectionTitle}>Capture Location</Text>
+                      <Text style={[styles.enhancedSectionTitle, { color: isDark ? '#ffffff' : '#1a1a1a' }]}>Capture Location</Text>
                     </View>
                     <View style={styles.enhancedMapWrapper}>
                       <MapView
@@ -496,16 +521,19 @@ export default function ImageDetail() {
                 {/* Enhanced Metadata Section */}
                 <View style={styles.enhancedMetadataSection}>
                   <View style={styles.enhancedSectionHeader}>
-                    <View style={styles.enhancedSectionIconContainer}>
+                    <View style={[styles.enhancedSectionIconContainer, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(26, 26, 26, 0.08)' }]}>
                       <Ionicons name="document-text" size={20} color="#03DAC6" />
                     </View>
-                    <Text style={styles.enhancedSectionTitle}>Metadata Details</Text>
+                    <Text style={[styles.enhancedSectionTitle, { color: isDark ? '#ffffff' : '#1a1a1a' }]}>Metadata Details</Text>
                   </View>
                   <View style={styles.enhancedMetadataGrid}>
                     {metadataItems.map((item, index) => (
                       <View key={index} style={styles.enhancedMetadataItem}>
                         <LinearGradient
-                          colors={['rgba(55, 62, 70, 0.6)', 'rgba(45, 52, 60, 0.4)']}
+                          colors={isDark ? 
+                            ['rgba(55, 62, 70, 0.6)', 'rgba(45, 52, 60, 0.4)'] :
+                            ['rgba(255, 255, 255, 0.6)', 'rgba(248, 250, 252, 0.4)']
+                          }
                           style={styles.enhancedMetadataItemGradient}
                         >
                           <View style={styles.enhancedMetadataItemContent}>
@@ -513,8 +541,8 @@ export default function ImageDetail() {
                               <Ionicons name={item.icon as any} size={18} color="#03DAC6" />
                             </View>
                             <View style={styles.enhancedMetadataText}>
-                              <Text style={styles.enhancedMetadataLabel}>{item.label}</Text>
-                              <Text style={styles.enhancedMetadataValue} numberOfLines={2}>
+                              <Text style={[styles.enhancedMetadataLabel, { color: isDark ? 'rgba(3, 218, 198, 0.9)' : 'rgba(3, 150, 130, 0.9)' }]}>{item.label}</Text>
+                              <Text style={[styles.enhancedMetadataValue, { color: isDark ? '#ffffff' : '#1a1a1a' }]} numberOfLines={2}>
                                 {item.value}
                               </Text>
                             </View>
@@ -527,13 +555,21 @@ export default function ImageDetail() {
               </LinearGradient>
             </View>
           ) : (
-            <View style={styles.enhancedInfoCard}>
+            <View style={[styles.enhancedInfoCard, { 
+              borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(26, 26, 26, 0.08)',
+              shadowColor: isDark ? 'rgba(0, 0, 0, 0.6)' : 'rgba(0, 0, 0, 0.15)'
+            }]}>
               <LinearGradient
-                colors={[
+                colors={isDark ? [
                   'rgba(45, 52, 60, 0.98)', 
                   'rgba(35, 42, 50, 0.99)', 
                   'rgba(30, 37, 45, 1)',
                   'rgba(25, 32, 40, 1)'
+                ] : [
+                  'rgba(248, 250, 252, 0.98)',
+                  'rgba(241, 245, 249, 0.99)',
+                  'rgba(236, 242, 247, 1)',
+                  'rgba(226, 234, 240, 1)'
                 ]}
                 locations={[0, 0.3, 0.7, 1]}
                 style={styles.enhancedCardGradient}
@@ -549,13 +585,13 @@ export default function ImageDetail() {
                       </LinearGradient>
                     </View>
                     <View style={styles.enhancedHeaderTextContainer}>
-                      <Text style={styles.enhancedTitle}>Processing Information</Text>
-                      <Text style={styles.enhancedSubtitle}>Image metadata is being processed</Text>
+                      <Text style={[styles.enhancedTitle, { color: isDark ? '#ffffff' : '#1a1a1a' }]}>Processing Information</Text>
+                      <Text style={[styles.enhancedSubtitle, { color: isDark ? 'rgba(255, 255, 255, 0.65)' : 'rgba(26, 26, 26, 0.65)' }]}>Image metadata is being processed</Text>
                     </View>
                   </View>
                 </View>
                 <View style={styles.enhancedFallbackContainer}>
-                  <Text style={styles.enhancedFallbackText}>
+                  <Text style={[styles.enhancedFallbackText, { color: isDark ? '#e0e0e0' : '#4a4a4a' }]}>
                     This image was just captured and may not have complete metadata yet. Try viewing it from the gallery after a moment.
                   </Text>
                 </View>
@@ -570,10 +606,14 @@ export default function ImageDetail() {
       
       {/* Fixed back button overlay for easy navigation when header is hidden */}
       <TouchableOpacity 
-        style={styles.floatingBackButton} 
+        style={[styles.floatingBackButton, { 
+          backgroundColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.5)',
+          borderColor: isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.2)',
+          borderWidth: isDark ? 1 : 0
+        }]} 
         onPress={() => router.back()}
       >
-        <Text style={styles.backButtonText}>←</Text>
+        <Text style={[styles.backButtonText, { color: '#ffffff' }]}>←</Text>
       </TouchableOpacity>
 
       {/* Image counter - shows when there are multiple images */}
@@ -615,7 +655,6 @@ const styles = StyleSheet.create({
     paddingBottom: 15,
   },
   backButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     paddingHorizontal: 15,
     paddingVertical: 8,
     borderRadius: 8,
@@ -629,7 +668,6 @@ const styles = StyleSheet.create({
     top: 50,
     left: 20,
     zIndex: 90,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     width: 40,
     height: 40,
     borderRadius: 20,
@@ -900,7 +938,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)', // Subtle border that blends with background
+    borderColor: 'rgba(255, 255, 255, 0.08)', // Will be overridden by theme-aware styling
     shadowColor: 'rgba(0, 0, 0, 0.6)',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.3,
@@ -954,7 +992,7 @@ const styles = StyleSheet.create({
   },
   enhancedHeaderDivider: {
     height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)', // Will be overridden by theme-aware styling
     marginTop: 16,
   },
   // Enhanced location section
