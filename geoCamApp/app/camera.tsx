@@ -729,15 +729,15 @@ export default function CameraScreen() {
 
       {/* Top Bar */}
       <View style={[styles.topBar, { top: insets.top + 10 }]}>
-        <View style={styles.topBarLeft}>
-          <TouchableOpacity 
-            style={styles.topBarButton} 
-            onPress={() => router.back()}
-          >
-            <Ionicons name="arrow-back" size={28} color="white" />
-          </TouchableOpacity>
-        </View>
+        {/* Back Button */}
+        <TouchableOpacity 
+          style={styles.topBarButton} 
+          onPress={() => router.back()}
+        >
+          <Ionicons name="arrow-back" size={28} color="white" />
+        </TouchableOpacity>
         
+        {/* Control Buttons - Horizontal Layout */}
         <View style={styles.topBarControls}>
           {/* Flash Button */}
           <TouchableOpacity 
@@ -756,7 +756,7 @@ export default function CameraScreen() {
               color="white"
             />
             {flash === 'auto' && (
-              <Text style={{ color: 'white', fontSize: 10, position: 'absolute', bottom: 2, right: 2 }}>A</Text>
+              <Text style={styles.autoFlashIndicator}>A</Text>
             )}
           </TouchableOpacity>
           
@@ -773,22 +773,22 @@ export default function CameraScreen() {
             )}
           </TouchableOpacity>
 
-          {/* Zoom Controls */}
+          {/* Zoom Controls - Horizontal */}
           <View style={styles.zoomControls}>
-            <TouchableOpacity 
-              style={styles.zoomButton} 
-              onPress={() => adjustZoom(true)}
-              disabled={zoom >= 1}
-            >
-              <Ionicons name="add" size={18} color={zoom >= 1 ? "gray" : "white"} />
-            </TouchableOpacity>
-            <Text style={styles.zoomText}>{zoom.toFixed(1)}x</Text>
             <TouchableOpacity 
               style={styles.zoomButton} 
               onPress={() => adjustZoom(false)}
               disabled={zoom <= 0}
             >
-              <Ionicons name="remove" size={18} color={zoom <= 0 ? "gray" : "white"} />
+              <Ionicons name="remove" size={16} color={zoom <= 0 ? "gray" : "white"} />
+            </TouchableOpacity>
+            <Text style={styles.zoomText}>{zoom.toFixed(1)}x</Text>
+            <TouchableOpacity 
+              style={styles.zoomButton} 
+              onPress={() => adjustZoom(true)}
+              disabled={zoom >= 1}
+            >
+              <Ionicons name="add" size={16} color={zoom >= 1 ? "gray" : "white"} />
             </TouchableOpacity>
           </View>
         </View>
@@ -801,7 +801,7 @@ export default function CameraScreen() {
           style={styles.sideIconButton}
           onPress={() => router.push('/gallery')}
         >
-          <Ionicons name="images" size={34} color="#fff" />
+          <Ionicons name="images" size={28} color="#fff" />
         </TouchableOpacity>
 
         {/* Take Photo Button */}
@@ -953,6 +953,7 @@ const styles = StyleSheet.create({
     right: 0,
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 20,
     zIndex: 1,
   },
@@ -961,17 +962,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   topBarButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     width: 40,
     height: 40,
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    marginVertical: 4,
+    marginHorizontal: 3,
   },
   topBarControls: {
-    flexDirection: 'column',
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 6,
+  },
+  autoFlashIndicator: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    color: 'white',
+    fontSize: 10,
+    fontWeight: 'bold',
   },
   timerBadge: {
     position: 'absolute',
@@ -988,27 +998,29 @@ const styles = StyleSheet.create({
     lineHeight: 14,
   },
   zoomControls: {
-    flexDirection: 'column',
+    flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    borderRadius: 16,
-    paddingVertical: 6,
-    marginTop: 4,
-    width: 40,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 20,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    minWidth: 75,
   },
   zoomButton: {
-    width: 28,
-    height: 24,
-    borderRadius: 12,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   zoomText: {
     color: 'white',
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: 'bold',
     textAlign: 'center',
-    marginVertical: 2,
+    marginHorizontal: 6,
+    minWidth: 25,
   },
   bottomBar: {
     position: 'absolute',
