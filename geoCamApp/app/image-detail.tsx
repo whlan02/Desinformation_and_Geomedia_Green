@@ -22,7 +22,7 @@ const MAP_HEIGHT = 200;
 
 export default function ImageDetail() {
   const router = useRouter();
-  const { imageId } = useLocalSearchParams<{ imageId: string }>();
+  const { imageId, imageUri } = useLocalSearchParams<{ imageId?: string; imageUri?: string }>();
   const [image, setImage] = useState<GalleryImage | null>(null);
   const [loading, setLoading] = useState(true);
   const [sharing, setSharing] = useState(false);
@@ -34,24 +34,72 @@ export default function ImageDetail() {
 
   useEffect(() => {
     loadImage();
-  }, [imageId]);
+  }, [imageId, imageUri]);
 
   const loadImage = async () => {
     try {
-      const images = await getGalleryImages();
-      const foundImage = images.find(img => img.id === imageId);
-      setImage(foundImage || null);
+      console.log('Loading image with ID:', imageId, 'URI:', imageUri);
       
-      // Extract location from encoded info
-      if (foundImage) {
-        try {
-          const info = JSON.parse(foundImage.encodedInfo);
-          if (info.location) {
-            setLocation(info.location);
+      if (imageId) {
+        // Gallery mode - find image by ID
+        const images = await getGalleryImages();
+        const foundImage = images.find(img => img.id === imageId);
+        
+        if (foundImage) {
+          setImage(foundImage);
+          
+          // Extract location from encoded info
+          try {
+            const info = JSON.parse(foundImage.encodedInfo);
+            if (info.location) {
+              setLocation(info.location);
+            }
+          } catch (e) {
+            console.error('Error parsing location:', e);
           }
-        } catch (e) {
-          console.error('Error parsing location:', e);
+        } else {
+          console.error('Image not found by ID');
+          setImage(null);
         }
+      } else if (imageUri) {
+        // Camera preview mode - use URI directly
+        const decodedUri = decodeURIComponent(imageUri);
+        console.log('Using direct URI from camera:', decodedUri);
+        
+        // Try to find the image in gallery by URI first
+        const images = await getGalleryImages();
+        const foundImage = images.find(img => img.uri === decodedUri);
+        
+        if (foundImage) {
+          // Found in gallery, use full data
+          setImage(foundImage);
+          
+          // Extract location from encoded info
+          try {
+            const info = JSON.parse(foundImage.encodedInfo);
+            if (info.location) {
+              setLocation(info.location);
+            }
+          } catch (e) {
+            console.error('Error parsing location:', e);
+          }
+        } else {
+          // Not found in gallery, create minimal image object for display
+          console.log('Image not in gallery, creating minimal display object');
+          const fallbackImage: GalleryImage = {
+            id: 'camera-preview',
+            uri: decodedUri,
+            encodedInfo: JSON.stringify({ 
+              fallback: true,
+              message: 'Preview from camera - metadata may be processing' 
+            }),
+            timestamp: Date.now()
+          };
+          setImage(fallbackImage);
+        }
+      } else {
+        console.error('No imageId or imageUri provided');
+        setImage(null);
       }
     } catch (error) {
       console.error('Error loading image:', error);
@@ -86,6 +134,12 @@ export default function ImageDetail() {
   const formatEncodedInfo = (encodedInfo: string, signature?: string, publicKey?: string) => {
     try {
       const parsed = JSON.parse(encodedInfo);
+      
+      // Handle fallback case for camera preview
+      if (parsed.fallback) {
+        return parsed.message || 'Photo information is being processed...\n\nThis image was just captured and may not have complete metadata yet. Try viewing it from the gallery after a moment.';
+      }
+      
       let formatted = '';
       
       // Device Information - combined format
@@ -160,6 +214,15 @@ export default function ImageDetail() {
         </TouchableOpacity>
         <View style={styles.centerContainer}>
           <Text style={styles.errorText}>Image not found</Text>
+          <TouchableOpacity 
+            style={styles.retryButton}
+            onPress={() => {
+              setLoading(true);
+              loadImage();
+            }}
+          >
+            <Text style={styles.retryButtonText}>Try Again</Text>
+          </TouchableOpacity>
         </View>
       </View>
     );
@@ -228,7 +291,15 @@ export default function ImageDetail() {
         )}
         scrollEventThrottle={16}
       >
-        <Image source={{ uri: image.uri }} style={[styles.fullImage, {height: height}]} />
+        <Image 
+          source={{ uri: image.uri }} 
+          style={[styles.fullImage, {height: height}]} 
+          resizeMode="contain"
+          onError={(error) => {
+            console.error('Image loading error:', error);
+            Alert.alert('Error', 'Failed to load image. The image file may be corrupted or moved.');
+          }}
+        />
         
         {location && (
           <Animated.View style={[
@@ -397,6 +468,18 @@ const styles = StyleSheet.create({
   errorText: {
     color: 'white',
     fontSize: 18,
+    marginBottom: 20,
+  },
+  retryButton: {
+    backgroundColor: '#6200EE',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   loadingText: {
     color: 'white',
