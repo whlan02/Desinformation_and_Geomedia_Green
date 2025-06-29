@@ -361,7 +361,7 @@ export default function Verify() {
           <View style={styles.mapTitle}>
             <Ionicons name="location" size={24} color="#03A9F4" style={{marginRight: 8}} />
             <View>
-              <Text style={styles.mapTitleText}>Photo Location</Text>
+              <Text style={styles.mapTitleText}>Image Location</Text>
               <Text style={styles.mapSubtitle}>GPS coordinates embedded in image</Text>
             </View>
           </View>
@@ -404,7 +404,7 @@ export default function Verify() {
             estimatedDuration={20000}
             showPercentage={true}
             showTimeRemaining={true}
-            message="Verifying image authenticity..."
+            message="Verifying Authenticity..."
           />
         </View>
       );
