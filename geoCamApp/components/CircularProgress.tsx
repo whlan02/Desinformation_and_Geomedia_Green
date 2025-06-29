@@ -1,28 +1,24 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
-import Svg, { Circle } from 'react-native-svg';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 
-interface CircularProgressProps {
+interface RotatingGlobeProps {
   progress: number; // 0-100
   message?: string;
   size?: number;
-  strokeWidth?: number;
   color?: string;
   acceleratedCompletion?: boolean;
   estimatedDuration?: number; // Total estimated duration in milliseconds
   smoothAnimation?: boolean; // Whether to use smooth interpolated animation
-  showPercentage?: boolean; // Whether to show percentage in center
+  showPercentage?: boolean; // Whether to show percentage
   showTimeRemaining?: boolean; // Whether to show estimated time remaining
 }
 
-const AnimatedCircle = Animated.createAnimatedComponent(Circle);
-
-export const CircularProgress: React.FC<CircularProgressProps> = ({
+export const CircularProgress: React.FC<RotatingGlobeProps> = ({
   progress,
   message = 'Processing...',
   size = 100,
-  strokeWidth = 8,
   color,
   acceleratedCompletion = false,
   estimatedDuration,
@@ -31,17 +27,38 @@ export const CircularProgress: React.FC<CircularProgressProps> = ({
   showTimeRemaining = false,
 }) => {
   const { colors } = useTheme();
-  const animatedValue = useRef(new Animated.Value(0)).current;
+  const rotationValue = useRef(new Animated.Value(0)).current;
+  const scaleValue = useRef(new Animated.Value(1)).current;
+  const progressValue = useRef(new Animated.Value(0)).current;
   const currentProgress = useRef(0);
   const startTime = useRef<number | null>(null);
   const lastUpdateTime = useRef<number>(Date.now());
   
-  const radius = (size - strokeWidth) / 2;
-  const circumference = radius * 2 * Math.PI;
-
   // Use theme color if no color prop is provided
-  const progressColor = color || colors.primary;
+  const globeColor = color || colors.primary;
 
+  // Start continuous rotation animation
+  useEffect(() => {
+    const startRotation = () => {
+      Animated.loop(
+        Animated.timing(rotationValue, {
+          toValue: 1,
+          duration: 3000, // 3 seconds per rotation
+          useNativeDriver: true,
+        }),
+        { iterations: -1 } // Infinite loop
+      ).start();
+    };
+
+    // Start rotation immediately
+    startRotation();
+
+    return () => {
+      rotationValue.stopAnimation();
+    };
+  }, []);
+
+  // Handle progress updates with scale animation
   useEffect(() => {
     const now = Date.now();
     const startProgress = currentProgress.current;
@@ -52,38 +69,30 @@ export const CircularProgress: React.FC<CircularProgressProps> = ({
       startTime.current = now;
     }
     
-    // Calculate dynamic duration based on progress rate and estimation
+    // Calculate dynamic duration for progress updates
     let duration: number;
     
     if (estimatedDuration && startTime.current) {
-      // Use estimated duration proportionally
       const elapsedTime = now - startTime.current;
       const remainingProgress = 100 - progress;
       const estimatedRemainingTime = (remainingProgress / 100) * estimatedDuration;
       
       if (smoothAnimation) {
-        // Smooth animation that adapts to the estimated completion time
         duration = Math.min(Math.max(estimatedRemainingTime * 0.1, 100), 1000);
       } else {
-        // Direct mapping to estimated time
         duration = Math.max(estimatedRemainingTime * 0.05, 50);
       }
     } else {
-      // Fallback to adaptive duration based on progress delta and update frequency
       const timeSinceLastUpdate = now - lastUpdateTime.current;
       const progressRate = Math.abs(progressDelta) / Math.max(timeSinceLastUpdate, 1);
       
       if (acceleratedCompletion && progress >= 90) {
-        // Fast completion for final 10%
         duration = 150;
       } else if (progressRate > 20) {
-        // Fast progress updates - shorter animation
         duration = 200;
       } else if (progressRate > 5) {
-        // Medium progress updates
         duration = 400;
       } else {
-        // Slow progress updates - longer animation
         duration = 600;
       }
     }
@@ -92,11 +101,28 @@ export const CircularProgress: React.FC<CircularProgressProps> = ({
     currentProgress.current = progress;
     lastUpdateTime.current = now;
 
-    Animated.timing(animatedValue, {
+    // Animate progress value
+    Animated.timing(progressValue, {
       toValue: progress,
       duration: duration,
       useNativeDriver: false,
     }).start();
+
+    // Add subtle scale animation for progress milestones
+    if (progress > 0 && progress % 20 === 0) {
+      Animated.sequence([
+        Animated.timing(scaleValue, {
+          toValue: 1.1,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scaleValue, {
+          toValue: 1,
+          duration: 150,
+          useNativeDriver: true,
+        })
+      ]).start();
+    }
   }, [progress, acceleratedCompletion, estimatedDuration, smoothAnimation]);
 
   // Calculate estimated time remaining
@@ -145,42 +171,59 @@ export const CircularProgress: React.FC<CircularProgressProps> = ({
     }
   };
 
-  const strokeDashoffset = animatedValue.interpolate({
-    inputRange: [0, 100],
-    outputRange: [circumference, 0],
+  // Create rotation interpolation
+  const rotation = rotationValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
   });
 
   return (
     <View style={[styles.container, { backgroundColor: colors.overlay }]}>
-      <View style={[styles.progressContainer, { width: size, height: size }]}>
-        <Svg width={size} height={size} style={styles.svg}>
-          {/* Background circle */}
-          <Circle
-            cx={size / 2}
-            cy={size / 2}
-            r={radius}
-            stroke={colors.border}
-            strokeWidth={strokeWidth}
-            fill="transparent"
+      <View style={[styles.globeContainer, { width: size, height: size }]}>
+        {/* Rotating Globe */}
+        <Animated.View
+          style={[
+            styles.globe,
+            {
+              width: size,
+              height: size,
+              borderRadius: size / 2,
+              transform: [
+                { rotate: rotation },
+                { scale: scaleValue }
+              ]
+            }
+          ]}
+        >
+          <Ionicons 
+            name="earth" 
+            size={size * 0.8} 
+            color={globeColor}
+            style={styles.globeIcon}
           />
-          {/* Progress circle */}
-          <AnimatedCircle
-            cx={size / 2}
-            cy={size / 2}
-            r={radius}
-            stroke={progressColor}
-            strokeWidth={strokeWidth}
-            fill="transparent"
-            strokeDasharray={circumference}
-            strokeDashoffset={strokeDashoffset}
-            strokeLinecap="round"
-            transform={`rotate(-90 ${size / 2} ${size / 2})`}
-          />
-        </Svg>
+        </Animated.View>
+
+        {/* Progress Ring around Globe */}
+        <Animated.View
+          style={[
+            styles.progressRing,
+            {
+              width: size + 20,
+              height: size + 20,
+              borderRadius: (size + 20) / 2,
+              borderColor: globeColor,
+              borderWidth: 3,
+              opacity: progressValue.interpolate({
+                inputRange: [0, 100],
+                outputRange: [0.3, 1],
+              }),
+            }
+          ]}
+        />
         
-        {/* Percentage and time display in center */}
+        {/* Percentage and time display */}
         {(showPercentage || showTimeRemaining) && (
-          <View style={styles.centerContainer}>
+          <View style={styles.infoContainer}>
             {showPercentage && (
               <Text style={[styles.percentageText, { color: colors.text }]}>
                 {Math.round(progress)}%
@@ -209,28 +252,41 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     marginHorizontal: 40,
   },
-  progressContainer: {
+  globeContainer: {
     position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 20,
   },
-  svg: {
-    position: 'absolute',
+  globe: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.1)',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
   },
-  centerContainer: {
+  globeIcon: {
+    textAlign: 'center',
+  },
+  progressRing: {
+    position: 'absolute',
+    borderStyle: 'dashed',
+    borderColor: 'transparent',
+  },
+  infoContainer: {
     position: 'absolute',
     alignItems: 'center',
     justifyContent: 'center',
     width: '100%',
     height: '100%',
-  },
-  percentageContainer: {
-    position: 'absolute',
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: '100%',
-    height: '100%',
+    top: '50%',
+    marginTop: 60,
   },
   percentageText: {
     fontSize: 18,
