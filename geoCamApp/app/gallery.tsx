@@ -19,6 +19,7 @@ import { getGalleryImages, deleteImageFromGallery, type GalleryImage } from '../
 import * as FileSystem from 'expo-file-system';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '../contexts/ThemeContext';
 
 const { width } = Dimensions.get('window');
 const ITEM_SIZE = (width - 48) / 3; // 3 columns with smaller margins for a tighter grid
@@ -26,6 +27,7 @@ const ANIMATION_DURATION = 300; // Duration for animations in ms
 
 export default function Gallery() {
   const router = useRouter();
+  const { colors, isDark } = useTheme();
   const { mode } = useLocalSearchParams<{ mode: string }>();
   const [images, setImages] = useState<GalleryImage[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -370,11 +372,18 @@ export default function Gallery() {
   };
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
       
       {/* Animated Header */}
-      <Animated.View style={[styles.header, { height: headerHeight }]}>
+      <Animated.View style={[
+        styles.header, 
+        { 
+          height: headerHeight,
+          backgroundColor: colors.headerBackground,
+          borderBottomColor: colors.border
+        }
+      ]}>
         {isMultiSelectMode ? (
           <>
             <TouchableOpacity 
@@ -415,9 +424,9 @@ export default function Gallery() {
               style={styles.backButton} 
               onPress={() => router.back()}
             >
-              <Ionicons name="arrow-back" size={24} color="white" />
+              <Ionicons name="arrow-back" size={24} color={colors.text} />
             </TouchableOpacity>
-            <Text style={styles.title}>
+            <Text style={[styles.title, { color: colors.text }]}>
               {mode === 'select' ? 'Select Image' : 'GeoCam Gallery'}
             </Text>
             
@@ -430,7 +439,7 @@ export default function Gallery() {
                 <Ionicons 
                   name={sortOrder === 'newest' ? 'time-outline' : 'time'} 
                   size={20} 
-                  color="white" 
+                  color={colors.text} 
                 />
               </TouchableOpacity>
               
@@ -441,7 +450,7 @@ export default function Gallery() {
                 <Ionicons 
                   name={isGridView ? 'list' : 'grid'} 
                   size={20} 
-                  color="white" 
+                  color={colors.text} 
                 />
               </TouchableOpacity>
             </View>
@@ -518,7 +527,6 @@ export default function Gallery() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1a1a1a', // Darker background for better contrast
   },
   header: {
     flexDirection: 'row',
@@ -527,9 +535,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: Platform.OS === 'ios' ? 50 : 30,
     paddingBottom: 16,
-    backgroundColor: '#222222',
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.1)',
     elevation: 4,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },

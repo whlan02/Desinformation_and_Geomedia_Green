@@ -5,6 +5,7 @@ import { SvgXml } from 'react-native-svg';
 import { useEffect, useState, useRef } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { generateSecp256k1KeyPair, getStoredSecp256k1KeyPair, storeSecp256k1KeyPair, hasStoredSecp256k1KeyPair } from '../utils/secp256k1Utils';
+import { useTheme } from '../contexts/ThemeContext';
 
 // Define SVG strings directly
 const cameraIconXml = `<svg fill="none" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><g stroke="#fff" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="m6.23319 5.83404.44526-2.22627c.18697-.93485 1.0078-1.60777 1.96116-1.60777h6.72079c.9534 0 1.7742.67292 1.9612 1.60777l.4452 2.22627c.1424.71201.6823 1.27824 1.3867 1.45435 1.6729.41822 2.8465 1.9213 2.8465 3.64571v7.0659c0 2.2091-1.7909 4-4 4h-12c-2.20914 0-4-1.7909-4-4v-7.0659c0-1.72441 1.17357-3.22749 2.84645-3.64571.70443-.17611 1.24434-.74234 1.38674-1.45435z"/><circle cx="12" cy="14" r="4"/><path d="m11 6h2"/></g></svg>`;
@@ -17,6 +18,7 @@ const securityIconXml = `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.
 
 export default function MainMenu() {
   const router = useRouter();
+  const { colors, isDark, toggleTheme } = useTheme();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const [keysInitialized, setKeysInitialized] = useState(false);
@@ -102,13 +104,29 @@ export default function MainMenu() {
 
   return (
     <>
-      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} translucent backgroundColor="transparent" />
+      
+      {/* Theme Toggle Button */}
+      <TouchableOpacity 
+        style={[styles.themeToggle, { top: insets.top + 10 }]}
+        onPress={toggleTheme}
+      >
+        <SvgXml 
+          xml={isDark ? 
+            `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 18C15.3137 18 18 15.3137 18 12C18 8.68629 15.3137 6 12 6C8.68629 6 6 8.68629 6 12C6 15.3137 8.68629 18 12 18Z" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="m12 2v4m0 12v4M4.22 4.22l2.83 2.83m8.49 8.49 2.83 2.83m-16.97-8.49h4m12 0h4m-16.97 8.49 2.83-2.83m8.49-8.49 2.83-2.83" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>` :
+            `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" stroke="#000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`
+          } 
+          width={24} 
+          height={24} 
+        />
+      </TouchableOpacity>
+
       <ImageBackground
         source={require('../assets/background.jpg')}
         style={styles.container}
         resizeMode="cover"
       >
-        <View style={styles.overlay} />
+        <View style={[styles.overlay, { backgroundColor: isDark ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.3)' }]} />
         
         {!isLandscape ? (
           // Portrait layout
@@ -466,5 +484,15 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 5,
-  }
+  },
+  themeToggle: {
+    position: 'absolute',
+    right: 20,
+    zIndex: 10,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    borderRadius: 20,
+    padding: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
 });

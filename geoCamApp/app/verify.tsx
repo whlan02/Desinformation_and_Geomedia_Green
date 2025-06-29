@@ -25,6 +25,7 @@ import { verifyImagePurePng } from '../utils/backendService';
 import { getGalleryImages} from '../utils/galleryStorage';
 import CircularProgress from '../components/CircularProgress';
 import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '../contexts/ThemeContext';
 
 const { width, height } = Dimensions.get('window');
 const MAP_HEIGHT = 150;
@@ -32,6 +33,7 @@ const BOTTOM_SHEET_HEIGHT = 200;
 
 export default function Verify() {
   const router = useRouter();
+  const { colors, isDark, toggleTheme } = useTheme();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [decodedInfo, setDecodedInfo] = useState<string | null>(null);
   const [errorText, setErrorText] = useState<string | null>(null);
@@ -482,15 +484,15 @@ export default function Verify() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#25292e" />
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor={colors.background} />
       
-      <View style={styles.topBar}>
+      <View style={[styles.topBar, { backgroundColor: colors.headerBackground }]}>
         <TouchableOpacity 
           style={styles.backButton} 
           onPress={() => router.back()}
         >
-          <Ionicons name="arrow-back" size={24} color="white" />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         
         <Text style={styles.topBarTitle}>

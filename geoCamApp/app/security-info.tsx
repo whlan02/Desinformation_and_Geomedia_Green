@@ -7,9 +7,11 @@ import { generateSecuritySummary, getSecurityRecommendations, supportsHardwareSe
 import { deleteSecp256k1Keys, hasStoredSecp256k1KeyPair } from '../utils/secp256k1Utils';
 import { testAllServices } from '../utils/backendConfig';
 import { checkDeviceRegistration, getStoredGeoCamDeviceName } from '../utils/backendService';
+import { useTheme } from '../contexts/ThemeContext';
 
 export default function SecurityInfo() {
   const router = useRouter();
+  const { colors, isDark } = useTheme();
   const [securitySummary, setSecuritySummary] = useState<string>('');
   const [recommendations, setRecommendations] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -131,18 +133,18 @@ export default function SecurityInfo() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#25292e" />
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor={colors.headerBackground} />
       
-      <View style={styles.topBar}>
+      <View style={[styles.topBar, { backgroundColor: colors.headerBackground, borderBottomColor: colors.border }]}>
         <TouchableOpacity 
-          style={styles.backButton} 
+          style={[styles.backButton, { backgroundColor: colors.overlay }]} 
           onPress={() => router.back()}
         >
-          <Ionicons name="arrow-back" size={24} color="white" />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         
-        <Text style={styles.topBarTitle}>
+        <Text style={[styles.topBarTitle, { color: colors.text }]}>
           Device Information
         </Text>
         
@@ -153,25 +155,25 @@ export default function SecurityInfo() {
 
         {/* Device Name Card */}
         {geocamDeviceName && (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Device Identity</Text>
-            <View style={styles.deviceNameContainer}>
-              <Text style={styles.deviceNameText}>📱 {geocamDeviceName}</Text>
+          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={[styles.cardTitle, { color: colors.text }]}>Device Identity</Text>
+            <View style={[styles.deviceNameContainer, { backgroundColor: `${colors.success}20` }]}>
+              <Text style={[styles.deviceNameText, { color: colors.success }]}>📱 {geocamDeviceName}</Text>
             </View>
           </View>
         )}
 
         {/* Backend Status Card */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Backend Services</Text>
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Text style={[styles.cardTitle, { color: colors.text }]}>Backend Services</Text>
           {isTestingBackend ? (
-            <Text style={styles.statusText}>Testing backend connection...</Text>
+            <Text style={[styles.statusText, { color: colors.textSecondary }]}>Testing backend connection...</Text>
           ) : backendStatus ? (
             <View>
-              <Text style={[styles.statusText, backendStatus.api ? styles.statusSuccess : styles.statusError]}>
+              <Text style={[styles.statusText, { color: backendStatus.api ? colors.success : colors.error }]}>
                 🌐 API: {backendStatus.api ? '✅ Connected' : '❌ Offline'}
               </Text>
-              <Text style={[styles.statusText, backendStatus.steganography ? styles.statusSuccess : styles.statusError]}>
+              <Text style={[styles.statusText, { color: backendStatus.steganography ? colors.success : colors.error }]}>
                 🔧 Services: {backendStatus.steganography ? '✅ Ready' : '❌ Offline'}
               </Text>
             </View>
@@ -179,14 +181,14 @@ export default function SecurityInfo() {
         </View>
 
         {/* Registration Status Card */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Registration Status</Text>
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Text style={[styles.cardTitle, { color: colors.text }]}>Registration Status</Text>
           {deviceRegistrationStatus.isChecking ? (
-            <Text style={styles.statusText}>Checking registration status...</Text>
+            <Text style={[styles.statusText, { color: colors.textSecondary }]}>Checking registration status...</Text>
           ) : (
             <Text style={[
               styles.statusText,
-              deviceRegistrationStatus.isRegistered ? styles.statusSuccess : styles.statusError
+              { color: deviceRegistrationStatus.isRegistered ? colors.success : colors.error }
             ]}>
               {deviceRegistrationStatus.isRegistered ? '✅' : '❌'} {deviceRegistrationStatus.registrationMessage}
             </Text>
@@ -194,47 +196,47 @@ export default function SecurityInfo() {
         </View>
         
         {supportsHardwareSecurity() && (
-          <View style={styles.hardwareSecurityBadge}>
-            <Text style={styles.badgeText}>✅ Hardware Security Available</Text>
+          <View style={[styles.hardwareSecurityBadge, { backgroundColor: `${colors.success}20`, borderColor: colors.success }]}>
+            <Text style={[styles.badgeText, { color: colors.success }]}>✅ Hardware Security Available</Text>
           </View>
         )}
 
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Security Status</Text>
-          <Text style={styles.summaryText}>
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Text style={[styles.cardTitle, { color: colors.text }]}>Security Status</Text>
+          <Text style={[styles.summaryText, { color: colors.textSecondary }]}>
             {isLoading ? 'Loading security information...' : securitySummary}
           </Text>
         </View>
 
         {recommendations.length > 0 && (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Recommendations</Text>
+          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={[styles.cardTitle, { color: colors.text }]}>Recommendations</Text>
             {recommendations.map((rec, index) => (
               <View key={index} style={styles.recommendationItem}>
-                <Text style={styles.recommendationText}>• {rec}</Text>
+                <Text style={[styles.recommendationText, { color: colors.textSecondary }]}>• {rec}</Text>
               </View>
             ))}
           </View>
         )}
 
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>About Security</Text>
-          <Text style={styles.infoText}>
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Text style={[styles.cardTitle, { color: colors.text }]}>About Security</Text>
+          <Text style={[styles.infoText, { color: colors.textSecondary }]}>
             This app uses your device's secure storage to generate and store cryptographic keys. 
             These keys are unique to this device and installation, providing convenient photo authentication for trusted devices.
           </Text>
           
-          <Text style={styles.infoSubtitle}>Protected by:</Text>
+          <Text style={[styles.infoSubtitle, { color: colors.text }]}>Protected by:</Text>
           <View style={styles.protectionList}>
-            <Text style={styles.protectionItem}>• Device secure storage (Keychain/Keystore)</Text>
-            <Text style={styles.protectionItem}>• Device-specific binding</Text>
-            <Text style={styles.protectionItem}>• Installation-specific keys</Text>
+            <Text style={[styles.protectionItem, { color: colors.textSecondary }]}>• Device secure storage (Keychain/Keystore)</Text>
+            <Text style={[styles.protectionItem, { color: colors.textSecondary }]}>• Device-specific binding</Text>
+            <Text style={[styles.protectionItem, { color: colors.textSecondary }]}>• Installation-specific keys</Text>
           </View>
         </View>
 
         <View style={styles.buttonContainer}>
           <TouchableOpacity 
-            style={styles.refreshButton} 
+            style={[styles.refreshButton, { backgroundColor: colors.accent }]} 
             onPress={() => {
               loadSecurityInfo();
               checkKeys();
@@ -243,11 +245,11 @@ export default function SecurityInfo() {
               checkDeviceRegistrationStatus();
             }}
           >
-            <Text style={styles.buttonText}>Refresh All</Text>
+            <Text style={[styles.buttonText, { color: colors.buttonText }]}>Refresh All</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.resetButton} onPress={handleResetKeys}>
-            <Text style={styles.buttonText}>Reset Keys</Text>
+          <TouchableOpacity style={[styles.resetButton, { backgroundColor: colors.error }]} onPress={handleResetKeys}>
+            <Text style={[styles.buttonText, { color: colors.buttonText }]}>Reset Keys</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -258,7 +260,6 @@ export default function SecurityInfo() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#25292e',
   },
   topBar: {
     flexDirection: 'row',
@@ -266,9 +267,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 10,
-    backgroundColor: '#373c40',
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
     elevation: 3,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -276,7 +275,6 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
   },
   backButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
     width: 40,
     height: 40,
     borderRadius: 20,
@@ -286,7 +284,6 @@ const styles = StyleSheet.create({
   topBarTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: 'white',
     textAlign: 'center',
   },
   scrollView: {
@@ -303,16 +300,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#ffffff',
     marginBottom: 4,
   },
   subtitle: {
     fontSize: 16,
-    color: '#ccc',
   },
   hardwareSecurityBadge: {
-    backgroundColor: '#1b4d3e',
-    borderColor: '#4caf50',
     borderWidth: 1,
     borderRadius: 8,
     padding: 12,
@@ -322,26 +315,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   badgeText: {
-    color: '#4caf50',
     fontSize: 16,
     fontWeight: '600',
   },
   card: {
-    backgroundColor: '#373c40',
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#555',
   },
   cardTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#ffffff',
     marginBottom: 12,
   },
   summaryText: {
-    color: '#ccc',
     fontSize: 15,
     lineHeight: 22,
   },
@@ -349,12 +337,10 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   recommendationText: {
-    color: '#ccc',
     fontSize: 15,
     lineHeight: 22,
   },
   infoText: {
-    color: '#ccc',
     fontSize: 15,
     lineHeight: 22,
     marginBottom: 16,
@@ -362,14 +348,12 @@ const styles = StyleSheet.create({
   infoSubtitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#ffffff',
     marginBottom: 8,
   },
   protectionList: {
     marginTop: 8,
   },
   protectionItem: {
-    color: '#ccc',
     fontSize: 15,
     lineHeight: 24,
   },
@@ -381,7 +365,6 @@ const styles = StyleSheet.create({
   },
   refreshButton: {
     flex: 1,
-    backgroundColor: '#03DAC6',
     padding: 16,
     borderRadius: 8,
     marginRight: 8,
@@ -389,25 +372,21 @@ const styles = StyleSheet.create({
   },
   resetButton: {
     flex: 1,
-    backgroundColor: '#f44336',
     padding: 16,
     borderRadius: 8,
     marginLeft: 8,
     alignItems: 'center',
   },
   buttonText: {
-    color: '#000000',
     fontSize: 16,
     fontWeight: '600',
   },
   deviceNameContainer: {
     padding: 10,
-    backgroundColor: 'rgba(76, 175, 80, 0.2)',
     borderRadius: 8,
     alignItems: 'center',
   },
   deviceNameText: {
-    color: '#4caf50',
     fontSize: 16,
     fontWeight: 'bold',
     textAlign: 'center',
@@ -416,12 +395,5 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 24,
     marginVertical: 2,
-    color: '#ccc',
-  },
-  statusSuccess: {
-    color: '#4caf50',
-  },
-  statusError: {
-    color: '#f44336',
   },
 }); 
