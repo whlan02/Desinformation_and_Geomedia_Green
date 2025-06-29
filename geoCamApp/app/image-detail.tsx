@@ -261,10 +261,11 @@ export default function ImageDetail() {
       
       // Digital Signature
       const hasSignature = signature || parsed.signature;
+      const isVerified = hasSignature === 'verified' || (hasSignature && hasSignature !== 'Not Available');
       metadataItems.push({
-        icon: hasSignature ? 'shield-checkmark-outline' : 'shield-outline',
+        icon: isVerified ? 'shield-checkmark-outline' : 'shield-outline',
         label: 'Digital Signature',
-        value: hasSignature ? 'Verified' : 'Not Available',
+        value: isVerified ? 'Verified' : 'Not Available',
         type: 'signature'
       });
       
