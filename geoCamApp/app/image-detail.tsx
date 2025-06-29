@@ -16,6 +16,7 @@ import { useState, useEffect, useRef } from 'react';
 import { getGalleryImages, type GalleryImage } from '../utils/galleryStorage';
 import * as Sharing from 'expo-sharing';
 import MapView, { Marker, UrlTile } from 'react-native-maps';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 
 const { width } = Dimensions.get('window');
@@ -29,6 +30,12 @@ export default function ImageDetail() {
   const [loading, setLoading] = useState(true);
   const [sharing, setSharing] = useState(false);
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [metadataItems, setMetadataItems] = useState<Array<{icon: string, label: string, value: string, type: string}> | null>(null);
+  
+  // Gallery navigation state
+  const [allImages, setAllImages] = useState<GalleryImage[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [showNavigation, setShowNavigation] = useState(false);
   
   // Animation values
   const scrollY = useRef(new Animated.Value(0)).current;
@@ -42,23 +49,19 @@ export default function ImageDetail() {
     try {
       console.log('Loading image with ID:', imageId, 'URI:', imageUri);
       
+      // Load all gallery images first
+      const images = await getGalleryImages();
+      setAllImages(images);
+      
       if (imageId) {
-        // Gallery mode - find image by ID
-        const images = await getGalleryImages();
-        const foundImage = images.find(img => img.id === imageId);
+        // Gallery mode - find image by ID and set up navigation
+        const foundIndex = images.findIndex(img => img.id === imageId);
         
-        if (foundImage) {
-          setImage(foundImage);
-          
-          // Extract location from encoded info
-          try {
-            const info = JSON.parse(foundImage.encodedInfo);
-            if (info.location) {
-              setLocation(info.location);
-            }
-          } catch (e) {
-            console.error('Error parsing location:', e);
-          }
+        if (foundIndex !== -1) {
+          const foundImage = images[foundIndex];
+          setCurrentIndex(foundIndex);
+          setShowNavigation(images.length > 1); // Show navigation if there are multiple images
+          loadImageData(foundImage);
         } else {
           console.error('Image not found by ID');
           setImage(null);
@@ -69,22 +72,14 @@ export default function ImageDetail() {
         console.log('Using direct URI from camera:', decodedUri);
         
         // Try to find the image in gallery by URI first
-        const images = await getGalleryImages();
-        const foundImage = images.find(img => img.uri === decodedUri);
+        const foundIndex = images.findIndex(img => img.uri === decodedUri);
         
-        if (foundImage) {
-          // Found in gallery, use full data
-          setImage(foundImage);
-          
-          // Extract location from encoded info
-          try {
-            const info = JSON.parse(foundImage.encodedInfo);
-            if (info.location) {
-              setLocation(info.location);
-            }
-          } catch (e) {
-            console.error('Error parsing location:', e);
-          }
+        if (foundIndex !== -1) {
+          // Found in gallery, use full data and enable navigation
+          const foundImage = images[foundIndex];
+          setCurrentIndex(foundIndex);
+          setShowNavigation(images.length > 1);
+          loadImageData(foundImage);
         } else {
           // Not found in gallery, create minimal image object for display
           console.log('Image not in gallery, creating minimal display object');
@@ -98,6 +93,8 @@ export default function ImageDetail() {
             timestamp: Date.now()
           };
           setImage(fallbackImage);
+          setMetadataItems(null); // No metadata for fallback
+          setShowNavigation(false); // No navigation for fallback images
         }
       } else {
         console.error('No imageId or imageUri provided');
@@ -108,6 +105,28 @@ export default function ImageDetail() {
       Alert.alert('Error', 'Failed to load image');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadImageData = (imageData: GalleryImage) => {
+    setImage(imageData);
+    
+    // Extract location and metadata from encoded info
+    try {
+      const info = JSON.parse(imageData.encodedInfo);
+      if (info.location) {
+        setLocation(info.location);
+      } else {
+        setLocation(null);
+      }
+      
+      // Set metadata items
+      const metadata = formatEncodedInfo(imageData.encodedInfo, imageData.signature, imageData.publicKey);
+      setMetadataItems(metadata);
+    } catch (e) {
+      console.error('Error parsing image data:', e);
+      setLocation(null);
+      setMetadataItems(null);
     }
   };
 
@@ -133,56 +152,110 @@ export default function ImageDetail() {
     }
   };
 
+  const navigateToNextImage = () => {
+    if (currentIndex < allImages.length - 1) {
+      const nextIndex = currentIndex + 1;
+      const nextImage = allImages[nextIndex];
+      setCurrentIndex(nextIndex);
+      setLoading(true);
+      
+      // Update the current image and reload its data
+      loadImageData(nextImage);
+      setLoading(false);
+    }
+  };
+
+  const navigateToPreviousImage = () => {
+    if (currentIndex > 0) {
+      const prevIndex = currentIndex - 1;
+      const prevImage = allImages[prevIndex];
+      setCurrentIndex(prevIndex);
+      setLoading(true);
+      
+      // Update the current image and reload its data
+      loadImageData(prevImage);
+      setLoading(false);
+    }
+  };
+
   const formatEncodedInfo = (encodedInfo: string, signature?: string, publicKey?: string) => {
     try {
       const parsed = JSON.parse(encodedInfo);
       
       // Handle fallback case for camera preview
       if (parsed.fallback) {
-        return parsed.message || 'Photo information is being processed...\n\nThis image was just captured and may not have complete metadata yet. Try viewing it from the gallery after a moment.';
+        return null; // Return null to show fallback message in UI
       }
       
-      let formatted = '';
+      const metadataItems = [];
       
       // Device Information - combined format
       const geocamDevice = parsed.geocamDevice;
       const deviceModel = parsed.deviceModel;
       
-      if (geocamDevice && deviceModel) {
-        formatted += ` Device: ${geocamDevice} (${deviceModel})\n`;
-      } else if (geocamDevice) {
-        formatted += ` Device: ${geocamDevice}\n`;
-      } else if (deviceModel) {
-        formatted += ` Device: ${deviceModel}\n`;
+      if (geocamDevice || deviceModel) {
+        const deviceInfo = geocamDevice 
+          ? (deviceModel ? `${geocamDevice} (${deviceModel})` : geocamDevice)
+          : deviceModel;
+        metadataItems.push({
+          icon: 'phone-portrait-outline',
+          label: 'Device',
+          value: deviceInfo,
+          type: 'device'
+        });
       }
       
       // Timestamp
       if (parsed.Time) {
-        formatted += `Captured: ${parsed.Time}\n`;
+        metadataItems.push({
+          icon: 'time-outline',
+          label: 'Captured',
+          value: parsed.Time,
+          type: 'time'
+        });
       }
       
-      // Location Information
+      // Location Information (will be handled separately in map)
       if (parsed.location) {
-        formatted += `Location:\n`;
-        formatted += `   Lat: ${parsed.location.latitude.toFixed(6)}\n`;
-        formatted += `   Lon: ${parsed.location.longitude.toFixed(6)}\n`;
+        metadataItems.push({
+          icon: 'location-outline',
+          label: 'Location',
+          value: `${parsed.location.latitude.toFixed(6)}, ${parsed.location.longitude.toFixed(6)}`,
+          type: 'location'
+        });
       }
       
-      formatted += '\n'; // Add spacing
-      
-      // Security and Authentication - simplified
+      // Digital Signature
       const hasSignature = signature || parsed.signature;
+      metadataItems.push({
+        icon: hasSignature ? 'shield-checkmark-outline' : 'shield-outline',
+        label: 'Digital Signature',
+        value: hasSignature ? 'Verified' : 'Not Available',
+        type: 'signature'
+      });
       
-      if (hasSignature) {
-        formatted += ` Digital Signed: YES\n`;
-      } else {
-        formatted += ` Digital Signed: NO\n`;
+      // Add any other information
+      for (const key in parsed) {
+        if (parsed.hasOwnProperty(key)) {
+          if (key === 'location' || key === 'deviceModel' || key === 'geocamDevice' || key === 'Time' || key === 'signature') {
+            // Skip keys we've already processed
+            continue;
+          } else {
+            const formattedKey = key.charAt(0).toUpperCase() + key.slice(1);
+            metadataItems.push({
+              icon: 'information-circle-outline',
+              label: formattedKey,
+              value: String(parsed[key]),
+              type: 'other'
+            });
+          }
+        }
       }
       
-      return formatted.trim();
+      return metadataItems;
     } catch (e) {
       console.error('Error parsing encoded info:', e);
-      return 'Unable to read photo information';
+      return null;
     }
   };
 
@@ -273,7 +346,7 @@ export default function ImageDetail() {
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <Text style={[styles.backButtonText, { color: colors.text }]}>← Back</Text>
         </TouchableOpacity>
-        <Text style={[styles.title, { color: colors.text }]}>Photo Details</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Image Details</Text>
         <TouchableOpacity 
           style={[styles.shareButton, { backgroundColor: colors.buttonBackground }]} 
           onPress={handleShare}
@@ -315,7 +388,15 @@ export default function ImageDetail() {
               backgroundColor: colors.surface
             }
           ]}>
-            <Text style={[styles.sectionTitle, { color: colors.text, backgroundColor: colors.surface, borderBottomColor: colors.border }]}>Photo Location</Text>
+            <View style={styles.mapHeader}>
+              <View style={styles.mapTitle}>
+                <Ionicons name="location" size={24} color="#03A9F4" style={{marginRight: 8}} />
+                <View>
+                  <Text style={styles.mapTitleText}>Image Location</Text>
+                  <Text style={styles.mapSubtitle}>GPS coordinates embedded in image</Text>
+                </View>
+              </View>
+            </View>
             <MapView
               style={styles.map}
               initialRegion={{
@@ -339,7 +420,8 @@ export default function ImageDetail() {
                   longitude: location.longitude,
                 }}
                 title="Photo Location"
-                pinColor={colors.primary}
+                pinColor="#03DAC6"
+                tracksViewChanges={false}
               />
             </MapView>
           </Animated.View>
@@ -353,10 +435,45 @@ export default function ImageDetail() {
             backgroundColor: colors.surface
           }
         ]}>
-          <Text style={[styles.infoTitle, { color: colors.text, borderBottomColor: colors.border }]}>Photo Information</Text>
-          <Text style={[styles.infoText, { color: colors.textSecondary }]}>
-            {formatEncodedInfo(image.encodedInfo, image.signature, image.publicKey)}
-          </Text>
+          {metadataItems && metadataItems.length > 0 ? (
+            <View style={styles.infoCard}>
+              <View style={styles.resultHeaderRow}>
+                <Ionicons name="information-circle" size={32} color="#03DAC6" />
+                <View style={styles.resultHeaderText}>
+                  <Text style={styles.resultTitle}>Image Metadata</Text>
+                  <Text style={styles.resultSubtitle}>Embedded information</Text>
+                </View>
+              </View>
+              <View style={styles.metadataContainer}>
+                {metadataItems.map((item, index) => (
+                  <View key={index} style={styles.metadataItem}>
+                    <View style={styles.metadataIconContainer}>
+                      <Ionicons name={item.icon as any} size={20} color="#03DAC6" />
+                    </View>
+                    <View style={styles.metadataContent}>
+                      <Text style={styles.metadataLabel}>{item.label}</Text>
+                      <Text style={styles.metadataValue}>{item.value}</Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            </View>
+          ) : (
+            <View style={styles.infoCard}>
+              <View style={styles.resultHeaderRow}>
+                <Ionicons name="information-circle-outline" size={32} color="#888" />
+                <View style={styles.resultHeaderText}>
+                  <Text style={styles.resultTitle}>Processing Metadata</Text>
+                  <Text style={styles.resultSubtitle}>Image information is being processed</Text>
+                </View>
+              </View>
+              <View style={styles.fallbackContainer}>
+                <Text style={styles.fallbackText}>
+                  This image was just captured and may not have complete metadata yet. Try viewing it from the gallery after a moment.
+                </Text>
+              </View>
+            </View>
+          )}
         </Animated.View>
         
         {/* Empty space to allow scrolling beyond the content for animation effect */}
@@ -370,6 +487,36 @@ export default function ImageDetail() {
       >
         <Text style={styles.backButtonText}>←</Text>
       </TouchableOpacity>
+
+      {/* Navigation buttons for multiple images */}
+      {showNavigation && (
+        <>
+          {currentIndex > 0 && (
+            <TouchableOpacity 
+              style={styles.navigationButtonLeft} 
+              onPress={navigateToPreviousImage}
+            >
+              <Ionicons name="chevron-back" size={30} color="white" />
+            </TouchableOpacity>
+          )}
+          
+          {currentIndex < allImages.length - 1 && (
+            <TouchableOpacity 
+              style={styles.navigationButtonRight} 
+              onPress={navigateToNextImage}
+            >
+              <Ionicons name="chevron-forward" size={30} color="white" />
+            </TouchableOpacity>
+          )}
+          
+          {/* Image counter */}
+          <View style={styles.imageCounter}>
+            <Text style={styles.imageCounterText}>
+              {currentIndex + 1} of {allImages.length}
+            </Text>
+          </View>
+        </>
+      )}
     </View>
   );
 }
@@ -442,6 +589,94 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingBottom: 40,
   },
+  infoCard: {
+    backgroundColor: '#373c40',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(3, 218, 198, 0.3)',
+    borderLeftWidth: 4,
+    borderLeftColor: '#03DAC6',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  resultHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  resultHeaderText: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  resultTitle: {
+    fontSize: 19,
+    fontWeight: '700',
+    color: '#ffffff',
+    letterSpacing: 0.3,
+    flex: 1,
+  },
+  resultSubtitle: {
+    fontSize: 14,
+    color: '#ccc',
+    marginTop: 2,
+    fontWeight: '500',
+  },
+  metadataContainer: {
+    marginTop: 12,
+  },
+  metadataItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: '#03DAC6',
+  },
+  metadataIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(3, 218, 198, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  metadataContent: {
+    flex: 1,
+  },
+  metadataLabel: {
+    fontSize: 13,
+    color: '#03DAC6',
+    fontWeight: '600',
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  metadataValue: {
+    fontSize: 16,
+    color: '#ffffff',
+    lineHeight: 22,
+    fontWeight: '500',
+  },
+  fallbackContainer: {
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    padding: 16,
+    borderRadius: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: '#03DAC6',
+    marginTop: 12,
+  },
+  fallbackText: {
+    fontSize: 15,
+    color: '#e0e0e0',
+    lineHeight: 22,
+  },
   infoTitle: {
     fontSize: 18,
     fontWeight: 'bold',
@@ -477,8 +712,39 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   mapContainer: {
+    backgroundColor: '#373c40',
+    borderRadius: 16,
     overflow: 'hidden',
-    marginBottom: 0,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 4,
+    borderLeftWidth: 4,
+    borderLeftColor: '#03A9F4',
+  },
+  mapHeader: {
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  mapTitle: {
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  mapTitleText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 17,
+  },
+  mapSubtitle: {
+    color: '#ccc',
+    fontSize: 13,
+    marginTop: 2,
   },
   sectionTitle: {
     fontSize: 16,
@@ -488,6 +754,59 @@ const styles = StyleSheet.create({
   },
   map: {
     width: '100%',
-    height: 250, // Larger map for better visibility
+    height: 180, // Adjust height to match verification page
+  },
+  navigationButtonLeft: {
+    position: 'absolute',
+    left: 20,
+    top: '50%',
+    zIndex: 95,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    borderRadius: 25,
+    width: 50,
+    height: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  navigationButtonRight: {
+    position: 'absolute',
+    right: 20,
+    top: '50%',
+    zIndex: 95,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    borderRadius: 25,
+    width: 50,
+    height: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  imageCounter: {
+    position: 'absolute',
+    bottom: 30,
+    alignSelf: 'center',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 95,
+  },
+  imageCounterText: {
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    color: 'white',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 15,
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
   },
 });
