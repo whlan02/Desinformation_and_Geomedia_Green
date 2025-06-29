@@ -24,9 +24,11 @@ import { getStoredGeoCamDeviceName, processGeoCamImageBackend, completeGeoCamIma
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import CircularProgress from '../components/CircularProgress';
+import { useTheme } from '../contexts/ThemeContext';
 
 export default function CameraScreen() {
   const router = useRouter();
+  const { colors, isDark } = useTheme();
   const [type, setType] = useState<CameraType>('back');
   const [flash, setFlash] = useState<FlashMode>('off');
   const [lastPhoto, setLastPhoto] = useState<string | null>(null);
@@ -199,18 +201,18 @@ export default function CameraScreen() {
 
   if (!permission || !mediaPermission || !locationPermission) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.text}>Loading camera permissions...</Text>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <Text style={[styles.text, { color: colors.text }]}>Loading camera permissions...</Text>
       </View>
     );
   }
 
   if (!permission.granted || !mediaPermission.granted) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.text}>We need your permission to show the camera and save photos</Text>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <Text style={[styles.text, { color: colors.text }]}>We need your permission to show the camera and save photos</Text>
         <TouchableOpacity 
-          style={styles.button} 
+          style={[styles.button, { backgroundColor: colors.buttonBackground }]} 
           onPress={async () => {
             await requestPermission();
             await requestMediaPermission();
@@ -219,7 +221,7 @@ export default function CameraScreen() {
             }
           }}
         >
-          <Text style={styles.buttonText}>Grant Permission</Text>
+          <Text style={[styles.buttonText, { color: colors.buttonText }]}>Grant Permission</Text>
         </TouchableOpacity>
       </View>
     );
@@ -725,12 +727,14 @@ export default function CameraScreen() {
 
       {/* Top Bar */}
       <View style={styles.topBar}>
-        <TouchableOpacity 
-          style={styles.topBarButton} 
-          onPress={() => router.back()}
-        >
-          <Ionicons name="arrow-back" size={28} color="white" />
-        </TouchableOpacity>
+        <View style={styles.topBarLeft}>
+          <TouchableOpacity 
+            style={styles.topBarButton} 
+            onPress={() => router.back()}
+          >
+            <Ionicons name="arrow-back" size={28} color="white" />
+          </TouchableOpacity>
+        </View>
         
         <View style={styles.topBarControls}>
           {/* Flash Button */}
@@ -946,6 +950,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     zIndex: 1,
+  },
+  topBarLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   topBarButton: {
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
