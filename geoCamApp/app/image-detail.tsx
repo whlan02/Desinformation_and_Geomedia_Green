@@ -37,9 +37,50 @@ export default function ImageDetail() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showNavigation, setShowNavigation] = useState(false);
   
+  // Touch tracking for swipe detection
+  const [touchStart, setTouchStart] = useState<{ x: number; y: number; time: number } | null>(null);
+  
   // Animation values
   const scrollY = useRef(new Animated.Value(0)).current;
   const { height } = Dimensions.get('window');
+
+  // Touch handlers for swipe detection
+  const handleTouchStart = (event: any) => {
+    if (!showNavigation) return;
+    
+    const touch = event.nativeEvent.touches[0];
+    setTouchStart({
+      x: touch.pageX,
+      y: touch.pageY,
+      time: Date.now()
+    });
+  };
+
+  const handleTouchEnd = (event: any) => {
+    if (!showNavigation || !touchStart) return;
+    
+    const touch = event.nativeEvent.changedTouches[0];
+    const deltaX = touch.pageX - touchStart.x;
+    const deltaY = touch.pageY - touchStart.y;
+    const deltaTime = Date.now() - touchStart.time;
+    
+    // Check if it's a valid swipe
+    const isHorizontal = Math.abs(deltaX) > Math.abs(deltaY) * 1.5;
+    const isQuick = deltaTime < 500; // Less than 500ms
+    const hasDistance = Math.abs(deltaX) > 50; // At least 50px
+    
+    if (isHorizontal && isQuick && hasDistance) {
+      if (deltaX > 0 && currentIndex > 0) {
+        // Swipe right - go to previous image
+        navigateToPreviousImage();
+      } else if (deltaX < 0 && currentIndex < allImages.length - 1) {
+        // Swipe left - go to next image
+        navigateToNextImage();
+      }
+    }
+    
+    setTouchStart(null);
+  };
 
   useEffect(() => {
     loadImage();
@@ -157,11 +198,7 @@ export default function ImageDetail() {
       const nextIndex = currentIndex + 1;
       const nextImage = allImages[nextIndex];
       setCurrentIndex(nextIndex);
-      setLoading(true);
-      
-      // Update the current image and reload its data
       loadImageData(nextImage);
-      setLoading(false);
     }
   };
 
@@ -170,11 +207,7 @@ export default function ImageDetail() {
       const prevIndex = currentIndex - 1;
       const prevImage = allImages[prevIndex];
       setCurrentIndex(prevIndex);
-      setLoading(true);
-      
-      // Update the current image and reload its data
       loadImageData(prevImage);
-      setLoading(false);
     }
   };
 
@@ -368,16 +401,23 @@ export default function ImageDetail() {
           { useNativeDriver: true }
         )}
         scrollEventThrottle={16}
+        scrollEnabled={true}
       >
-        <Image 
-          source={{ uri: image.uri }} 
-          style={[styles.fullImage, {height: height}]} 
-          resizeMode="contain"
-          onError={(error) => {
-            console.error('Image loading error:', error);
-            Alert.alert('Error', 'Failed to load image. The image file may be corrupted or moved.');
-          }}
-        />
+        <View 
+          style={styles.imageContainer}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+        >
+          <Image 
+            source={{ uri: image.uri }} 
+            style={[styles.fullImage, {height: height}]} 
+            resizeMode="contain"
+            onError={(error) => {
+              console.error('Image loading error:', error);
+              Alert.alert('Error', 'Failed to load image. The image file may be corrupted or moved.');
+            }}
+          />
+        </View>
         
         {location && (
           <Animated.View style={[
@@ -488,31 +528,19 @@ export default function ImageDetail() {
         <Text style={styles.backButtonText}>←</Text>
       </TouchableOpacity>
 
-      {/* Navigation buttons for multiple images */}
+      {/* Image counter - shows when there are multiple images */}
       {showNavigation && (
         <>
-          {currentIndex > 0 && (
-            <TouchableOpacity 
-              style={styles.navigationButtonLeft} 
-              onPress={navigateToPreviousImage}
-            >
-              <Ionicons name="chevron-back" size={30} color="white" />
-            </TouchableOpacity>
-          )}
-          
-          {currentIndex < allImages.length - 1 && (
-            <TouchableOpacity 
-              style={styles.navigationButtonRight} 
-              onPress={navigateToNextImage}
-            >
-              <Ionicons name="chevron-forward" size={30} color="white" />
-            </TouchableOpacity>
-          )}
-          
-          {/* Image counter */}
           <View style={styles.imageCounter}>
             <Text style={styles.imageCounterText}>
               {currentIndex + 1} of {allImages.length}
+            </Text>
+          </View>
+          
+          {/* Swipe instruction hint */}
+          <View style={styles.swipeInstruction}>
+            <Text style={styles.swipeInstructionText}>
+              Swipe left or right to navigate
             </Text>
           </View>
         </>
@@ -579,6 +607,10 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 0,
     paddingTop: 0,
+  },
+  imageContainer: {
+    width: '100%',
+    position: 'relative',
   },
   fullImage: {
     width: '100%',
@@ -756,40 +788,6 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 180, // Adjust height to match verification page
   },
-  navigationButtonLeft: {
-    position: 'absolute',
-    left: 20,
-    top: '50%',
-    zIndex: 95,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    borderRadius: 25,
-    width: 50,
-    height: 50,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  navigationButtonRight: {
-    position: 'absolute',
-    right: 20,
-    top: '50%',
-    zIndex: 95,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    borderRadius: 25,
-    width: 50,
-    height: 50,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
-  },
   imageCounter: {
     position: 'absolute',
     bottom: 30,
@@ -807,6 +805,24 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     fontSize: 14,
     fontWeight: '600',
+    textAlign: 'center',
+  },
+  swipeInstruction: {
+    position: 'absolute',
+    bottom: 80,
+    alignSelf: 'center',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 95,
+  },
+  swipeInstructionText: {
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    color: 'rgba(255, 255, 255, 0.8)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    fontSize: 12,
     textAlign: 'center',
   },
 });
