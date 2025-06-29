@@ -433,11 +433,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **Group 2 - Desinformation and Geomedia**
 
-- **Project Lead**: [Team Lead Name]
-- **Mobile Developer**: [Developer Name]
-- **Backend Developer**: [Developer Name]
-- **Frontend Developer**: [Developer Name]
-- **Security Engineer**: [Engineer Name]
+- Ahmad
+- Ajay
+- WenHao
+- Prince
 
 ---
 
