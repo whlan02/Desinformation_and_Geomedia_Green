@@ -16,12 +16,14 @@ import { useState, useEffect, useRef } from 'react';
 import { getGalleryImages, type GalleryImage } from '../utils/galleryStorage';
 import * as Sharing from 'expo-sharing';
 import MapView, { Marker, UrlTile } from 'react-native-maps';
+import { useTheme } from '../contexts/ThemeContext';
 
 const { width } = Dimensions.get('window');
 const MAP_HEIGHT = 200;
 
 export default function ImageDetail() {
   const router = useRouter();
+  const { colors, isDark } = useTheme();
   const { imageId, imageUri } = useLocalSearchParams<{ imageId?: string; imageUri?: string }>();
   const [image, setImage] = useState<GalleryImage | null>(null);
   const [loading, setLoading] = useState(true);
@@ -188,7 +190,7 @@ export default function ImageDetail() {
 
   if (loading) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
         <TouchableOpacity 
           style={styles.floatingBackButton} 
           onPress={() => router.back()}
@@ -196,8 +198,8 @@ export default function ImageDetail() {
           <Text style={styles.backButtonText}>←</Text>
         </TouchableOpacity>
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color="#ffffff" />
-          <Text style={styles.loadingText}>Loading photo...</Text>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={[styles.loadingText, { color: colors.text }]}>Loading photo...</Text>
         </View>
       </View>
     );
@@ -205,7 +207,7 @@ export default function ImageDetail() {
 
   if (!image) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
         <TouchableOpacity 
           style={styles.floatingBackButton} 
           onPress={() => router.back()}
@@ -213,15 +215,15 @@ export default function ImageDetail() {
           <Text style={styles.backButtonText}>←</Text>
         </TouchableOpacity>
         <View style={styles.centerContainer}>
-          <Text style={styles.errorText}>Image not found</Text>
+          <Text style={[styles.errorText, { color: colors.text }]}>Image not found</Text>
           <TouchableOpacity 
-            style={styles.retryButton}
+            style={[styles.retryButton, { backgroundColor: colors.buttonBackground }]}
             onPress={() => {
               setLoading(true);
               loadImage();
             }}
           >
-            <Text style={styles.retryButtonText}>Try Again</Text>
+            <Text style={[styles.retryButtonText, { color: colors.buttonText }]}>Try Again</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -260,24 +262,27 @@ export default function ImageDetail() {
   });
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Animated.View style={[
         styles.header, 
-        { opacity: headerOpacity }
+        { 
+          opacity: headerOpacity,
+          backgroundColor: colors.headerBackground + 'F0' // Adding transparency
+        }
       ]}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Text style={styles.backButtonText}>← Back</Text>
+          <Text style={[styles.backButtonText, { color: colors.text }]}>← Back</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>Photo Details</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Photo Details</Text>
         <TouchableOpacity 
-          style={styles.shareButton} 
+          style={[styles.shareButton, { backgroundColor: colors.buttonBackground }]} 
           onPress={handleShare}
           disabled={sharing}
         >
           {sharing ? (
-            <ActivityIndicator size="small" color="#ffffff" />
+            <ActivityIndicator size="small" color={colors.buttonText} />
           ) : (
-            <Text style={styles.shareButtonText}>Share</Text>
+            <Text style={[styles.shareButtonText, { color: colors.buttonText }]}>Share</Text>
           )}
         </TouchableOpacity>
       </Animated.View>
@@ -306,10 +311,11 @@ export default function ImageDetail() {
             styles.mapContainer, 
             { 
               opacity: mapOpacity,
-              transform: [{ translateY: mapTranslateY }] 
+              transform: [{ translateY: mapTranslateY }],
+              backgroundColor: colors.surface
             }
           ]}>
-            <Text style={styles.sectionTitle}>Photo Location</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text, backgroundColor: colors.surface, borderBottomColor: colors.border }]}>Photo Location</Text>
             <MapView
               style={styles.map}
               initialRegion={{
@@ -333,7 +339,7 @@ export default function ImageDetail() {
                   longitude: location.longitude,
                 }}
                 title="Photo Location"
-                pinColor="#6200EE"
+                pinColor={colors.primary}
               />
             </MapView>
           </Animated.View>
@@ -343,11 +349,12 @@ export default function ImageDetail() {
           styles.infoContainer, 
           { 
             opacity: infoOpacity,
-            transform: [{ translateY: infoTranslateY }] 
+            transform: [{ translateY: infoTranslateY }],
+            backgroundColor: colors.surface
           }
         ]}>
-          <Text style={styles.infoTitle}>Photo Information</Text>
-          <Text style={styles.infoText}>
+          <Text style={[styles.infoTitle, { color: colors.text, borderBottomColor: colors.border }]}>Photo Information</Text>
+          <Text style={[styles.infoText, { color: colors.textSecondary }]}>
             {formatEncodedInfo(image.encodedInfo, image.signature, image.publicKey)}
           </Text>
         </Animated.View>
@@ -370,7 +377,6 @@ export default function ImageDetail() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#25292e',
   },
   header: {
     position: 'absolute',
@@ -384,7 +390,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 50,
     paddingBottom: 15,
-    backgroundColor: 'rgba(55, 60, 64, 0.95)', // Semi-transparent header
   },
   backButton: {
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
@@ -395,7 +400,6 @@ const styles = StyleSheet.create({
   backButtonText: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: 'white',
   },
   floatingBackButton: {
     position: 'absolute',
@@ -412,10 +416,8 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: 'white',
   },
   shareButton: {
-    backgroundColor: '#6200EE',
     paddingHorizontal: 15,
     paddingVertical: 8,
     borderRadius: 8,
@@ -425,37 +427,29 @@ const styles = StyleSheet.create({
   shareButtonText: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: 'white',
   },
   content: {
     flex: 1,
     paddingHorizontal: 0,
-    backgroundColor: '#25292e',
-    // Padding to account for the absolute positioned header
     paddingTop: 0,
   },
   fullImage: {
     width: '100%',
-    resizeMode: 'cover',
     backgroundColor: 'transparent',
     marginBottom: 0,
   },
   infoContainer: {
-    backgroundColor: '#373c40',
     padding: 20,
     paddingBottom: 40,
   },
   infoTitle: {
-    color: 'white',
     fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 15,
     paddingBottom: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#444',
   },
   infoText: {
-    color: '#e0e0e0',
     fontSize: 14,
     fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace',
     lineHeight: 22,
@@ -466,39 +460,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   errorText: {
-    color: 'white',
     fontSize: 18,
     marginBottom: 20,
   },
   retryButton: {
-    backgroundColor: '#6200EE',
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 8,
   },
   retryButtonText: {
-    color: 'white',
     fontSize: 16,
     fontWeight: 'bold',
   },
   loadingText: {
-    color: 'white',
     fontSize: 16,
     marginTop: 12,
   },
   mapContainer: {
-    backgroundColor: '#25292e',
     overflow: 'hidden',
     marginBottom: 0,
   },
   sectionTitle: {
-    color: 'white',
     fontSize: 16,
     fontWeight: 'bold',
     padding: 15,
-    backgroundColor: '#373c40',
     borderBottomWidth: 1,
-    borderBottomColor: '#444',
   },
   map: {
     width: '100%',
