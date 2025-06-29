@@ -706,27 +706,40 @@ export default function Verify() {
             style={[
               styles.bottomSheet,
               {
+                backgroundColor: colors.surface,
                 transform: [{ translateY: bottomSheetY }]
               }
             ]}
           >
-            <View style={styles.bottomSheetHandle} />
-            <Text style={styles.bottomSheetTitle}>Select Image Source</Text>
+            <View style={[styles.bottomSheetHandle, { backgroundColor: isDark ? '#888' : '#ccc' }]} />
+            <Text style={[styles.bottomSheetTitle, { color: colors.text }]}>Select Image Source</Text>
             
             <TouchableOpacity 
-              style={styles.bottomSheetButton} 
+              style={[
+                styles.bottomSheetButton,
+                {
+                  backgroundColor: colors.card,
+                  borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.1)'
+                }
+              ]} 
               onPress={pickFromPhone}
             >
               <Text style={styles.bottomSheetButtonIcon}>🖼️</Text>
-              <Text style={styles.bottomSheetButtonText}>Phone Gallery</Text>
+              <Text style={[styles.bottomSheetButtonText, { color: colors.text }]}>Phone Gallery</Text>
             </TouchableOpacity>
 
             <TouchableOpacity 
-              style={styles.bottomSheetButton} 
+              style={[
+                styles.bottomSheetButton,
+                {
+                  backgroundColor: colors.card,
+                  borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.1)'
+                }
+              ]} 
               onPress={pickFromGeoCamGallery}
             >
               <Text style={styles.bottomSheetButtonIcon}>📸</Text>
-              <Text style={styles.bottomSheetButtonText}>GeoCam Gallery</Text>
+              <Text style={[styles.bottomSheetButtonText, { color: colors.text }]}>GeoCam Gallery</Text>
             </TouchableOpacity>
           </Animated.View>
         </TouchableOpacity>
@@ -751,12 +764,12 @@ export default function Verify() {
 
     return (
       <TouchableOpacity 
-        style={styles.newImageButton} 
+        style={[styles.newImageButton, { backgroundColor: colors.accent }]} 
         onPress={selectNewImage}
       >
         <View style={styles.buttonContent}>
-          <Ionicons name="image" size={22} color="#000000" />
-          <Text style={styles.newImageButtonText}>Verify Another Image</Text>
+          <Ionicons name="image" size={22} color={colors.background} />
+          <Text style={[styles.newImageButtonText, { color: colors.background }]}>Verify Another Image</Text>
         </View>
       </TouchableOpacity>
     );
@@ -1191,7 +1204,6 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   bottomSheet: {
-    backgroundColor: '#373c40',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: 20,
@@ -1207,7 +1219,6 @@ const styles = StyleSheet.create({
   bottomSheetHandle: {
     width: 40,
     height: 5,
-    backgroundColor: '#888',
     borderRadius: 2.5,
     alignSelf: 'center',
     marginBottom: 22,
@@ -1215,7 +1226,6 @@ const styles = StyleSheet.create({
   bottomSheetTitle: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#ffffff',
     textAlign: 'center',
     marginBottom: 24,
     letterSpacing: 0.3,
@@ -1223,12 +1233,10 @@ const styles = StyleSheet.create({
   bottomSheetButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#25292e',
     borderRadius: 14,
     padding: 18,
     marginBottom: 14,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
@@ -1242,7 +1250,6 @@ const styles = StyleSheet.create({
   bottomSheetButtonText: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#ffffff',
     letterSpacing: 0.2,
   },
   // Embedded map styles for unified card
