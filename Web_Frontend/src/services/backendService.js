@@ -36,6 +36,12 @@ export const verifyImagePurePng = async (imageFile) => {
       await axios.get(buildSteganographyUrl('/health'));
     } catch (error) {
       console.error('❌ Steganography service health check failed:', error);
+      
+      // Check if it's a CORS issue
+      if (error.code === 'ERR_NETWORK' || error.message.includes('CORS')) {
+        throw new Error('Unable to connect to verification service. This may be due to CORS restrictions on the deployed site.');
+      }
+      
       throw new Error('Steganography service is not available. Please try again later.');
     }
 

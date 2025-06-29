@@ -34,5 +34,11 @@ export const buildApiUrl = (endpoint) => {
 
 // Helper function to build steganography service URL
 export const buildSteganographyUrl = (endpoint) => {
-  return `${BACKEND_CONFIG.STEGANOGRAPHY_URL}/steganography${endpoint}`;
+  if (isDevelopment) {
+    // Use Vite proxy in development
+    return `/steganography${endpoint}`;
+  } else {
+    // Use direct URL in production
+    return `${BACKEND_CONFIG.STEGANOGRAPHY_URL}${endpoint}`;
+  }
 };
