@@ -448,10 +448,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 **Group 2 - Desinformation and Geomedia**
 
 ### **Core Development Team**
-- **Ahmad** - Backend Architecture & Security Implementation
-- **Ajay** - Frontend Development & User Experience Design
-- **WenHao** - Mobile App Development & Cross-Platform Integration
-- **Prince** - Full-Stack Development & System Integration
+- **Ahmad** 
+- **Ajay**
+- **WenHao** 
+- **Prince** 
 
 ### **Contributions**
 - **Mobile Application**: Enhanced camera interface, gesture controls, theme system
