@@ -36,8 +36,8 @@ export const CircularProgress: React.FC<RotatingGlobeProps> = ({
   const startTime = useRef<number | null>(null);
   const lastUpdateTime = useRef<number>(Date.now());
   
-  // Use theme-aware color if no color prop is provided
-  const globeColor = color || (isDark ? colors.primary : '#6200EE');
+  // Use theme-aware color if no color prop is provided - inverted for contrast
+  const globeColor = color || (isDark ? '#03DAC6' : '#2C3E50');
 
   // Start continuous rotation animation
   useEffect(() => {
@@ -237,7 +237,7 @@ export const CircularProgress: React.FC<RotatingGlobeProps> = ({
     <View style={[
       styles.container, 
       { 
-        backgroundColor: isDark ? colors.overlay : 'rgba(255, 255, 255, 0.9)',
+        backgroundColor: isDark ? colors.overlay : 'rgba(255, 255, 255, 0.7)',
         borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'
       }
     ]}>
@@ -380,8 +380,8 @@ export const CircularProgress: React.FC<RotatingGlobeProps> = ({
               <Text style={[
                 styles.timeText, 
                 { 
-                  color: colors.textSecondary || colors.text,
-                  backgroundColor: isDark ? colors.overlay : 'rgba(0, 0, 0, 0.7)'
+                  color: isDark ? (colors.textSecondary || colors.text) : '#ffffff',
+                  backgroundColor: isDark ? colors.overlay : 'rgba(0, 0, 0, 0.8)'
                 }
               ]}>
                 {getTimeRemaining()}
