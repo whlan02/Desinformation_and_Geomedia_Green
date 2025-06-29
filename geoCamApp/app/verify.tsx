@@ -354,7 +354,13 @@ export default function Verify() {
   const renderVerificationResult = () => {
     if (isVerifying) {
       return (
-        <View style={styles.progressContainer}>
+        <View style={[
+          styles.progressContainer,
+          {
+            backgroundColor: isDark ? 'rgba(55, 60, 64, 0.5)' : 'rgba(240, 240, 240, 0.8)',
+            borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'
+          }
+        ]}>
           <CircularProgress 
             progress={progress}
             acceleratedCompletion={accelerateProgress}
@@ -370,13 +376,13 @@ export default function Verify() {
     if (!selectedImage) {
       return (
         <View style={styles.emptyState}>
-          <Text style={styles.emptyStateText}>Select an image to verify</Text>
-          <Text style={styles.emptyStateSubtext}>Choose from your gallery to check authenticity</Text>
+          <Text style={[styles.emptyStateText, { color: colors.text }]}>Select an image to verify</Text>
+          <Text style={[styles.emptyStateSubtext, { color: colors.textSecondary }]}>Choose from your gallery to check authenticity</Text>
           <TouchableOpacity 
-            style={styles.newImageButton} 
+            style={[styles.newImageButton, { backgroundColor: colors.accent }]} 
             onPress={showBottomSheetModal}
           >
-            <Text style={styles.newImageButtonText}>Browse Images</Text>
+            <Text style={[styles.newImageButtonText, { color: colors.background }]}>Browse Images</Text>
           </TouchableOpacity>
         </View>
       );
@@ -391,9 +397,15 @@ export default function Verify() {
             locations={[0, 0.3, 0.7, 1]}
             style={styles.fullscreenOverlay}
           >
-            <View style={styles.imageStatusBadge}>
-              <Ionicons name="checkmark-circle" size={20} color="#4caf50" />
-              <Text style={styles.imageStatusText}>Analyzed</Text>
+            <View style={[
+              styles.imageStatusBadge,
+              {
+                borderColor: colors.success,
+                shadowColor: colors.success,
+              }
+            ]}>
+              <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+              <Text style={[styles.imageStatusText, { color: colors.success }]}>Analyzed</Text>
             </View>
             <Animated.View style={[
               styles.scrollIndicator,
@@ -424,19 +436,19 @@ export default function Verify() {
                 <Ionicons 
                   name={signatureVerification.valid ? "shield-checkmark" : "shield-outline"} 
                   size={34} 
-                  color={signatureVerification.valid ? "#4caf50" : "#f44336"} 
+                  color={signatureVerification.valid ? colors.success : colors.error} 
                 />
                 <View style={styles.resultHeaderText}>
-                  <Text style={styles.resultTitle}>
+                  <Text style={[styles.resultTitle, { color: '#ffffff' }]}>
                     {signatureVerification.valid ? 'Verification Successful' : 'Verification Failed'}
                   </Text>
-                  <Text style={styles.resultSubtitle}>
+                  <Text style={[styles.resultSubtitle, { color: signatureVerification.valid ? '#e8f5e8' : '#ffcdd2' }]}>
                     {signatureVerification.valid ? 'Image authenticity confirmed' : 'Unable to verify authenticity'}
                   </Text>
                 </View>
               </View>
               <View style={styles.resultContent}>
-                <Text style={styles.resultText}>
+                <Text style={[styles.resultText, { color: '#ffffff' }]}>
                   {signatureVerification.message}
                 </Text>
               </View>
@@ -445,13 +457,21 @@ export default function Verify() {
         )}
 
 {(decodedInfo && decodedInfo.length > 0) || location ? (
-          <View style={[styles.enhancedInfoCard, styles.infoCardSpacing]}>
+          <View style={[styles.enhancedInfoCard, styles.infoCardSpacing, { 
+            borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(26, 26, 26, 0.08)',
+            shadowColor: isDark ? 'rgba(0, 0, 0, 0.6)' : 'rgba(0, 0, 0, 0.15)'
+          }]}>
             <LinearGradient
-              colors={[
+              colors={isDark ? [
                 'rgba(45, 52, 60, 0.98)', 
                 'rgba(35, 42, 50, 0.99)', 
                 'rgba(30, 37, 45, 1)',
                 'rgba(25, 32, 40, 1)'
+              ] : [
+                'rgba(248, 250, 252, 0.98)',
+                'rgba(241, 245, 249, 0.99)',
+                'rgba(236, 242, 247, 1)',
+                'rgba(226, 234, 240, 1)'
               ]}
               locations={[0, 0.3, 0.7, 1]}
               style={styles.enhancedCardGradient}
@@ -468,21 +488,21 @@ export default function Verify() {
                     </LinearGradient>
                   </View>
                   <View style={styles.enhancedHeaderTextContainer}>
-                    <Text style={styles.enhancedTitle}>Image Information</Text>
-                    <Text style={styles.enhancedSubtitle}>Captured metadata and location data</Text>
+                    <Text style={[styles.enhancedTitle, { color: isDark ? '#ffffff' : '#1a1a1a' }]}>Image Information</Text>
+                    <Text style={[styles.enhancedSubtitle, { color: isDark ? 'rgba(255, 255, 255, 0.65)' : 'rgba(26, 26, 26, 0.65)' }]}>Captured metadata and location data</Text>
                   </View>
                 </View>
-                <View style={styles.enhancedHeaderDivider} />
+                <View style={[styles.enhancedHeaderDivider, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(26, 26, 26, 0.08)' }]} />
               </View>
               
               {/* Enhanced Location Map Section */}
               {location && (
                 <View style={styles.enhancedLocationSection}>
                   <View style={styles.enhancedSectionHeader}>
-                    <View style={styles.enhancedSectionIconContainer}>
+                    <View style={[styles.enhancedSectionIconContainer, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(26, 26, 26, 0.08)' }]}>
                       <Ionicons name="location" size={20} color="#03A9F4" />
                     </View>
-                    <Text style={styles.enhancedSectionTitle}>Capture Location</Text>
+                    <Text style={[styles.enhancedSectionTitle, { color: isDark ? '#ffffff' : '#1a1a1a' }]}>Capture Location</Text>
                   </View>
                   <View style={styles.enhancedMapWrapper}>
                     <MapView
@@ -522,16 +542,19 @@ export default function Verify() {
               {decodedInfo && decodedInfo.length > 0 && (
                 <View style={styles.enhancedMetadataSection}>
                   <View style={styles.enhancedSectionHeader}>
-                    <View style={styles.enhancedSectionIconContainer}>
+                    <View style={[styles.enhancedSectionIconContainer, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(26, 26, 26, 0.08)' }]}>
                       <Ionicons name="document-text" size={20} color="#03DAC6" />
                     </View>
-                    <Text style={styles.enhancedSectionTitle}>Metadata Details</Text>
+                    <Text style={[styles.enhancedSectionTitle, { color: isDark ? '#ffffff' : '#1a1a1a' }]}>Metadata Details</Text>
                   </View>
                   <View style={styles.enhancedMetadataGrid}>
                     {decodedInfo.map((item, index) => (
                       <View key={index} style={styles.enhancedMetadataItem}>
                         <LinearGradient
-                          colors={['rgba(55, 62, 70, 0.6)', 'rgba(45, 52, 60, 0.4)']}
+                          colors={isDark ? 
+                            ['rgba(55, 62, 70, 0.6)', 'rgba(45, 52, 60, 0.4)'] :
+                            ['rgba(255, 255, 255, 0.6)', 'rgba(248, 250, 252, 0.4)']
+                          }
                           style={styles.enhancedMetadataItemGradient}
                         >
                           <View style={styles.enhancedMetadataItemContent}>
@@ -539,8 +562,8 @@ export default function Verify() {
                               <Ionicons name={item.icon as any} size={18} color="#03DAC6" />
                             </View>
                             <View style={styles.enhancedMetadataText}>
-                              <Text style={styles.enhancedMetadataLabel}>{item.label}</Text>
-                              <Text style={styles.enhancedMetadataValue} numberOfLines={2}>
+                              <Text style={[styles.enhancedMetadataLabel, { color: isDark ? 'rgba(3, 218, 198, 0.9)' : 'rgba(3, 150, 130, 0.9)' }]}>{item.label}</Text>
+                              <Text style={[styles.enhancedMetadataValue, { color: isDark ? '#ffffff' : '#1a1a1a' }]} numberOfLines={2}>
                                 {item.value}
                               </Text>
                             </View>
@@ -554,13 +577,21 @@ export default function Verify() {
             </LinearGradient>
           </View>
         ) : decodedInfo !== null && decodedInfo.length === 0 && (
-          <View style={[styles.enhancedInfoCard, styles.infoCardSpacing]}>
+          <View style={[styles.enhancedInfoCard, styles.infoCardSpacing, { 
+            borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(26, 26, 26, 0.08)',
+            shadowColor: isDark ? 'rgba(0, 0, 0, 0.6)' : 'rgba(0, 0, 0, 0.15)'
+          }]}>
             <LinearGradient
-              colors={[
+              colors={isDark ? [
                 'rgba(45, 52, 60, 0.98)', 
                 'rgba(35, 42, 50, 0.99)', 
                 'rgba(30, 37, 45, 1)',
                 'rgba(25, 32, 40, 1)'
+              ] : [
+                'rgba(248, 250, 252, 0.98)',
+                'rgba(241, 245, 249, 0.99)',
+                'rgba(236, 242, 247, 1)',
+                'rgba(226, 234, 240, 1)'
               ]}
               locations={[0, 0.3, 0.7, 1]}
               style={styles.enhancedCardGradient}
@@ -576,8 +607,8 @@ export default function Verify() {
                     </LinearGradient>
                   </View>
                   <View style={styles.enhancedHeaderTextContainer}>
-                    <Text style={styles.enhancedTitle}>No Information Found</Text>
-                    <Text style={styles.enhancedSubtitle}>No metadata or location detected</Text>
+                    <Text style={[styles.enhancedTitle, { color: isDark ? '#ffffff' : '#1a1a1a' }]}>No Information Found</Text>
+                    <Text style={[styles.enhancedSubtitle, { color: isDark ? 'rgba(255, 255, 255, 0.65)' : 'rgba(26, 26, 26, 0.65)' }]}>No metadata or location detected</Text>
                   </View>
                 </View>
               </View>
@@ -608,12 +639,12 @@ export default function Verify() {
 
         <View style={styles.actionSection}>
           <TouchableOpacity 
-            style={styles.newImageButton} 
+            style={[styles.newImageButton, { backgroundColor: colors.accent }]} 
             onPress={selectNewImage}
           >
             <View style={styles.buttonContent}>
-              <Ionicons name="image" size={22} color="#000000" />
-              <Text style={styles.newImageButtonText}>Verify Another Image</Text>
+              <Ionicons name="image" size={22} color={colors.background} />
+              <Text style={[styles.newImageButtonText, { color: colors.background }]}>Verify Another Image</Text>
             </View>
           </TouchableOpacity>
         </View>
@@ -680,7 +711,7 @@ export default function Verify() {
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         
-        <Text style={styles.topBarTitle}>
+        <Text style={[styles.topBarTitle, { color: colors.text }]}>
           Verify Image
         </Text>
         
@@ -688,9 +719,11 @@ export default function Verify() {
           <View style={styles.statusIndicator}>
             <View style={[
               styles.statusDot, 
-              signatureVerification?.valid ? styles.statusDotValid : styles.statusDotInvalid
+              {
+                backgroundColor: signatureVerification?.valid ? colors.success : colors.error
+              }
             ]} />
-            <Text style={styles.statusText}>
+            <Text style={[styles.statusText, { color: colors.text }]}>
               {isVerifying ? 'Verifying...' : signatureVerification?.valid ? 'Verified' : 'Not verified'}
             </Text>
           </View>
@@ -709,7 +742,6 @@ export default function Verify() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#25292e',
   },
   topBar: {
     flexDirection: 'row',
@@ -717,7 +749,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 10,
-    backgroundColor: '#373c40',
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 255, 255, 0.1)',
     elevation: 3,
@@ -741,7 +772,6 @@ const styles = StyleSheet.create({
   topBarTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: 'white',
     textAlign: 'center',
     flex: 1,
   },
@@ -763,16 +793,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#888',
     marginRight: 6,
   },
-  statusDotValid: {
-    backgroundColor: '#4caf50',
-  },
-  statusDotInvalid: {
-    backgroundColor: '#f44336',
-  },
   statusText: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#fff',
   },
   scrollView: {
     flex: 1,
@@ -819,12 +842,10 @@ const styles = StyleSheet.create({
   emptyStateText: {
     fontSize: 22,
     fontWeight: '600',
-    color: '#ffffff',
     marginBottom: 8,
   },
   emptyStateSubtext: {
     fontSize: 16,
-    color: '#ccc',
     textAlign: 'center',
     maxWidth: '90%',
     lineHeight: 22,
@@ -875,15 +896,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     borderWidth: 1.5,
-    borderColor: '#4caf50',
-    shadowColor: '#4caf50',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.3,
     shadowRadius: 6,
     elevation: 6,
   },
   imageStatusText: {
-    color: '#4caf50',
     fontSize: 14,
     fontWeight: '600',
     letterSpacing: 0.4,
@@ -956,7 +974,6 @@ const styles = StyleSheet.create({
   resultTitle: {
     fontSize: 20,
     fontWeight: '800',
-    color: '#ffffff',
     letterSpacing: 0.4,
     flex: 1,
     textShadowColor: 'rgba(0, 0, 0, 0.3)',
@@ -965,7 +982,6 @@ const styles = StyleSheet.create({
   },
   resultSubtitle: {
     fontSize: 15,
-    color: '#b8c6db',
     marginTop: 4,
     fontWeight: '600',
     letterSpacing: 0.2,
@@ -976,7 +992,6 @@ const styles = StyleSheet.create({
   },
   resultText: {
     fontSize: 17,
-    color: '#e8f5e8',
     textAlign: 'left',
     lineHeight: 26,
     fontWeight: '500',
@@ -1078,14 +1093,11 @@ const styles = StyleSheet.create({
     marginVertical: 60,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(55, 60, 64, 0.5)',
     borderRadius: 16,
     padding: 30,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   newImageButton: {
-    backgroundColor: '#03DAC6',
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
@@ -1102,7 +1114,6 @@ const styles = StyleSheet.create({
   newImageButtonText: {
     fontSize: 17,
     fontWeight: '700',
-    color: '#000000',
     letterSpacing: 0.5,
   },
   actionSection: {
@@ -1251,7 +1262,6 @@ const styles = StyleSheet.create({
   enhancedTitle: {
     fontSize: 22,
     fontWeight: '800',
-    color: '#ffffff',
     letterSpacing: 0.5,
     marginBottom: 4,
     textShadowColor: 'rgba(0, 0, 0, 0.4)',
@@ -1260,7 +1270,6 @@ const styles = StyleSheet.create({
   },
   enhancedSubtitle: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.65)',
     fontWeight: '500',
     letterSpacing: 0.3,
   },
@@ -1285,7 +1294,6 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -1293,7 +1301,6 @@ const styles = StyleSheet.create({
   enhancedSectionTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#ffffff',
     letterSpacing: 0.4,
     textTransform: 'uppercase',
   },
@@ -1370,7 +1377,6 @@ const styles = StyleSheet.create({
   },
   enhancedMetadataLabel: {
     fontSize: 12,
-    color: 'rgba(3, 218, 198, 0.9)',
     fontWeight: '700',
     marginBottom: 6,
     textTransform: 'uppercase',
@@ -1378,7 +1384,6 @@ const styles = StyleSheet.create({
   },
   enhancedMetadataValue: {
     fontSize: 16,
-    color: '#ffffff',
     lineHeight: 22,
     fontWeight: '500',
     letterSpacing: 0.2,
