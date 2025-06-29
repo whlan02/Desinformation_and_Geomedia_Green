@@ -132,7 +132,7 @@ export default function MainMenu() {
                 activeOpacity={0.8}
               >
                 <Animated.View style={[styles.mainButtonInner, { transform: [{ scale: pulseAnim }] }]}>
-                  <SvgXml xml={cameraIconXml} width={45} height={45} />
+                  <SvgXml xml={cameraIconXml} width={38} height={38} />
                   <Text style={styles.mainButtonLabel}>CAPTURE</Text>
                 </Animated.View>
               </TouchableOpacity>
@@ -207,7 +207,7 @@ export default function MainMenu() {
                   activeOpacity={0.8}
                 >
                   <Animated.View style={[styles.mainButtonInner, { transform: [{ scale: pulseAnim }] }]}>
-                    <SvgXml xml={cameraIconXml} width={45} height={45} />
+                    <SvgXml xml={cameraIconXml} width={38} height={38} />
                     <Text style={styles.mainButtonLabel}>CAPTURE</Text>
                   </Animated.View>
                 </TouchableOpacity>
@@ -314,9 +314,9 @@ const styles = StyleSheet.create({
     elevation: 15,
   },
   mainButton: {
-    width: 130,
-    height: 130,
-    borderRadius: 65,
+    width: 110,
+    height: 110,
+    borderRadius: 55,
     backgroundColor: 'rgba(24, 20, 21, 0.7)',
     justifyContent: 'center',
     alignItems: 'center',
