@@ -413,114 +413,196 @@ export default function Verify() {
             styles.infoCardSpacing,
             signatureVerification.valid ? styles.successCard : styles.errorCard
           ]}>
-            <View style={styles.resultHeaderRow}>
-              <Ionicons 
-                name={signatureVerification.valid ? "shield-checkmark" : "shield-outline"} 
-                size={32} 
-                color={signatureVerification.valid ? "#4caf50" : "#f44336"} 
-              />
-              <View style={styles.resultHeaderText}>
-                <Text style={styles.resultTitle}>
-                  {signatureVerification.valid ? 'Verification Successful' : 'Verification Failed'}
-                </Text>
-                <Text style={styles.resultSubtitle}>
-                  {signatureVerification.valid ? 'Image authenticity confirmed' : 'Unable to verify authenticity'}
+            <LinearGradient
+              colors={signatureVerification.valid 
+                ? ['rgba(27, 77, 62, 0.95)', 'rgba(34, 89, 72, 0.98)', 'rgba(20, 65, 52, 1)']
+                : ['rgba(77, 27, 27, 0.95)', 'rgba(89, 34, 34, 0.98)', 'rgba(65, 20, 20, 1)']}
+              locations={[0, 0.5, 1]}
+              style={styles.cardGradient}
+            >
+              <View style={styles.resultHeaderRow}>
+                <Ionicons 
+                  name={signatureVerification.valid ? "shield-checkmark" : "shield-outline"} 
+                  size={34} 
+                  color={signatureVerification.valid ? "#4caf50" : "#f44336"} 
+                />
+                <View style={styles.resultHeaderText}>
+                  <Text style={styles.resultTitle}>
+                    {signatureVerification.valid ? 'Verification Successful' : 'Verification Failed'}
+                  </Text>
+                  <Text style={styles.resultSubtitle}>
+                    {signatureVerification.valid ? 'Image authenticity confirmed' : 'Unable to verify authenticity'}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.resultContent}>
+                <Text style={styles.resultText}>
+                  {signatureVerification.message}
                 </Text>
               </View>
-            </View>
-            <View style={styles.resultContent}>
-              <Text style={styles.resultText}>
-                {signatureVerification.message}
-              </Text>
-            </View>
+            </LinearGradient>
           </View>
         )}
 
 {(decodedInfo && decodedInfo.length > 0) || location ? (
-          <View style={[styles.infoCard, styles.infoCardSpacing]}>
-            <View style={styles.resultHeaderRow}>
-              <Ionicons name="information-circle" size={32} color="#03DAC6" />
-              <View style={styles.resultHeaderText}>
-                <Text style={styles.resultTitle}>Image Information</Text>
-                <Text style={styles.resultSubtitle}>Metadata and location details</Text>
-              </View>
-            </View>
-            
-            {/* Location Map Section - embedded within info card */}
-            {location && (
-              <View style={styles.embeddedMapContainer}>
-                <View style={styles.embeddedMapHeader}>
-                  <Ionicons name="location" size={20} color="#03A9F4" style={{marginRight: 8}} />
-                  <Text style={styles.embeddedMapTitle}>Image Location</Text>
+          <View style={[styles.enhancedInfoCard, styles.infoCardSpacing]}>
+            <LinearGradient
+              colors={[
+                'rgba(45, 52, 60, 0.98)', 
+                'rgba(35, 42, 50, 0.99)', 
+                'rgba(30, 37, 45, 1)',
+                'rgba(25, 32, 40, 1)'
+              ]}
+              locations={[0, 0.3, 0.7, 1]}
+              style={styles.enhancedCardGradient}
+            >
+              {/* Enhanced Header with better visual hierarchy */}
+              <View style={styles.enhancedHeaderSection}>
+                <View style={styles.enhancedHeaderContent}>
+                  <View style={styles.enhancedIconWrapper}>
+                    <LinearGradient
+                      colors={['rgba(3, 218, 198, 0.2)', 'rgba(3, 218, 198, 0.05)']}
+                      style={styles.enhancedIconBackground}
+                    >
+                      <Ionicons name="information-circle" size={28} color="#03DAC6" />
+                    </LinearGradient>
+                  </View>
+                  <View style={styles.enhancedHeaderTextContainer}>
+                    <Text style={styles.enhancedTitle}>Image Information</Text>
+                    <Text style={styles.enhancedSubtitle}>Captured metadata and location data</Text>
+                  </View>
                 </View>
-                <MapView
-                  style={styles.embeddedMap}
-                  initialRegion={{
-                    latitude: location.latitude,
-                    longitude: location.longitude,
-                    latitudeDelta: 0.01,
-                    longitudeDelta: 0.01,
-                  }}
-                  mapType="none"
-                >
-                  <UrlTile
-                    urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-                    maximumZ={19}
-                  />
-                  <Marker
-                    coordinate={{
-                      latitude: location.latitude,
-                      longitude: location.longitude,
-                    }}
-                    title="Photo Location"
-                    pinColor="#03DAC6"
-                    tracksViewChanges={false}
-                  />
-                </MapView>
+                <View style={styles.enhancedHeaderDivider} />
               </View>
-            )}
-            
-            {/* Metadata Section */}
-            {decodedInfo && decodedInfo.length > 0 && (
-              <View style={styles.metadataContainer}>
-                {decodedInfo.map((item, index) => (
-                  <View key={index} style={styles.metadataItem}>
-                    <View style={styles.metadataIconContainer}>
-                      <Ionicons name={item.icon as any} size={20} color="#03DAC6" />
+              
+              {/* Enhanced Location Map Section */}
+              {location && (
+                <View style={styles.enhancedLocationSection}>
+                  <View style={styles.enhancedSectionHeader}>
+                    <View style={styles.enhancedSectionIconContainer}>
+                      <Ionicons name="location" size={20} color="#03A9F4" />
                     </View>
-                    <View style={styles.metadataContent}>
-                      <Text style={styles.metadataLabel}>{item.label}</Text>
-                      <Text style={styles.metadataValue}>{item.value}</Text>
+                    <Text style={styles.enhancedSectionTitle}>Capture Location</Text>
+                  </View>
+                  <View style={styles.enhancedMapWrapper}>
+                    <MapView
+                      style={styles.enhancedMap}
+                      initialRegion={{
+                        latitude: location.latitude,
+                        longitude: location.longitude,
+                        latitudeDelta: 0.01,
+                        longitudeDelta: 0.01,
+                      }}
+                      mapType="none"
+                    >
+                      <UrlTile
+                        urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+                        maximumZ={19}
+                      />
+                      <Marker
+                        coordinate={{
+                          latitude: location.latitude,
+                          longitude: location.longitude,
+                        }}
+                        title="Photo Location"
+                        pinColor="#03DAC6"
+                        tracksViewChanges={false}
+                      />
+                    </MapView>
+                    <View style={styles.enhancedCoordinatesOverlay}>
+                      <Text style={styles.enhancedCoordinatesText}>
+                        {location.latitude.toFixed(6)}, {location.longitude.toFixed(6)}
+                      </Text>
                     </View>
                   </View>
-                ))}
-              </View>
-            )}
+                </View>
+              )}
+              
+              {/* Enhanced Metadata Section */}
+              {decodedInfo && decodedInfo.length > 0 && (
+                <View style={styles.enhancedMetadataSection}>
+                  <View style={styles.enhancedSectionHeader}>
+                    <View style={styles.enhancedSectionIconContainer}>
+                      <Ionicons name="document-text" size={20} color="#03DAC6" />
+                    </View>
+                    <Text style={styles.enhancedSectionTitle}>Metadata Details</Text>
+                  </View>
+                  <View style={styles.enhancedMetadataGrid}>
+                    {decodedInfo.map((item, index) => (
+                      <View key={index} style={styles.enhancedMetadataItem}>
+                        <LinearGradient
+                          colors={['rgba(55, 62, 70, 0.6)', 'rgba(45, 52, 60, 0.4)']}
+                          style={styles.enhancedMetadataItemGradient}
+                        >
+                          <View style={styles.enhancedMetadataItemContent}>
+                            <View style={styles.enhancedMetadataIcon}>
+                              <Ionicons name={item.icon as any} size={18} color="#03DAC6" />
+                            </View>
+                            <View style={styles.enhancedMetadataText}>
+                              <Text style={styles.enhancedMetadataLabel}>{item.label}</Text>
+                              <Text style={styles.enhancedMetadataValue} numberOfLines={2}>
+                                {item.value}
+                              </Text>
+                            </View>
+                          </View>
+                        </LinearGradient>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              )}
+            </LinearGradient>
           </View>
         ) : decodedInfo !== null && decodedInfo.length === 0 && (
-          <View style={[styles.infoCard, styles.infoCardSpacing]}>
-            <View style={styles.resultHeaderRow}>
-              <Ionicons name="information-circle-outline" size={32} color="#888" />
-              <View style={styles.resultHeaderText}>
-                <Text style={styles.resultTitle}>No Information Found</Text>
-                <Text style={styles.resultSubtitle}>No metadata or location detected</Text>
+          <View style={[styles.enhancedInfoCard, styles.infoCardSpacing]}>
+            <LinearGradient
+              colors={[
+                'rgba(45, 52, 60, 0.98)', 
+                'rgba(35, 42, 50, 0.99)', 
+                'rgba(30, 37, 45, 1)',
+                'rgba(25, 32, 40, 1)'
+              ]}
+              locations={[0, 0.3, 0.7, 1]}
+              style={styles.enhancedCardGradient}
+            >
+              <View style={styles.enhancedHeaderSection}>
+                <View style={styles.enhancedHeaderContent}>
+                  <View style={styles.enhancedIconWrapper}>
+                    <LinearGradient
+                      colors={['rgba(136, 136, 136, 0.2)', 'rgba(136, 136, 136, 0.05)']}
+                      style={styles.enhancedIconBackground}
+                    >
+                      <Ionicons name="information-circle-outline" size={28} color="#888" />
+                    </LinearGradient>
+                  </View>
+                  <View style={styles.enhancedHeaderTextContainer}>
+                    <Text style={styles.enhancedTitle}>No Information Found</Text>
+                    <Text style={styles.enhancedSubtitle}>No metadata or location detected</Text>
+                  </View>
+                </View>
               </View>
-            </View>
+            </LinearGradient>
           </View>
         )}
         
         {errorText && (
           <View style={[styles.resultCard, styles.errorCard, styles.infoCardSpacing]}>
-            <View style={styles.resultHeaderRow}>
-              <Ionicons name="alert-circle" size={32} color="#f44336" />
-              <View style={styles.resultHeaderText}>
-                <Text style={styles.resultTitle}>Error</Text>
-                <Text style={styles.resultSubtitle}>Verification failed</Text>
+            <LinearGradient
+              colors={['rgba(77, 27, 27, 0.95)', 'rgba(89, 34, 34, 0.98)', 'rgba(65, 20, 20, 1)']}
+              locations={[0, 0.5, 1]}
+              style={styles.cardGradient}
+            >
+              <View style={styles.resultHeaderRow}>
+                <Ionicons name="alert-circle" size={34} color="#f44336" />
+                <View style={styles.resultHeaderText}>
+                  <Text style={styles.resultTitle}>Error</Text>
+                  <Text style={styles.resultSubtitle}>Verification failed</Text>
+                </View>
               </View>
-            </View>
-            <View style={styles.resultContent}>
-              <Text style={styles.errorText}>{errorText}</Text>
-            </View>
+              <View style={styles.resultContent}>
+                <Text style={styles.errorText}>{errorText}</Text>
+              </View>
+            </LinearGradient>
           </View>
         )}
 
@@ -822,76 +904,97 @@ const styles = StyleSheet.create({
   },
   resultCard: {
     backgroundColor: '#373c40',
-    borderRadius: 16,
-    padding: 20,
+    borderRadius: 20,
+    padding: 0, // Remove padding since gradient will handle it
     marginBottom: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 3,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 8,
+    overflow: 'hidden',
   },
   infoCard: {
     backgroundColor: '#373c40',
-    borderRadius: 16,
-    padding: 20,
+    borderRadius: 20,
+    padding: 0, // Remove padding since gradient will handle it
     marginBottom: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(3, 218, 198, 0.3)',
-    borderLeftWidth: 4,
+    borderWidth: 1.5,
+    borderColor: 'rgba(3, 218, 198, 0.4)',
+    borderLeftWidth: 6,
     borderLeftColor: '#03DAC6',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 3,
-    elevation: 3,
+    shadowColor: '#03DAC6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 8,
+    overflow: 'hidden',
+  },
+  cardGradient: {
+    padding: 24,
+    borderRadius: 20,
+    overflow: 'hidden',
   },
   successCard: {
-    backgroundColor: 'rgba(27, 77, 62, 0.9)',
     borderColor: '#4caf50',
-    borderWidth: 1.5,
-    borderLeftWidth: 5,
+    borderWidth: 2,
+    borderLeftWidth: 6,
+    borderLeftColor: '#4caf50',
+    shadowColor: '#4caf50',
+    shadowOpacity: 0.3,
   },
   errorCard: {
-    backgroundColor: 'rgba(77, 27, 27, 0.9)',
     borderColor: '#f44336',
-    borderWidth: 1.5,
-    borderLeftWidth: 5,
+    borderWidth: 2,
+    borderLeftWidth: 6,
+    borderLeftColor: '#f44336',
+    shadowColor: '#f44336',
+    shadowOpacity: 0.3,
   },
   resultTitle: {
-    fontSize: 19,
-    fontWeight: '700',
+    fontSize: 20,
+    fontWeight: '800',
     color: '#ffffff',
-    letterSpacing: 0.3,
+    letterSpacing: 0.4,
     flex: 1,
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   resultSubtitle: {
-    fontSize: 14,
-    color: '#ccc',
-    marginTop: 2,
-    fontWeight: '500',
+    fontSize: 15,
+    color: '#b8c6db',
+    marginTop: 4,
+    fontWeight: '600',
+    letterSpacing: 0.2,
   },
   resultHeaderText: {
     flex: 1,
-    marginLeft: 12,
+    marginLeft: 16,
   },
   resultText: {
-    fontSize: 16,
-    color: '#e0e0e0',
+    fontSize: 17,
+    color: '#e8f5e8',
     textAlign: 'left',
-    lineHeight: 24,
+    lineHeight: 26,
+    fontWeight: '500',
+    letterSpacing: 0.2,
   },
   resultContent: {
-    marginTop: 8,
-    paddingTop: 12,
+    marginTop: 12,
+    paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+    borderTopColor: 'rgba(255, 255, 255, 0.15)',
   },
   resultHeaderRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
+    marginBottom: 4,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.12)',
   },
   infoContainer: {
     backgroundColor: 'rgba(0, 0, 0, 0.3)',
@@ -902,26 +1005,33 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   metadataContainer: {
-    marginTop: 12,
+    marginTop: 16,
+    gap: 12,
   },
   metadataItem: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: 'rgba(0, 0, 0, 0.2)',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 8,
-    borderLeftWidth: 3,
+    backgroundColor: 'rgba(0, 0, 0, 0.25)',
+    padding: 18,
+    borderRadius: 16,
+    borderLeftWidth: 4,
     borderLeftColor: '#03DAC6',
+    shadowColor: 'rgba(3, 218, 198, 0.3)',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   metadataIconContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(3, 218, 198, 0.2)',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(3, 218, 198, 0.25)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(3, 218, 198, 0.4)',
   },
   metadataContent: {
     flex: 1,
@@ -929,16 +1039,20 @@ const styles = StyleSheet.create({
   metadataLabel: {
     fontSize: 13,
     color: '#03DAC6',
-    fontWeight: '600',
-    marginBottom: 4,
+    fontWeight: '700',
+    marginBottom: 6,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
+    textShadowColor: 'rgba(3, 218, 198, 0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 1,
   },
   metadataValue: {
-    fontSize: 16,
+    fontSize: 17,
     color: '#ffffff',
-    lineHeight: 22,
-    fontWeight: '500',
+    lineHeight: 24,
+    fontWeight: '600',
+    letterSpacing: 0.2,
   },
   buttonContent: {
     flexDirection: 'row',
@@ -953,10 +1067,12 @@ const styles = StyleSheet.create({
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
   errorText: {
-    fontSize: 16,
-    color: '#ff8a80',
-    textAlign: 'center',
-    lineHeight: 22,
+    fontSize: 17,
+    color: '#ffcdd2',
+    textAlign: 'left',
+    lineHeight: 24,
+    fontWeight: '500',
+    letterSpacing: 0.2,
   },
   progressContainer: {
     marginVertical: 60,
@@ -1057,28 +1173,214 @@ const styles = StyleSheet.create({
   },
   // Embedded map styles for unified card
   embeddedMapContainer: {
-    marginTop: 16,
-    marginBottom: 8,
-    borderRadius: 12,
+    marginTop: 20,
+    marginBottom: 12,
+    borderRadius: 16,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderWidth: 2,
+    borderColor: 'rgba(3, 169, 244, 0.4)',
+    shadowColor: 'rgba(3, 169, 244, 0.3)',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 6,
+    elevation: 6,
   },
   embeddedMapHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
-    padding: 12,
+    backgroundColor: 'rgba(3, 169, 244, 0.15)',
+    padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    borderBottomColor: 'rgba(3, 169, 244, 0.3)',
   },
   embeddedMapTitle: {
-    color: 'white',
-    fontWeight: '600',
-    fontSize: 15,
+    color: '#ffffff',
+    fontWeight: '700',
+    fontSize: 16,
+    letterSpacing: 0.3,
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   embeddedMap: {
     width: '100%',
-    height: 140,
+    height: 160,
+  },
+  // Enhanced unified info card styles that blend with dark theme
+  enhancedInfoCard: {
+    borderRadius: 18,
+    marginBottom: 20,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)', // Subtle border that blends with background
+    shadowColor: 'rgba(0, 0, 0, 0.6)',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  enhancedCardGradient: {
+    borderRadius: 18,
+    overflow: 'hidden',
+  },
+  // Enhanced header section
+  enhancedHeaderSection: {
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    paddingBottom: 20,
+  },
+  enhancedHeaderContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  enhancedIconWrapper: {
+    marginRight: 16,
+  },
+  enhancedIconBackground: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(3, 218, 198, 0.15)',
+  },
+  enhancedHeaderTextContainer: {
+    flex: 1,
+  },
+  enhancedTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#ffffff',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+    textShadowColor: 'rgba(0, 0, 0, 0.4)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  enhancedSubtitle: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.65)',
+    fontWeight: '500',
+    letterSpacing: 0.3,
+  },
+  enhancedHeaderDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    marginTop: 16,
+  },
+  // Enhanced location section
+  enhancedLocationSection: {
+    paddingHorizontal: 24,
+    paddingVertical: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.06)',
+  },
+  enhancedSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  enhancedSectionIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  enhancedSectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#ffffff',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+  enhancedMapWrapper: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    position: 'relative',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    shadowColor: 'rgba(0, 0, 0, 0.4)',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 1,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  enhancedMap: {
+    width: '100%',
+    height: 180,
+  },
+  enhancedCoordinatesOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  enhancedCoordinatesText: {
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'center',
+    letterSpacing: 0.5,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  // Enhanced metadata section
+  enhancedMetadataSection: {
+    paddingHorizontal: 24,
+    paddingVertical: 20,
+  },
+  enhancedMetadataGrid: {
+    gap: 12,
+  },
+  enhancedMetadataItem: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
+  },
+  enhancedMetadataItemGradient: {
+    borderRadius: 12,
+  },
+  enhancedMetadataItemContent: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    padding: 16,
+  },
+  enhancedMetadataIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(3, 218, 198, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(3, 218, 198, 0.2)',
+  },
+  enhancedMetadataText: {
+    flex: 1,
+  },
+  enhancedMetadataLabel: {
+    fontSize: 12,
+    color: 'rgba(3, 218, 198, 0.9)',
+    fontWeight: '700',
+    marginBottom: 6,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  enhancedMetadataValue: {
+    fontSize: 16,
+    color: '#ffffff',
+    lineHeight: 22,
+    fontWeight: '500',
+    letterSpacing: 0.2,
   },
 }); 
