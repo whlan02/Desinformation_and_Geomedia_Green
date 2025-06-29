@@ -198,9 +198,6 @@ export default function Verify() {
             formattedString += `📍 Location:   ${decodedData.location.latitude.toFixed(6)}, ${decodedData.location.longitude.toFixed(6)}\n`;
           }
           
-          // Add separator line
-          formattedString += `\n${'─'.repeat(40)}\n\n`;
-          
           // Add any other information
           for (const key in decodedData) {
             if (decodedData.hasOwnProperty(key)) {
@@ -313,9 +310,14 @@ export default function Verify() {
 
     return (
       <View style={styles.mapContainer}>
-        <View style={styles.mapTitle}>
-          <Ionicons name="location" size={20} color="#03A9F4" style={{marginRight: 8}} />
-          <Text style={{color: 'white', fontWeight: 'bold', fontSize: 17}}>Photo Location</Text>
+        <View style={styles.mapHeader}>
+          <View style={styles.mapTitle}>
+            <Ionicons name="location" size={24} color="#03A9F4" style={{marginRight: 8}} />
+            <View>
+              <Text style={styles.mapTitleText}>Photo Location</Text>
+              <Text style={styles.mapSubtitle}>GPS coordinates embedded in image</Text>
+            </View>
+          </View>
         </View>
         <MapView
           style={styles.map}
@@ -380,6 +382,10 @@ export default function Verify() {
       <View style={styles.resultSection}>
         <View style={styles.imageCard}>
           <Image source={{ uri: selectedImage }} style={styles.imagePreview} />
+          <View style={styles.imageOverlay}>
+            <Ionicons name="checkmark-circle" size={24} color="#4caf50" />
+            <Text style={styles.imageOverlayText}>Analyzed</Text>
+          </View>
         </View>
 
         {signatureVerification && (
@@ -390,24 +396,34 @@ export default function Verify() {
             <View style={styles.resultHeaderRow}>
               <Ionicons 
                 name={signatureVerification.valid ? "shield-checkmark" : "shield-outline"} 
-                size={28} 
+                size={32} 
                 color={signatureVerification.valid ? "#4caf50" : "#f44336"} 
               />
-              <Text style={styles.resultTitle}>
-                {signatureVerification.valid ? 'Verification Successful' : 'Verification Failed'}
+              <View style={styles.resultHeaderText}>
+                <Text style={styles.resultTitle}>
+                  {signatureVerification.valid ? 'Verification Successful' : 'Verification Failed'}
+                </Text>
+                <Text style={styles.resultSubtitle}>
+                  {signatureVerification.valid ? 'Image authenticity confirmed' : 'Unable to verify authenticity'}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.resultContent}>
+              <Text style={styles.resultText}>
+                {signatureVerification.message}
               </Text>
             </View>
-            <Text style={styles.resultText}>
-              {signatureVerification.message}
-            </Text>
           </View>
         )}
 
         {decodedInfo && (
-          <View style={styles.resultCard}>
+          <View style={styles.infoCard}>
             <View style={styles.resultHeaderRow}>
-              <Ionicons name="information-circle" size={28} color="#03DAC6" />
-              <Text style={styles.resultTitle}>Image Information</Text>
+              <Ionicons name="information-circle" size={32} color="#03DAC6" />
+              <View style={styles.resultHeaderText}>
+                <Text style={styles.resultTitle}>Image Metadata</Text>
+                <Text style={styles.resultSubtitle}>Embedded information</Text>
+              </View>
             </View>
             <View style={styles.infoContainer}>
               <Text style={styles.decodedText}>{decodedInfo}</Text>
@@ -420,22 +436,29 @@ export default function Verify() {
         {errorText && (
           <View style={[styles.resultCard, styles.errorCard]}>
             <View style={styles.resultHeaderRow}>
-              <Ionicons name="alert-circle" size={28} color="#f44336" />
-              <Text style={styles.resultTitle}>Error</Text>
+              <Ionicons name="alert-circle" size={32} color="#f44336" />
+              <View style={styles.resultHeaderText}>
+                <Text style={styles.resultTitle}>Error</Text>
+                <Text style={styles.resultSubtitle}>Verification failed</Text>
+              </View>
             </View>
-            <Text style={styles.errorText}>{errorText}</Text>
+            <View style={styles.resultContent}>
+              <Text style={styles.errorText}>{errorText}</Text>
+            </View>
           </View>
         )}
 
-        <TouchableOpacity 
-          style={styles.newImageButton} 
-          onPress={selectNewImage}
-        >
-          <View style={styles.buttonContent}>
-            <Ionicons name="image" size={22} color="#000000" />
-            <Text style={styles.newImageButtonText}>Select New Image</Text>
-          </View>
-        </TouchableOpacity>
+        <View style={styles.actionSection}>
+          <TouchableOpacity 
+            style={styles.newImageButton} 
+            onPress={selectNewImage}
+          >
+            <View style={styles.buttonContent}>
+              <Ionicons name="image" size={22} color="#000000" />
+              <Text style={styles.newImageButtonText}>Verify Another Image</Text>
+            </View>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   };
@@ -664,12 +687,30 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 5,
+    position: 'relative',
   },
   imagePreview: {
     width: width - 64,
     height: 280,
     resizeMode: 'contain',
     borderRadius: 12,
+  },
+  imageOverlay: {
+    position: 'absolute',
+    top: 20,
+    right: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  imageOverlayText: {
+    color: '#4caf50',
+    fontSize: 12,
+    fontWeight: '600',
   },
   resultCard: {
     backgroundColor: '#373c40',
@@ -678,6 +719,21 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.15)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  infoCard: {
+    backgroundColor: '#373c40',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(3, 218, 198, 0.3)',
+    borderLeftWidth: 4,
+    borderLeftColor: '#03DAC6',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
@@ -700,28 +756,42 @@ const styles = StyleSheet.create({
     fontSize: 19,
     fontWeight: '700',
     color: '#ffffff',
-    marginLeft: 8,
     letterSpacing: 0.3,
     flex: 1,
+  },
+  resultSubtitle: {
+    fontSize: 14,
+    color: '#ccc',
+    marginTop: 2,
+    fontWeight: '500',
+  },
+  resultHeaderText: {
+    flex: 1,
+    marginLeft: 12,
   },
   resultText: {
     fontSize: 16,
     color: '#e0e0e0',
     textAlign: 'left',
     lineHeight: 24,
-    paddingLeft: 36,
+  },
+  resultContent: {
+    marginTop: 8,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
   },
   resultHeaderRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
+    alignItems: 'flex-start',
   },
   infoContainer: {
-    backgroundColor: 'rgba(0, 0, 0, 0.2)',
-    padding: 12,
-    borderRadius: 8,
-    borderLeftWidth: 3,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    padding: 16,
+    borderRadius: 12,
+    borderLeftWidth: 4,
     borderLeftColor: '#03DAC6',
+    marginTop: 12,
   },
   buttonContent: {
     flexDirection: 'row',
@@ -732,7 +802,7 @@ const styles = StyleSheet.create({
   decodedText: {
     fontSize: 15,
     color: '#e0e0e0',
-    lineHeight: 24,
+    lineHeight: 26,
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
   errorText: {
@@ -763,19 +833,28 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 3,
     elevation: 4,
-    borderLeftWidth: 3,
+    borderLeftWidth: 4,
     borderLeftColor: '#03A9F4',
   },
-  mapTitle: {
-    color: 'white',
-    fontSize: 17,
-    fontWeight: 'bold',
-    padding: 12,
+  mapHeader: {
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  mapTitle: {
+    padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  mapTitleText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 17,
+  },
+  mapSubtitle: {
+    color: '#ccc',
+    fontSize: 13,
+    marginTop: 2,
   },
   map: {
     width: '100%',
@@ -787,7 +866,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     alignSelf: 'center',
-    marginTop: 20,
+    marginTop: 10,
     marginBottom: 15,
     width: '85%',
     shadowColor: '#000',
@@ -801,6 +880,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#000000',
     letterSpacing: 0.5,
+  },
+  actionSection: {
+    marginTop: 20,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
   },
   overlay: {
     flex: 1,
