@@ -1246,183 +1246,6 @@ class GeoCamRGBAVerifier {
       codeUnitSize: 16,
       delimiter: '###END###'
     };
-    // Add buffer size for batch processing
-    this.BATCH_SIZE = 1024 * 1024; // 1MB chunks
-  }
-
-  /**
-   * Optimized binary data extraction from alpha channel
-   */
-  extractBinaryFromAlpha(rgbaData, startIdx, length, alphaOffset = 3) {
-    const endIdx = Math.min(startIdx + length, rgbaData.length);
-    let binaryString = '';
-    
-    // Use Uint8Array for faster access
-    const data = rgbaData instanceof Uint8Array ? rgbaData : new Uint8Array(rgbaData);
-    
-    for (let i = startIdx; i < endIdx; i += 4) {
-      const alphaValue = data[i + alphaOffset];
-      // Unroll the bit extraction loop
-      binaryString += (alphaValue & 128 ? '1' : '0') +
-                     (alphaValue & 64 ? '1' : '0') +
-                     (alphaValue & 32 ? '1' : '0') +
-                     (alphaValue & 16 ? '1' : '0') +
-                     (alphaValue & 8 ? '1' : '0') +
-                     (alphaValue & 4 ? '1' : '0') +
-                     (alphaValue & 2 ? '1' : '0') +
-                     (alphaValue & 1 ? '1' : '0');
-    }
-    
-    return binaryString;
-  }
-
-  /**
-   * Optimized signature extraction from last row
-   */
-  extractSignatureFromLastRowRGBA(rgbaData, width, height) {
-    console.log('🔐 Extracting signature from last row (optimized)...');
-    
-    const lastRowStart = (height - 1) * width * 4;
-    const lastRowLength = width * 4;
-    
-    // Extract binary data in one go
-    const binaryString = this.extractBinaryFromAlpha(rgbaData, lastRowStart, lastRowLength);
-    
-    // Fast JSON detection using indexOf
-    let braceCount = 0;
-    let startPos = -1;
-    let endPos = -1;
-    
-    const str = this.binaryToString(binaryString);
-    
-    // Fast JSON scanning
-    for (let i = 0; i < str.length; i++) {
-      const char = str[i];
-      if (char === '{') {
-        if (braceCount === 0) startPos = i;
-        braceCount++;
-      } else if (char === '}') {
-        braceCount--;
-        if (braceCount === 0) {
-          endPos = i + 1;
-          const jsonStr = str.substring(startPos, endPos);
-          try {
-            const parsed = JSON.parse(jsonStr);
-            console.log('✅ Signature extracted quickly');
-            return parsed;
-          } catch (e) {
-            // Continue searching if invalid JSON
-          }
-        }
-      }
-    }
-    
-    throw new Error('No valid signature found');
-  }
-
-  /**
-   * Optimized basic data extraction
-   */
-  async extractBasicDataFromAlphaChannelsRGBA(rgbaData, width, height) {
-    console.log('📝 Extracting Basic Data (optimized)...');
-    
-    const maxHeight = height - 1;
-    const maxLength = width * maxHeight * 4;
-    let result = '';
-    
-    // Process in parallel chunks
-    const chunkSize = this.BATCH_SIZE;
-    const numChunks = Math.ceil(maxLength / chunkSize);
-    const promises = [];
-    
-    for (let i = 0; i < numChunks; i++) {
-      const start = i * chunkSize;
-      const length = Math.min(chunkSize, maxLength - start);
-      
-      promises.push(
-        new Promise(resolve => {
-          const binaryChunk = this.extractBinaryFromAlpha(rgbaData, start, length);
-          const strChunk = this.binaryToString(binaryChunk);
-          resolve(strChunk);
-        })
-      );
-    }
-    
-    // Process all chunks in parallel
-    const processedChunks = await Promise.all(promises);
-    result = processedChunks.join('');
-    
-    // Find delimiter
-    const delimiterIndex = result.indexOf(this.STEG_PARAMS.delimiter);
-    if (delimiterIndex === -1) {
-      throw new Error('Delimiter not found');
-    }
-    
-    const basicInfo = result.substring(0, delimiterIndex);
-    console.log('✅ Basic Data extracted quickly');
-    return basicInfo;
-  }
-
-  /**
-   * Optimized verification process
-   */
-  async verifyGeoCamRGBA(pngBuffer) {
-    try {
-      console.log('🚀 Starting optimized GeoCam RGBA Verification...');
-      
-      // Parse PNG and extract data in parallel
-      const [imageData, signatureData] = await Promise.all([
-        this.parsePngToRGBA(pngBuffer),
-        this.extractSignatureFromLastRowRGBA(pngBuffer)
-      ]);
-      
-      const { width, height, rgbaData } = imageData;
-      
-      // Process basic data and hash in parallel
-      const [basicInfo, hash] = await Promise.all([
-        this.extractBasicDataFromAlphaChannelsRGBA(rgbaData, width, height),
-        this.computeRGBAHash(rgbaData, width, height)
-      ]);
-      
-      // Verify signature
-      const verification = await this.verifyRGBASignature(
-        hash,
-        signatureData.signature,
-        signatureData.publicKey
-      );
-      
-      console.log('🎉 Optimized verification completed!');
-      
-      return {
-        success: true,
-        verification,
-        extractedData: {
-          basicInfo,
-          signatureData: {
-            timestamp: signatureData.timestamp,
-            version: signatureData.version,
-            publicKeyLength: signatureData.publicKey?.length || 0,
-            signatureLength: signatureData.signature?.length || 0
-          }
-        },
-        imageInfo: {
-          width,
-          height,
-          originalSize: pngBuffer.length
-        }
-      };
-      
-    } catch (error) {
-      console.error('❌ Verification failed:', error);
-      return {
-        success: false,
-        error: error.message,
-        verification: {
-          valid: false,
-          message: `Verification failed: ${error.message}`
-        }
-      };
-    }
   }
 
   /**
@@ -1490,6 +1313,67 @@ class GeoCamRGBAVerifier {
         });
       });
     });
+  }
+
+  /**
+   * Step 3: Extract signature package from last row alpha channels
+   */
+  extractSignatureFromLastRowRGBA(rgbaData, width, height) {
+    console.log('🔐 Step 3: Extracting signature from last row alpha channels...');
+    
+    const lastRowStart = (height - 1) * width * 4;
+    let binaryData = '';
+    
+    for (let x = 0; x < width; x++) {
+      const alphaIndex = lastRowStart + (x * 4) + 3;
+      const alphaValue = rgbaData[alphaIndex];
+      
+      // Extract 8 bits from alpha channel
+      for (let bit = 0; bit < 8; bit++) {
+        binaryData += (alphaValue & (1 << (7 - bit))) ? '1' : '0';
+      }
+    }
+    
+    const signaturePackageStr = this.binaryToString(binaryData);
+    
+    // Find the end of JSON by looking for the closing brace
+    let jsonEndIndex = -1;
+    let braceCount = 0;
+    for (let i = 0; i < signaturePackageStr.length; i++) {
+      if (signaturePackageStr[i] === '{') {
+        braceCount++;
+      } else if (signaturePackageStr[i] === '}') {
+        braceCount--;
+        if (braceCount === 0) {
+          jsonEndIndex = i;
+          break;
+        }
+      }
+    }
+    
+    if (jsonEndIndex === -1) {
+      throw new Error('No valid signature package found in last row');
+    }
+    
+    const cleanJsonStr = signaturePackageStr.substring(0, jsonEndIndex + 1);
+    
+    try {
+      const signaturePackage = JSON.parse(cleanJsonStr);
+      
+      console.log('✅ Signature package extracted');
+      console.log('📊 Public key length:', signaturePackage.publicKey ? signaturePackage.publicKey.length : 'N/A');
+      console.log('📊 Signature length:', signaturePackage.signature ? signaturePackage.signature.length : 'N/A');
+      console.log('📊 Package version:', signaturePackage.version);
+      
+      return {
+        publicKey: signaturePackage.publicKey,
+        signature: signaturePackage.signature,
+        timestamp: signaturePackage.timestamp,
+        version: signaturePackage.version
+      };
+    } catch (parseError) {
+      throw new Error(`Failed to parse signature JSON: ${parseError.message}`);
+    }
   }
 
   /**
@@ -1705,6 +1589,82 @@ class GeoCamRGBAVerifier {
           error: error.message,
           method: 'RGBA-based verification (NEW) - FAILED'
         }
+      };
+    }
+  }
+
+  /**
+   * Complete GeoCam RGBA Verification Workflow
+   */
+  async verifyGeoCamRGBA(pngBuffer) {
+    try {
+      console.log('🚀 Starting GeoCam RGBA Verification Workflow (NEW METHOD)...');
+      console.log('🎯 This method avoids PNG format compatibility issues!');
+      
+      // Step 1-2: Parse PNG to get RGBA data
+      const imageData = await this.parsePngToRGBA(pngBuffer);
+      const { width, height, rgbaData } = imageData;
+      
+      // Step 3: Extract signature from last row
+      const signatureData = this.extractSignatureFromLastRowRGBA(rgbaData, width, height);
+      
+      // Step 4: Reset last row alpha channels
+      const cleanedRgbaData = this.resetLastRowAlphaRGBA(rgbaData, width, height);
+      
+      // Step 5: Extract Basic Data
+      const basicDataStr = this.extractBasicDataFromAlphaChannelsRGBA(cleanedRgbaData, width, height);
+      
+      // Step 6: Re-encode basic data to get the same RGBA state as during signing
+      console.log('🔄 Re-encoding basic data to match signing state...');
+      const rgbaWithBasicInfo = await this.reEncodeBasicInfo(cleanedRgbaData, width, height, basicDataStr);
+      
+      // Step 7: Convert RGBA to base64 (keeping for debugging)
+      const rgbaBase64 = this.rgbaToBase64(rgbaWithBasicInfo);
+      
+      // Step 8: Compute RGBA hash matching backend signing process
+      const rgbaHash = this.computeRGBAHash(rgbaWithBasicInfo, basicDataStr, width, height);
+      
+              // Step 9: Verify RGBA signature
+        const verificationResult = await this.verifyRGBASignature(
+          rgbaHash,
+          signatureData.signature,
+          signatureData.publicKey
+        );
+      
+      console.log('🎉 GeoCam RGBA Verification Workflow completed!');
+      
+      return {
+        success: true,
+        verification: verificationResult,
+        extractedData: {
+          basicInfo: basicDataStr,
+          signatureData: {
+            timestamp: signatureData.timestamp,
+            version: signatureData.version,
+            publicKeyLength: signatureData.publicKey ? signatureData.publicKey.length : 0,
+            signatureLength: signatureData.signature ? signatureData.signature.length : 0
+          }
+        },
+        imageInfo: {
+          width,
+          height,
+          originalSize: pngBuffer.length,
+          rgbaSize: rgbaData.length,
+          rgbaBase64Size: rgbaBase64.length
+        },
+        method: 'RGBA-based (NEW)'
+      };
+      
+    } catch (error) {
+      console.error('❌ GeoCam RGBA Verification failed:', error);
+      return {
+        success: false,
+        error: error.message,
+        verification: {
+          valid: false,
+          message: `RGBA verification failed: ${error.message}`
+        },
+        method: 'RGBA-based (NEW) - FAILED'
       };
     }
   }
