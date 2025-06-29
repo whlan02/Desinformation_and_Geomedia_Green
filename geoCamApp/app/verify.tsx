@@ -153,7 +153,7 @@ export default function Verify() {
     setDecodedInfo(null);
     setLocation(null);
     
-    startFakeProgress(6500); // 6.5 seconds fake progress
+    startFakeProgress(20000); // 20 seconds fake progress
 
     try {
       console.log('🔍 Startingverification for image:', uri);
@@ -352,6 +352,10 @@ export default function Verify() {
           <CircularProgress 
             progress={progress}
             acceleratedCompletion={accelerateProgress}
+            estimatedDuration={20000}
+            showPercentage={true}
+            showTimeRemaining={true}
+            message="Verifying image authenticity..."
           />
         </View>
       );
