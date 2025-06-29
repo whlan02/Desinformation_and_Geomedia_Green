@@ -26,7 +26,7 @@ export const CircularProgress: React.FC<RotatingGlobeProps> = ({
   showPercentage = true,
   showTimeRemaining = false,
 }) => {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const rotationValue = useRef(new Animated.Value(0)).current;
   const scaleValue = useRef(new Animated.Value(1)).current;
   const progressValue = useRef(new Animated.Value(0)).current;
@@ -36,8 +36,8 @@ export const CircularProgress: React.FC<RotatingGlobeProps> = ({
   const startTime = useRef<number | null>(null);
   const lastUpdateTime = useRef<number>(Date.now());
   
-  // Use theme color if no color prop is provided
-  const globeColor = color || colors.primary;
+  // Use theme-aware color if no color prop is provided - inverted for contrast
+  const globeColor = color || (isDark ? '#03DAC6' : '#2C3E50');
 
   // Start continuous rotation animation
   useEffect(() => {
@@ -234,7 +234,13 @@ export const CircularProgress: React.FC<RotatingGlobeProps> = ({
   });
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.overlay }]}>
+    <View style={[
+      styles.container, 
+      { 
+        backgroundColor: isDark ? colors.overlay : 'rgba(255, 255, 255, 0.7)',
+        borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'
+      }
+    ]}>
       <View style={[styles.globeContainer, { width: size + 40, height: size + 40 }]}>
         {/* Outer glow ring */}
         <Animated.View
@@ -245,7 +251,7 @@ export const CircularProgress: React.FC<RotatingGlobeProps> = ({
               height: size + 60,
               borderRadius: (size + 60) / 2,
               opacity: glowOpacity,
-              backgroundColor: `${globeColor}20`,
+              backgroundColor: `${globeColor}${isDark ? '20' : '15'}`,
             }
           ]}
         />
@@ -326,7 +332,14 @@ export const CircularProgress: React.FC<RotatingGlobeProps> = ({
             }
           ]}
         >
-          <View style={[styles.globeInner, { backgroundColor: `${globeColor}15` }]}>
+          <View style={[
+            styles.globeInner, 
+            { 
+              backgroundColor: isDark ? `${globeColor}15` : `${globeColor}08`,
+              borderColor: isDark ? `${globeColor}30` : `${globeColor}20`,
+              borderWidth: 1
+            }
+          ]}>
             <Ionicons 
               name="earth" 
               size={size * 0.7} 
@@ -340,7 +353,7 @@ export const CircularProgress: React.FC<RotatingGlobeProps> = ({
                 styles.progressOverlay,
                 {
                   opacity: progressPercentage,
-                  backgroundColor: `${globeColor}30`,
+                  backgroundColor: isDark ? `${globeColor}30` : `${globeColor}20`,
                 }
               ]}
             />
@@ -354,16 +367,23 @@ export const CircularProgress: React.FC<RotatingGlobeProps> = ({
               <Animated.View style={[
                 styles.percentageContainer,
                 {
+                  backgroundColor: isDark ? colors.overlay : 'rgba(0, 0, 0, 0.8)',
                   transform: [{ scale: scaleValue }]
                 }
               ]}>
-                <Text style={[styles.percentageText, { color: colors.text }]}>
+                <Text style={[styles.percentageText, { color: isDark ? colors.text : '#ffffff' }]}>
                   {Math.round(progress)}%
                 </Text>
               </Animated.View>
             )}
             {showTimeRemaining && estimatedDuration && (
-              <Text style={[styles.timeText, { color: colors.textSecondary || colors.text }]}>
+              <Text style={[
+                styles.timeText, 
+                { 
+                  color: isDark ? (colors.textSecondary || colors.text) : '#ffffff',
+                  backgroundColor: isDark ? colors.overlay : 'rgba(0, 0, 0, 0.8)'
+                }
+              ]}>
                 {getTimeRemaining()}
               </Text>
             )}
@@ -375,6 +395,8 @@ export const CircularProgress: React.FC<RotatingGlobeProps> = ({
       <Animated.View style={[
         styles.messageContainer,
         {
+          backgroundColor: isDark ? colors.overlay : 'rgba(0, 0, 0, 0.05)',
+          borderColor: isDark ? colors.border : 'rgba(0, 0, 0, 0.1)',
           transform: [{ scale: pulseValue }]
         }
       ]}>
@@ -393,6 +415,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 30,
     position: 'relative',
     overflow: 'hidden',
+    borderWidth: 1,
   },
   backgroundBlur: {
     position: 'absolute',
@@ -480,7 +503,6 @@ const styles = StyleSheet.create({
     zIndex: 15,
   },
   percentageContainer: {
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 12,
@@ -490,7 +512,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     textAlign: 'center',
-    color: '#fff',
   },
   timeText: {
     fontSize: 11,
@@ -498,19 +519,15 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 2,
     opacity: 0.9,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 8,
-    color: '#fff',
   },
   messageContainer: {
-    backgroundColor: 'rgba(0, 0, 0, 0.1)',
     paddingHorizontal: 20,
     paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   messageText: {
     fontSize: 16,
