@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface CircularProgressProps {
   progress: number; // 0-100
@@ -18,14 +19,18 @@ export const CircularProgress: React.FC<CircularProgressProps> = ({
   message = 'Processing...',
   size = 100,
   strokeWidth = 8,
-  color = '#03DAC6',
+  color,
   acceleratedCompletion = false,
 }) => {
+  const { colors } = useTheme();
   const animatedValue = useRef(new Animated.Value(0)).current;
   const currentProgress = useRef(0);
   
   const radius = (size - strokeWidth) / 2;
   const circumference = radius * 2 * Math.PI;
+
+  // Use theme color if no color prop is provided
+  const progressColor = color || colors.primary;
 
   useEffect(() => {
     // Store current progress before animation
@@ -48,7 +53,7 @@ export const CircularProgress: React.FC<CircularProgressProps> = ({
   });
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.overlay }]}>
       <View style={[styles.progressContainer, { width: size, height: size }]}>
         <Svg width={size} height={size} style={styles.svg}>
           {/* Background circle */}
@@ -56,7 +61,7 @@ export const CircularProgress: React.FC<CircularProgressProps> = ({
             cx={size / 2}
             cy={size / 2}
             r={radius}
-            stroke="rgba(255,255,255,0.1)"
+            stroke={colors.border}
             strokeWidth={strokeWidth}
             fill="transparent"
           />
@@ -65,7 +70,7 @@ export const CircularProgress: React.FC<CircularProgressProps> = ({
             cx={size / 2}
             cy={size / 2}
             r={radius}
-            stroke={color}
+            stroke={progressColor}
             strokeWidth={strokeWidth}
             fill="transparent"
             strokeDasharray={circumference}
@@ -77,7 +82,7 @@ export const CircularProgress: React.FC<CircularProgressProps> = ({
       </View>
       
       {/* Status message */}
-      <Text style={styles.messageText}>{message}</Text>
+      <Text style={[styles.messageText, { color: colors.text }]}>{message}</Text>
     </View>
   );
 };
@@ -87,7 +92,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 30,
-    backgroundColor: 'rgba(0,0,0,0.8)',
     borderRadius: 16,
     marginHorizontal: 40,
   },
@@ -102,7 +106,6 @@ const styles = StyleSheet.create({
   },
   messageText: {
     fontSize: 16,
-    color: '#ffffff',
     textAlign: 'center',
     fontWeight: '500',
   },
