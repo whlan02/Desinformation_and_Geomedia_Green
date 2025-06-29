@@ -153,7 +153,7 @@ export default function Verify() {
     setDecodedInfo(null);
     setLocation(null);
     
-    startFakeProgress(20000); // 20 seconds fake progress
+    startFakeProgress(25000); // 25 seconds fake progress
 
     try {
       console.log('🔍 Startingverification for image:', uri);
