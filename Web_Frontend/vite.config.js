@@ -39,6 +39,13 @@ export default defineConfig({
         target: 'https://geocam-api.onrender.com',
         changeOrigin: true,
         secure: true,
+      },
+      // Proxy steganography service
+      '/steganography': {
+        target: 'https://desinformationandgeomediagreen-production.up.railway.app',
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => path.replace(/^\/steganography/, '')
       }
     }
   }

@@ -1,153 +1,161 @@
 import axios from 'axios';
-import { buildApiUrl, BACKEND_CONFIG } from './backendConfig.js';
+import { buildSteganographyUrl, buildApiUrl, BACKEND_CONFIG } from './backendConfig';
 
 // Configure axios defaults
 axios.defaults.timeout = BACKEND_CONFIG.TIMEOUT;
 
 /**
- * Get all registered devices from backend
+ * Verify GeoCam image using pure PNG method
  */
-export const getRegisteredDevices = async () => {
+export const verifyImagePurePng = async (imageFile) => {
   try {
-    console.log('📱 Fetching registered devices...');
+    console.log('📤 Starting image verification...');
     
-    const response = await axios.get(buildApiUrl(BACKEND_CONFIG.ENDPOINTS.DEVICES), {
+    // Convert image to base64
+    const base64Data = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64 = reader.result.split(',')[1]; // Remove data URL prefix
+        resolve(base64);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(imageFile);
+    });
+
+    console.log('📊 Image converted to base64');
+
+    const requestData = {
+      pngBase64: base64Data
+    };
+
+    const url = buildSteganographyUrl('/pure-png-verify');
+    console.log('🌐 Verification URL:', url);
+
+    // First check if the service is available
+    try {
+      await axios.get(buildSteganographyUrl('/health'));
+    } catch (error) {
+      console.error('❌ Steganography service health check failed:', error);
+      throw new Error('Steganography service is not available. Please try again later.');
+    }
+
+    const response = await axios.post(url, requestData, {
       headers: {
         'Content-Type': 'application/json',
-        'Accept': 'application/json',
       },
+      maxContentLength: Infinity,
+      maxBodyLength: Infinity
     });
 
-    if (response.status === 200 && response.data) {
-      console.log('✅ Successfully fetched devices:', response.data);
+    console.log('📨 Response received:', response.status);
+
+    if (response.data.success) {
+      console.log('✅ Verification successful');
       return {
         success: true,
-        devices: response.data.devices || [],
-        message: response.data.message || 'Devices fetched successfully',
+        message: response.data.verification_result?.message || 'Verification completed',
+        verification_result: {
+          is_authentic: response.data.verification_result?.signature_valid || false,
+          decoded_data: response.data.verification_result?.decoded_info || null,
+          signature_valid: response.data.verification_result?.signature_valid || false,
+          device_info: response.data.verification_result?.device_info || null,
+        }
       };
     } else {
-      console.warn('⚠️ Unexpected response format:', response.data);
+      console.error('❌ Verification failed:', response.data);
       return {
         success: false,
-        devices: [],
-        message: 'Unexpected response format',
+        message: response.data.error || 'Verification failed',
+        error: response.data.error,
       };
     }
-  } catch (error) {
-    console.error('❌ Failed to fetch devices:', error);
-    
-    if (error.response) {
-      // Server responded with error status
-      return {
-        success: false,
-        devices: [],
-        message: `Server error: ${error.response.status} - ${error.response.data?.message || error.message}`,
-      };
-    } else if (error.request) {
-      // Network error
-      return {
-        success: false,
-        devices: [],
-        message: 'Network error: Unable to connect to backend',
-      };
-    } else {
-      // Other error
-      return {
-        success: false,
-        devices: [],
-        message: `Error: ${error.message}`,
-      };
-    }
-  }
-};
 
-/**
- * Check backend health/connectivity
- */
-export const getBackendHealth = async () => {
-  try {
-    console.log('🏥 Checking backend health...');
-    
-    const response = await axios.get(buildApiUrl(BACKEND_CONFIG.ENDPOINTS.HEALTH), {
-      headers: {
-        'Accept': 'application/json',
-      },
-    });
-
-    if (response.status === 200) {
-      console.log('✅ Backend health check successful:', response.data);
-      return {
-        success: true,
-        healthy: true,
-        message: 'Backend is healthy',
-        data: response.data,
-      };
-    } else {
-      console.warn('⚠️ Backend health check returned non-200 status:', response.status);
-      return {
-        success: false,
-        healthy: false,
-        message: `Backend returned status: ${response.status}`,
-      };
-    }
   } catch (error) {
-    console.error('❌ Backend health check failed:', error);
+    console.error('❌ Verification error:', error);
+    const errorMessage = error.response?.data?.message || error.message || 'Network error during verification';
     return {
       success: false,
-      healthy: false,
-      message: error.response?.data?.message || error.message || 'Health check failed',
+      message: errorMessage,
+      error: errorMessage,
     };
   }
 };
 
 /**
- * Get backend status and statistics
+ * Get registered devices from backend
+ */
+export const getRegisteredDevices = async () => {
+  try {
+    const response = await axios.get(buildApiUrl(BACKEND_CONFIG.ENDPOINTS.DEVICES));
+    return response.data;
+  } catch (error) {
+    console.error('❌ Failed to get registered devices:', error);
+    throw error;
+  }
+};
+
+/**
+ * Check backend health
+ */
+export const getBackendHealth = async () => {
+  try {
+    const response = await axios.get(buildApiUrl(BACKEND_CONFIG.ENDPOINTS.HEALTH));
+    return {
+      healthy: response.status === 200,
+      status: response.status,
+      data: response.data
+    };
+  } catch (error) {
+    console.error('❌ Backend health check failed:', error);
+    return {
+      healthy: false,
+      status: error.response?.status || 0,
+      error: error.message
+    };
+  }
+};
+
+/**
+ * Get backend status
  */
 export const getBackendStatus = async () => {
   try {
-    console.log('📊 Getting backend status...');
-    
-    // Run health check and device count in parallel
-    const [healthResult, devicesResult] = await Promise.all([
+    const [healthResponse, devicesResponse] = await Promise.all([
       getBackendHealth(),
       getRegisteredDevices()
     ]);
-
+    
     return {
-      health: healthResult,
-      deviceCount: devicesResult.success ? devicesResult.devices.length : 0,
-      lastChecked: new Date().toISOString(),
+      health: healthResponse,
+      deviceCount: devicesResponse?.length || 0,
+      devices: devicesResponse || []
     };
   } catch (error) {
     console.error('❌ Failed to get backend status:', error);
     return {
-      health: {
-        success: false,
-        healthy: false,
-        message: 'Failed to get status',
-      },
+      health: { healthy: false, error: error.message },
       deviceCount: 0,
-      lastChecked: new Date().toISOString(),
+      devices: []
     };
   }
 };
 
 /**
- * Format device information for display
+ * Format device information
  */
 export const formatDeviceInfo = (device) => {
-  console.log('🔍 Formatting device:', device);
+  if (!device) return null;
   
   return {
-    id: device.device_id || device.installation_id || 'Unknown',
-    installationId: device.installation_id || 'N/A',
-    model: device.device_model || 'Unknown Device',
-    os: `${device.os_name || 'Unknown'} ${device.os_version || ''}`.trim(),
-    appVersion: device.app_version || 'N/A',
-    registeredAt: device.registration_date || device.registration_timestamp || 
-                  device.registrationDate || device.registrationTimestamp || 'Unknown',
-    publicKeyHash: device.public_key_data?.hash || 'N/A',
-    keyAlgorithm: device.public_key_data?.algorithm || 'N/A',
-    keySize: device.public_key_data?.keySize || 'N/A',
+    id: device.id || device.device_id,
+    installationId: device.installation_id || device.installationId || 'Unknown',
+    model: device.device_model || device.model || device.name || 'Unknown Device',
+    os: device.os_name || device.os || device.operating_system || 'Unknown OS',
+    appVersion: device.app_version || device.version || '1.0.0',
+    registeredAt: device.registration_date || device.registeredAt || device.last_seen || device.lastSeen || new Date().toISOString(),
+    lastActivity: device.last_activity || device.lastActivity || device.last_seen || device.lastSeen || new Date().toISOString(),
+    status: device.is_active ? 'active' : 'inactive',
+    isActive: device.is_active || device.status === 'active',
+    ...device
   };
 }; 

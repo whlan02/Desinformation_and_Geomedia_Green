@@ -49,12 +49,20 @@ export const useDeviceStore = defineStore('device', {
       try {
         console.log('🔄 Fetching devices from store...');
         const result = await getRegisteredDevices();
+        console.log('📥 Raw API result:', result);
         
         if (result.success) {
           this.devices = result.devices;
           this.deviceCount = result.devices.length;
           this.lastUpdated = new Date().toISOString();
           console.log('✅ Store updated with devices:', this.devices.length);
+          console.log('📋 Devices in store:', this.devices);
+          console.log('🏪 Full store state:', {
+            devices: this.devices,
+            deviceCount: this.deviceCount,
+            loading: this.loading,
+            error: this.error
+          });
         } else {
           this.error = result.message;
           console.error('❌ Failed to fetch devices:', result.message);
