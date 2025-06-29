@@ -21,6 +21,7 @@ import MapView, { Marker, UrlTile } from 'react-native-maps';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system';
+import { LinearGradient } from 'expo-linear-gradient';
 import { verifyImagePurePng } from '../utils/backendService';
 import { getGalleryImages} from '../utils/galleryStorage';
 import CircularProgress from '../components/CircularProgress';
@@ -46,6 +47,9 @@ export default function Verify() {
   const [progress, setProgress] = useState(0);
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [accelerateProgress, setAccelerateProgress] = useState(false);
+  
+  // Animation for scroll indicator
+  const scrollIndicatorAnim = useRef(new Animated.Value(0)).current;
   
   // Start fake progress animation
   const startFakeProgress = (durationMs: number) => {
@@ -91,6 +95,32 @@ export default function Verify() {
       }
     };
   }, []);
+
+  // Start scroll indicator animation when image is selected
+  useEffect(() => {
+    if (selectedImage && !isVerifying) {
+      const animateScrollIndicator = () => {
+        Animated.sequence([
+          Animated.timing(scrollIndicatorAnim, {
+            toValue: 10,
+            duration: 1000,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+          Animated.timing(scrollIndicatorAnim, {
+            toValue: 0,
+            duration: 1000,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+        ]).start(() => {
+          // Repeat animation
+          animateScrollIndicator();
+        });
+      };
+      animateScrollIndicator();
+    }
+  }, [selectedImage, isVerifying, scrollIndicatorAnim]);
   
   const bottomSheetY = useRef(new Animated.Value(BOTTOM_SHEET_HEIGHT)).current;
 
@@ -397,17 +427,33 @@ export default function Verify() {
 
     return (
       <View style={styles.resultSection}>
-        <View style={styles.imageCard}>
-          <Image source={{ uri: selectedImage }} style={styles.imagePreview} />
-          <View style={styles.imageOverlay}>
-            <Ionicons name="checkmark-circle" size={24} color="#4caf50" />
-            <Text style={styles.imageOverlayText}>Analyzed</Text>
-          </View>
+        <View style={styles.fullscreenImageContainer}>
+          <Image source={{ uri: selectedImage }} style={styles.fullscreenImage} />
+          <LinearGradient
+            colors={['rgba(0,0,0,0.6)', 'transparent', 'transparent', 'rgba(0,0,0,0.6)']}
+            locations={[0, 0.3, 0.7, 1]}
+            style={styles.fullscreenOverlay}
+          >
+            <View style={styles.imageStatusBadge}>
+              <Ionicons name="checkmark-circle" size={20} color="#4caf50" />
+              <Text style={styles.imageStatusText}>Analyzed</Text>
+            </View>
+            <Animated.View style={[
+              styles.scrollIndicator,
+              {
+                transform: [{ translateY: scrollIndicatorAnim }]
+              }
+            ]}>
+              <Ionicons name="chevron-down" size={20} color="rgba(255, 255, 255, 0.8)" />
+              <Text style={styles.scrollHintText}>Scroll for details</Text>
+            </Animated.View>
+          </LinearGradient>
         </View>
 
         {signatureVerification && (
           <View style={[
             styles.resultCard, 
+            styles.infoCardSpacing,
             signatureVerification.valid ? styles.successCard : styles.errorCard
           ]}>
             <View style={styles.resultHeaderRow}>
@@ -434,7 +480,7 @@ export default function Verify() {
         )}
 
         {decodedInfo && decodedInfo.length > 0 && (
-          <View style={styles.infoCard}>
+          <View style={[styles.infoCard, styles.infoCardSpacing]}>
             <View style={styles.resultHeaderRow}>
               <Ionicons name="information-circle" size={32} color="#03DAC6" />
               <View style={styles.resultHeaderText}>
@@ -459,7 +505,7 @@ export default function Verify() {
         )}
 
         {decodedInfo !== null && decodedInfo.length === 0 && (
-          <View style={styles.infoCard}>
+          <View style={[styles.infoCard, styles.infoCardSpacing]}>
             <View style={styles.resultHeaderRow}>
               <Ionicons name="information-circle-outline" size={32} color="#888" />
               <View style={styles.resultHeaderText}>
@@ -473,7 +519,7 @@ export default function Verify() {
         {renderMap()}
         
         {errorText && (
-          <View style={[styles.resultCard, styles.errorCard]}>
+          <View style={[styles.resultCard, styles.errorCard, styles.infoCardSpacing]}>
             <View style={styles.resultHeaderRow}>
               <Ionicons name="alert-circle" size={32} color="#f44336" />
               <View style={styles.resultHeaderText}>
@@ -578,8 +624,7 @@ export default function Verify() {
         )}
       </View>
       
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {renderVerificationResult()}
       </ScrollView>
 
@@ -662,6 +707,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 16,
     paddingBottom: 40,
+    paddingTop: 16, // Add back some top padding for the new layout
   },
   header: {
     marginBottom: 24,
@@ -711,45 +757,77 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   resultSection: {
-    marginTop: 8,
+    marginTop: 0, // Remove margin for fullscreen effect
   },
-  imageCard: {
-    backgroundColor: '#373c40',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 5,
+  infoCardSpacing: {
+    marginTop: 24, // Add spacing after fullscreen image
+  },
+  fullscreenImageContainer: {
+    height: height - 120, // Reduce space taken by top bar, make it fit better
+    width: width - 32, // Account for padding
     position: 'relative',
+    backgroundColor: '#000',
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 8,
+    alignSelf: 'center',
   },
-  imagePreview: {
-    width: width - 64,
-    height: 280,
-    resizeMode: 'contain',
-    borderRadius: 12,
+  fullscreenImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover', // Change from 'contain' to 'cover' for better screen fit
   },
-  imageOverlay: {
+  fullscreenOverlay: {
     position: 'absolute',
-    top: 20,
-    right: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 24,
+    paddingBottom: 32,
+  },
+  imageStatusBadge: {
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
     borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
+    borderWidth: 1.5,
+    borderColor: '#4caf50',
+    shadowColor: '#4caf50',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 6,
   },
-  imageOverlayText: {
+  imageStatusText: {
     color: '#4caf50',
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '600',
+    letterSpacing: 0.4,
+  },
+  scrollIndicator: {
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  scrollHintText: {
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 0.3,
   },
   resultCard: {
     backgroundColor: '#373c40',
