@@ -27,6 +27,7 @@
 - [Contributing](#-contributing)
 - [License](#-license)
 - [Team](#-team)
+- [Latest Updates & Enhancements](#-latest-updates--enhancements)
 
 ## 📖 About the Project
 
@@ -52,14 +53,16 @@ GeoCam combines multiple security layers:
 ## ✨ Key Features
 
 ### 📱 **Mobile Application (React Native)**
-- **Secure Camera Interface**: Hardware-accelerated photo capture
-- **Real-time GPS Integration**: Precise location embedding
-- **Cryptographic Key Management**: Device-specific key generation
-- **Offline Capability**: Works without internet connectivity
-- **Gallery Management**: Organized photo storage with metadata
-- **Image Verification**: On-device authenticity checking
-- **Dark/Light Theme Support**: Adaptive UI design
-- **Cross-platform**: iOS and Android compatibility
+- **Modern Camera Interface**: Theme-aware UI with advanced gesture controls
+- **Enhanced User Experience**: Haptic feedback, smooth animations, and intuitive navigation
+- **Real-time GPS Integration**: High-accuracy location embedding with metadata
+- **Advanced Camera Features**: Timer, grid lines, zoom controls, tap-to-focus
+- **Cryptographic Key Management**: Secure device-specific key generation and storage
+- **Offline Capability**: Full functionality without internet connectivity
+- **Gallery Management**: Organized photo storage with comprehensive metadata viewing
+- **Image Verification**: On-device authenticity checking with detailed results
+- **Comprehensive Theme Support**: Dynamic dark/light mode with consistent styling
+- **Cross-platform**: Optimized for both iOS and Android devices
 
 ### 🌐 **Web Frontend (Vue.js)**
 - **Administrative Dashboard**: Device and photo management
@@ -126,15 +129,15 @@ graph TB
 ## 💻 Technology Stack
 
 ### **Mobile Application**
-- **Framework**: React Native 0.79.3
-- **Navigation**: Expo Router 5.1.0
-- **State Management**: React Hooks + Context API
-- **Cryptography**: @noble/curves (secp256k1)
-- **Location**: expo-location
-- **Camera**: expo-camera
-- **Storage**: expo-secure-store, AsyncStorage
-- **UI Components**: @expo/vector-icons, react-native-svg
-- **Maps**: react-native-maps
+- **Framework**: React Native 0.79.3 with Expo 53.0.11
+- **Navigation**: Expo Router 5.1.0 with file-based routing
+- **State Management**: React Hooks + Context API with TypeScript
+- **Cryptography**: @noble/curves (secp256k1) for secure signatures
+- **Device Integration**: expo-location, expo-camera, expo-haptics
+- **Storage**: expo-secure-store for keys, AsyncStorage for app data
+- **UI/UX**: @expo/vector-icons, react-native-gesture-handler, react-native-safe-area-context
+- **Maps & Visualization**: react-native-maps, react-native-svg
+- **Theme System**: Custom context-based theme management
 
 ### **Backend Services**
 - **Python Backend**: Flask + SQLite
@@ -258,17 +261,26 @@ STEGANOGRAPHY_SERVICE_URL=http://localhost:3001
 
 2. **Taking Secure Photos**
    ```
-   Camera Interface → Capture Photo → GPS + Metadata → Cryptographic Signing → Save
+   Camera Interface → Configure Settings → Use Gesture Controls → Capture Photo → 
+   GPS + Metadata → Cryptographic Signing → Steganographic Embedding → Save
+   ```
+
+3. **Camera Features**
+   ```
+   Settings Modal → Grid Lines/Quality/Aspect Ratio → 
+   Timer Setup → Focus Gestures → Zoom Controls → Volume Button Capture
    ```
 
 3. **Viewing Gallery**
    ```
-   Gallery View → Select Photo → View Metadata → Verify Authenticity
+   Gallery View → Select Photo → View Detailed Metadata → 
+   Verify Authenticity → Check Location Data → Share/Export
    ```
 
-4. **Verification**
+4. **Advanced Verification**
    ```
-   Verify Tab → Select Image → Steganographic Analysis → Results Display
+   Verify Tab → Select/Import Image → Steganographic Analysis → 
+   Signature Validation → Device Lookup → Comprehensive Results Display
    ```
 
 ### **Web Dashboard**
@@ -417,13 +429,15 @@ docker-compose -f docker-compose.test.yml up --abort-on-container-exit
 - **Vue.js**: Vue Style Guide
 - **Git**: Conventional Commits
 
-### **Definition of Done**
-- ✅ All specified criteria met
-- ✅ Code reviewed and approved
-- ✅ Documentation updated
-- ✅ No known bugs
-- ✅ Tests passing
-- ✅ Successfully deployed
+### **Definition of Done** ✅
+- ✅ All specified criteria met and thoroughly tested
+- ✅ Code reviewed and approved by team members
+- ✅ Comprehensive documentation updated
+- ✅ No known bugs or critical issues
+- ✅ Unit and integration tests passing
+- ✅ Performance benchmarks met
+- ✅ Accessibility standards compliance
+- ✅ Successfully deployed and verified
 
 ## 📄 License
 
@@ -433,26 +447,67 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **Group 2 - Desinformation and Geomedia**
 
-- Ahmad
-- Ajay
-- WenHao
-- Prince
+### **Core Development Team**
+- **Ahmad** 
+- **Ajay**
+- **WenHao** 
+- **Prince** 
+
+### **Contributions**
+- **Mobile Application**: Enhanced camera interface, gesture controls, theme system
+- **Web Platform**: Administrative dashboard, verification portal, interactive architecture
+- **Backend Services**: Cryptographic security, steganography engine, API development
+- **DevOps & Testing**: Containerization, CI/CD, comprehensive testing suite
 
 ---
 
-## 📞 Support
+## 📞 Support & Community
 
+### **Getting Help**
 For questions, issues, or contributions:
-- **Issues**: [GitHub Issues](https://github.com/whlan02/Desinformation_and_Geomedia_Green/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/whlan02/Desinformation_and_Geomedia_Green/discussions)
-- **Email**: geocam-support@university.edu
+- **🐛 Bug Reports**: [GitHub Issues](https://github.com/whlan02/Desinformation_and_Geomedia_Green/issues)
+- **💬 Discussions**: [GitHub Discussions](https://github.com/whlan02/Desinformation_and_Geomedia_Green/discussions)
+- **📧 Contact**: geocam-support@university.edu
+- **📚 Documentation**: Check the individual component READMEs for detailed guides
+
+### **Project Links**
+- **📱 Mobile App**: [GeoCam App Documentation](./geoCamApp/README.md)
+- **🌐 Web Frontend**: [Frontend Documentation](./Web_Frontend/README.md)
+- **⚙️ Backend Services**: [Backend Documentation](./Web_Backend/README.md)
+
+### **Research Context**
+This project is part of the **Desinformation and Geomedia** research initiative, exploring technological solutions to combat misinformation through verifiable digital media and secure authentication systems.
 
 ---
 
 <div align="center">
 
-**[🏠 Home](README.md)** • **[📖 Docs](docs/)** • **[🚀 Demo](https://demo.geocam.app)** • **[🐛 Issues](https://github.com/whlan02/Desinformation_and_Geomedia_Green/issues)**
+**[🏠 Main Repository](https://github.com/whlan02/Desinformation_and_Geomedia_Green)** • **[📱 Mobile App](./geoCamApp/)** • **[🌐 Web Frontend](./Web_Frontend/)** • **[⚙️ Backend Services](./Web_Backend/)**
 
 *Built with ❤️ for digital authenticity and truth*
 
+**GeoCam Platform - Securing Digital Media Through Innovation**
+
 </div>
+
+## 🆕 Latest Updates & Enhancements
+
+### **Mobile App Improvements** 📱
+- **Enhanced Camera Interface**: Complete redesign with modern, theme-aware UI components
+- **Advanced Gesture Controls**: Pinch-to-zoom, tap-to-focus, and double-tap zoom reset
+- **Haptic Feedback Integration**: Tactile responses for all camera controls and interactions
+- **Settings Modal**: In-app camera configuration (grid lines, quality, aspect ratio)
+- **Visual Feedback**: Smooth animations for focus indicators, capture effects, and state changes
+- **Theme Consistency**: All UI elements now follow the selected theme throughout the app
+
+### **User Experience Enhancements** ✨
+- **Improved Accessibility**: Better contrast ratios, touch targets, and navigation
+- **Performance Optimization**: Reduced memory usage and faster loading times
+- **Error Handling**: Enhanced error messages and graceful failure recovery
+- **Gesture Navigation**: Intuitive touch interactions for professional camera controls
+
+### **Technical Improvements** ⚡
+- **TypeScript Coverage**: Enhanced type safety across all components
+- **Code Organization**: Improved project structure and component modularity
+- **Safe Area Handling**: Proper support for device notches and home indicators
+- **Gesture Handler Integration**: Native gesture recognition for smooth interactions

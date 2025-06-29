@@ -23,7 +23,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system';
 import { LinearGradient } from 'expo-linear-gradient';
 import { verifyImagePurePng } from '../utils/backendService';
-import { getGalleryImages} from '../utils/galleryStorage';
+import { getGalleryImages, saveImageToGallery } from '../utils/galleryStorage';
 import CircularProgress from '../components/CircularProgress';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
@@ -142,6 +142,23 @@ export default function Verify() {
     }, [])
   );
 
+  // Check for import mode when screen is focused
+  const [isImportMode, setIsImportMode] = useState(false);
+  const [verificationResult, setVerificationResult] = useState<any>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      const checkImportMode = async () => {
+        const importMode = await AsyncStorage.getItem('isImportMode');
+        setIsImportMode(importMode === 'true');
+        if (importMode === 'true') {
+          await AsyncStorage.removeItem('isImportMode');
+        }
+      };
+      checkImportMode();
+    }, [])
+  );
+
   const showBottomSheetModal = () => {
     setShowBottomSheet(true);
     Animated.timing(bottomSheetY, {
@@ -175,6 +192,35 @@ export default function Verify() {
     setProgress(0);
   };
 
+  const handleImport = async () => {
+    if (!selectedImage || !verificationResult || !verificationResult.verification_result) {
+      Alert.alert('Error', 'No valid image or verification result to import');
+      return;
+    }
+
+    try {
+      // Save to gallery storage with verification info
+      const galleryData = {
+        uri: selectedImage,
+        encodedInfo: JSON.stringify(verificationResult.verification_result.decoded_data || {}),
+        signature: verificationResult.verification_result.signature || 'verified',  // Set a default 'verified' value
+        publicKey: verificationResult.verification_result.public_key || 'imported',  // Set a default 'imported' value
+        timestamp: Date.now(),
+      };
+
+      await saveImageToGallery(galleryData);
+      Alert.alert('Success', 'Image imported to GeoCam Gallery', [
+        {
+          text: 'OK',
+          onPress: () => router.back()
+        }
+      ]);
+    } catch (error) {
+      console.error('Failed to import image:', error);
+      Alert.alert('Error', 'Failed to import image to gallery');
+    }
+  };
+
   const verifyImage = async (uri: string) => {
     setIsVerifying(true);
     setErrorText(null);
@@ -185,19 +231,16 @@ export default function Verify() {
     startFakeProgress(25000); // 25 seconds fake progress
 
     try {
-      console.log('🔍 Startingverification for image:', uri);
+      console.log('🔍 Starting verification for image:', uri);
       
-      // Read the original file directly
       const base64Data = await FileSystem.readAsStringAsync(uri, {
         encoding: FileSystem.EncodingType.Base64,
       });
       
       console.log('📄 Image converted to base64, length:', base64Data.length);
       
-      // Verify the image
       const verificationResult = await verifyImagePurePng(base64Data);
-      
-      console.log('📥 Backend verification result:', verificationResult);
+      setVerificationResult(verificationResult); // Store the full result for import
       
       if (verificationResult.success) {
         if (verificationResult.verification_result?.decoded_data) {
@@ -456,7 +499,7 @@ export default function Verify() {
           </View>
         )}
 
-{(decodedInfo && decodedInfo.length > 0) || location ? (
+        {(decodedInfo && decodedInfo.length > 0) || location ? (
           <View style={[styles.enhancedInfoCard, styles.infoCardSpacing, { 
             borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(26, 26, 26, 0.08)',
             shadowColor: isDark ? 'rgba(0, 0, 0, 0.6)' : 'rgba(0, 0, 0, 0.15)'
@@ -638,15 +681,7 @@ export default function Verify() {
         )}
 
         <View style={styles.actionSection}>
-          <TouchableOpacity 
-            style={[styles.newImageButton, { backgroundColor: colors.accent }]} 
-            onPress={selectNewImage}
-          >
-            <View style={styles.buttonContent}>
-              <Ionicons name="image" size={22} color={colors.background} />
-              <Text style={[styles.newImageButtonText, { color: colors.background }]}>Verify Another Image</Text>
-            </View>
-          </TouchableOpacity>
+          {renderActionButton()}
         </View>
       </View>
     );
@@ -671,31 +706,72 @@ export default function Verify() {
             style={[
               styles.bottomSheet,
               {
+                backgroundColor: colors.surface,
                 transform: [{ translateY: bottomSheetY }]
               }
             ]}
           >
-            <View style={styles.bottomSheetHandle} />
-            <Text style={styles.bottomSheetTitle}>Select Image Source</Text>
+            <View style={[styles.bottomSheetHandle, { backgroundColor: isDark ? '#888' : '#ccc' }]} />
+            <Text style={[styles.bottomSheetTitle, { color: colors.text }]}>Select Image Source</Text>
             
             <TouchableOpacity 
-              style={styles.bottomSheetButton} 
+              style={[
+                styles.bottomSheetButton,
+                {
+                  backgroundColor: colors.card,
+                  borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.1)'
+                }
+              ]} 
               onPress={pickFromPhone}
             >
               <Text style={styles.bottomSheetButtonIcon}>🖼️</Text>
-              <Text style={styles.bottomSheetButtonText}>Phone Gallery</Text>
+              <Text style={[styles.bottomSheetButtonText, { color: colors.text }]}>Phone Gallery</Text>
             </TouchableOpacity>
 
             <TouchableOpacity 
-              style={styles.bottomSheetButton} 
+              style={[
+                styles.bottomSheetButton,
+                {
+                  backgroundColor: colors.card,
+                  borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.1)'
+                }
+              ]} 
               onPress={pickFromGeoCamGallery}
             >
               <Text style={styles.bottomSheetButtonIcon}>📸</Text>
-              <Text style={styles.bottomSheetButtonText}>GeoCam Gallery</Text>
+              <Text style={[styles.bottomSheetButtonText, { color: colors.text }]}>GeoCam Gallery</Text>
             </TouchableOpacity>
           </Animated.View>
         </TouchableOpacity>
       </Modal>
+    );
+  };
+
+  const renderActionButton = () => {
+    if (isImportMode && signatureVerification?.valid) {
+      return (
+        <TouchableOpacity 
+          style={[styles.newImageButton, { backgroundColor: '#4CAF50' }]} 
+          onPress={handleImport}
+        >
+          <View style={styles.buttonContent}>
+            <Ionicons name="cloud-download" size={22} color="#ffffff" />
+            <Text style={[styles.newImageButtonText, { color: '#ffffff' }]}>Import to GeoCam Gallery</Text>
+          </View>
+        </TouchableOpacity>
+      );
+    }
+
+    return (
+      <TouchableOpacity 
+        style={[styles.newImageButton, { backgroundColor: colors.accent }]} 
+        onPress={selectNewImage}
+      >
+        <View style={styles.buttonContent}>
+          <Ionicons name="image" size={22} color={colors.background} />
+          <Text style={[styles.newImageButtonText, { color: colors.background }]}>Verify Another Image</Text>
+        </View>
+      </TouchableOpacity>
     );
   };
 
@@ -1128,7 +1204,6 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   bottomSheet: {
-    backgroundColor: '#373c40',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: 20,
@@ -1144,7 +1219,6 @@ const styles = StyleSheet.create({
   bottomSheetHandle: {
     width: 40,
     height: 5,
-    backgroundColor: '#888',
     borderRadius: 2.5,
     alignSelf: 'center',
     marginBottom: 22,
@@ -1152,7 +1226,6 @@ const styles = StyleSheet.create({
   bottomSheetTitle: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#ffffff',
     textAlign: 'center',
     marginBottom: 24,
     letterSpacing: 0.3,
@@ -1160,12 +1233,10 @@ const styles = StyleSheet.create({
   bottomSheetButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#25292e',
     borderRadius: 14,
     padding: 18,
     marginBottom: 14,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
@@ -1179,7 +1250,6 @@ const styles = StyleSheet.create({
   bottomSheetButtonText: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#ffffff',
     letterSpacing: 0.2,
   },
   // Embedded map styles for unified card

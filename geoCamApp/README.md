@@ -23,21 +23,26 @@
 
 GeoCam is a revolutionary mobile application that captures cryptographically signed, location-verified photographs to combat digital disinformation. Built with React Native and Expo, it provides journalists, researchers, and citizens with tools to create tamper-evident visual evidence.
 
-### 🔐 **Core Security Features**
-- **Cryptographic Signatures**: secp256k1 elliptic curve digital signatures
-- **Location Verification**: GPS-anchored, tamper-evident location data
-- **Device Authentication**: Unique device fingerprinting and registration
-- **Steganographic Embedding**: Hidden metadata within image data
-- **Offline Capability**: Secure operation without internet connectivity
+### **Core Security Features**
+- **Cryptographic Signatures**: secp256k1 elliptic curve digital signatures with secure key generation
+- **Location Verification**: High-accuracy GPS-anchored, tamper-evident location data
+- **Device Authentication**: Unique device fingerprinting and secure backend registration
+- **Steganographic Embedding**: Advanced metadata embedding within image data using pure PNG format
+- **Offline Capability**: Full security operation without internet connectivity
+- **Pure PNG Workflow**: Innovative single-canvas steganography for maximum compatibility
 
 ## ✨ Features
 
 ### 📸 **Photography & Capture**
-- Hardware-accelerated camera interface
-- Real-time GPS coordinate embedding
-- Automatic timestamp generation
-- High-resolution photo capture
-- Batch photo processing
+- Modern theme-aware camera interface with dark/light mode support
+- Advanced gesture controls (pinch-to-zoom, tap-to-focus, double-tap zoom reset)
+- Real-time GPS coordinate embedding with high accuracy
+- Automatic timestamp generation with device metadata
+- High-resolution photo capture with quality settings
+- Timer functionality (3s, 10s) with haptic feedback
+- Grid lines overlay for composition assistance
+- Focus indicator with smooth animations
+- Volume button capture support
 
 ### 🔒 **Security & Verification**
 - Device-specific cryptographic key generation
@@ -61,11 +66,36 @@ GeoCam is a revolutionary mobile application that captures cryptographically sig
 - Geographic search functionality
 
 ### 🎨 **User Experience**
-- Dark/Light theme support
-- Responsive design for all screen sizes
-- Smooth animations and transitions
-- Accessibility features
-- Multi-language support
+- Comprehensive dark/light theme support with dynamic color adaptation
+- Theme-aware UI components throughout the application
+- Responsive design optimized for all screen sizes and orientations
+- Smooth animations and haptic feedback for enhanced interaction
+- Modern gesture-based navigation and controls
+- Accessibility features with proper contrast and touch targets
+- Intuitive settings modal for camera configuration
+- Real-time visual feedback for user actions
+- Seamless navigation with Expo Router file-based routing
+
+## 🆕 Recent Updates & Features
+
+### **Enhanced Camera Interface** ✨
+- **Modern UI Design**: Completely redesigned camera interface with theme-aware components
+- **Advanced Gesture Support**: Comprehensive touch interactions for professional photography
+- **Settings Modal**: In-app configuration for camera settings without leaving the capture flow
+- **Haptic Feedback**: Tactile responses for all major interactions and controls
+- **Visual Feedback**: Smooth animations for focus, capture, and UI state changes
+
+### **Improved User Experience** 🎯
+- **Theme Consistency**: All UI elements now follow the selected theme (light/dark)
+- **Enhanced Accessibility**: Better contrast ratios and touch targets for all users
+- **Performance Optimization**: Reduced memory usage and faster loading times
+- **Error Handling**: Improved error messages and recovery mechanisms
+
+### **Technical Improvements** ⚡
+- **Gesture Handler Integration**: Native gesture recognition for smooth interactions
+- **Safe Area Support**: Proper handling of device notches and home indicators
+- **TypeScript Coverage**: Enhanced type safety throughout the application
+- **Code Organization**: Improved project structure and component modularity
 
 ## �️ Technology Stack
 
@@ -88,11 +118,14 @@ GeoCam is a revolutionary mobile application that captures cryptographically sig
 - **expo-media-library**: Photo library access
 - **expo-file-system**: File system operations
 
-### **UI & Visualization**
-- **@expo/vector-icons**: Icon library
-- **react-native-svg**: SVG graphics
-- **react-native-maps**: Interactive maps
-- **expo-linear-gradient**: Gradient effects
+### **UI & User Experience**
+- **@expo/vector-icons**: Comprehensive icon library
+- **react-native-svg**: Scalable vector graphics
+- **react-native-maps**: Interactive mapping functionality
+- **expo-linear-gradient**: Modern gradient effects
+- **react-native-gesture-handler**: Advanced gesture recognition
+- **expo-haptics**: Tactile feedback integration
+- **react-native-safe-area-context**: Safe area handling
 
 ## 🚀 Installation & Setup
 
@@ -250,10 +283,18 @@ The app requires the following device permissions:
 
 ### **Taking Secure Photos**
 1. Open the **Camera** tab
-2. Frame your subject
-3. GPS coordinates are automatically captured
-4. Tap capture button
-5. Photo is cryptographically signed and stored
+2. **Adjust Settings**: Tap the settings icon to configure:
+   - Grid lines for composition
+   - Image quality (Standard/High)
+   - Aspect ratio (16:9, 4:3, 1:1)
+3. **Use Gesture Controls**:
+   - Pinch to zoom in/out
+   - Tap to focus on specific areas
+   - Double-tap to reset zoom
+4. **Set Timer** (optional): Choose 3s or 10s delay
+5. **Capture**: Tap the capture button or use volume buttons
+6. GPS coordinates and device metadata are automatically embedded
+7. Photo is cryptographically signed and securely stored
 
 ### **Viewing Gallery**
 1. Navigate to **Gallery** tab
@@ -287,10 +328,11 @@ geoCamApp/
 ├── assets/                       # Static assets
 │   ├── images/                  # App images
 │   └── icons/                   # Icon files
-├── components/                   # Reusable components
-│   └── CircularProgress.tsx     # Progress indicator
+├── components/                   # Reusable UI components
+│   ├── CircularProgress.tsx     # Animated progress indicator
+│   └── [Additional components]  # Theme-aware UI elements
 ├── contexts/                     # React contexts
-│   └── ThemeContext.tsx         # Theme management
+│   └── ThemeContext.tsx         # Comprehensive theme management
 ├── utils/                        # Utility functions
 │   ├── backendConfig.ts         # API configuration
 │   ├── backendService.ts        # API services
