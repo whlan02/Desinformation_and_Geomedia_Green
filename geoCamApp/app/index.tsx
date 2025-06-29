@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Animated, StatusBar, Platform, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Animated, StatusBar, Platform, useWindowDimensions, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ImageBackground } from 'react-native';
 import { SvgXml } from 'react-native-svg';
@@ -35,6 +35,10 @@ export default function MainMenu() {
     message: 'Not checked',
   });
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const buttonPressAnim = useRef(new Animated.Value(1)).current;
+  const galleryButtonAnim = useRef(new Animated.Value(1)).current;
+  const verifyButtonAnim = useRef(new Animated.Value(1)).current;
+  const securityButtonAnim = useRef(new Animated.Value(1)).current;
   
   // Determine if we're in landscape mode
   const isLandscape = width > height;
@@ -146,6 +150,42 @@ export default function MainMenu() {
     }
   };
 
+  const handleCameraPress = () => {
+    // Animate button press
+    Animated.sequence([
+      Animated.timing(buttonPressAnim, {
+        toValue: 0.95,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(buttonPressAnim, {
+        toValue: 1,
+        duration: 100,
+        useNativeDriver: true,
+      })
+    ]).start();
+    
+    router.push('/camera');
+  };
+
+  const handleSecondaryButtonPress = (animRef: Animated.Value, route: string) => {
+    // Animate secondary button press
+    Animated.sequence([
+      Animated.timing(animRef, {
+        toValue: 0.9,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+      Animated.timing(animRef, {
+        toValue: 1,
+        duration: 150,
+        useNativeDriver: true,
+      })
+    ]).start();
+    
+    router.push(route);
+  };
+
   return (
     <>
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} translucent backgroundColor="transparent" />
@@ -178,18 +218,39 @@ export default function MainMenu() {
             <View style={[styles.headerContainer, { marginTop: insets.top + 20 }]}>
               <Text style={styles.title}>GeoCam</Text>
               <Text style={styles.subtitle}>Secure Geo-Verified Photography</Text>
+              
+              {/* Status Indicator */}
+              <View style={styles.statusContainer}>
+                <View style={[styles.statusDot, { 
+                  backgroundColor: keysInitialized && registrationStatus.isRegistered ? '#4CAF50' : 
+                                  isInitializingKeys || registrationStatus.isChecking ? '#FF9800' : '#F44336' 
+                }]} />
+                <Text style={styles.statusText}>
+                  {isInitializingKeys ? 'Initializing...' :
+                   registrationStatus.isChecking ? 'Checking registration...' :
+                   !keysInitialized ? 'Key setup failed' :
+                   !registrationStatus.isRegistered ? 'Device not registered' :
+                   'Ready to capture'}
+                </Text>
+              </View>
             </View>
             
             <View style={styles.mainButtonContainer}>
               <TouchableOpacity 
                 style={[styles.mainButton, (!keysInitialized || isInitializingKeys || !registrationStatus.isRegistered || registrationStatus.isChecking) && styles.disabledMainButton]}
-                onPress={() => router.push('/camera')}
+                onPress={handleCameraPress}
                 disabled={!keysInitialized || isInitializingKeys || !registrationStatus.isRegistered || registrationStatus.isChecking}
                 activeOpacity={0.8}
               >
                 <Animated.View style={[styles.mainButtonInner, { transform: [{ scale: pulseAnim }] }]}>
-                  <SvgXml xml={cameraIconXml} width={38} height={38} />
-                  <Text style={styles.mainButtonLabel}>CAPTURE</Text>
+                  {(isInitializingKeys || registrationStatus.isChecking) ? (
+                    <ActivityIndicator size="large" color="white" />
+                  ) : (
+                    <>
+                      <SvgXml xml={cameraIconXml} width={38} height={38} />
+                      <Text style={styles.mainButtonLabel}>CAPTURE</Text>
+                    </>
+                  )}
                 </Animated.View>
               </TouchableOpacity>
               
@@ -199,29 +260,35 @@ export default function MainMenu() {
               <View style={styles.buttonGrid}>
                 <TouchableOpacity 
                   style={styles.secondaryButton}
-                  onPress={() => router.push('/gallery')}
+                  onPress={() => handleSecondaryButtonPress(galleryButtonAnim, '/gallery')}
                   activeOpacity={0.7}
                 >
-                  <SvgXml xml={galleryIconXml} width={26} height={26} />
-                  <Text style={styles.buttonLabel}>Gallery</Text>
+                  <Animated.View style={[styles.secondaryButtonInner, { transform: [{ scale: galleryButtonAnim }] }]}>
+                    <SvgXml xml={galleryIconXml} width={26} height={26} />
+                    <Text style={styles.buttonLabel}>Gallery</Text>
+                  </Animated.View>
                 </TouchableOpacity>
 
                 <TouchableOpacity 
                   style={styles.secondaryButton}
-                  onPress={() => router.push('/verify')}
+                  onPress={() => handleSecondaryButtonPress(verifyButtonAnim, '/verify')}
                   activeOpacity={0.7}
                 >
-                  <SvgXml xml={verifyIconXml} width={26} height={26} />
-                  <Text style={styles.buttonLabel}>Verify</Text>
+                  <Animated.View style={[styles.secondaryButtonInner, { transform: [{ scale: verifyButtonAnim }] }]}>
+                    <SvgXml xml={verifyIconXml} width={26} height={26} />
+                    <Text style={styles.buttonLabel}>Verify</Text>
+                  </Animated.View>
                 </TouchableOpacity>
 
                 <TouchableOpacity 
                   style={styles.secondaryButton}
-                  onPress={() => router.push('/security-info')}
+                  onPress={() => handleSecondaryButtonPress(securityButtonAnim, '/security-info')}
                   activeOpacity={0.7}
                 >
-                  <SvgXml xml={securityIconXml} width={26} height={26} />
-                  <Text style={styles.buttonLabel}>Device Info</Text>
+                  <Animated.View style={[styles.secondaryButtonInner, { transform: [{ scale: securityButtonAnim }] }]}>
+                    <SvgXml xml={securityIconXml} width={26} height={26} />
+                    <Text style={styles.buttonLabel}>Device Info</Text>
+                  </Animated.View>
                 </TouchableOpacity>
               </View>
               
@@ -241,14 +308,18 @@ export default function MainMenu() {
             </View>
             
             <View style={styles.landscapeRightSection}>
-              <View style={styles.landscapeCameraSection}>
-                <TouchableOpacity 
-                  style={[styles.mainButton, (!keysInitialized || isInitializingKeys || !registrationStatus.isRegistered || registrationStatus.isChecking) && styles.disabledMainButton]}
-                  onPress={() => router.push('/camera')}
-                  disabled={!keysInitialized || isInitializingKeys || !registrationStatus.isRegistered || registrationStatus.isChecking}
-                  activeOpacity={0.8}
-                >
-                  <Animated.View style={[styles.mainButtonInner, { transform: [{ scale: pulseAnim }] }]}>
+              <View style={styles.landscapeCameraSection}>              <TouchableOpacity 
+                style={[styles.mainButton, (!keysInitialized || isInitializingKeys || !registrationStatus.isRegistered || registrationStatus.isChecking) && styles.disabledMainButton]}
+                onPress={handleCameraPress}
+                disabled={!keysInitialized || isInitializingKeys || !registrationStatus.isRegistered || registrationStatus.isChecking}
+                activeOpacity={0.8}
+              >
+                <Animated.View style={[styles.mainButtonInner, { 
+                  transform: [
+                    { scale: pulseAnim },
+                    { scale: buttonPressAnim }
+                  ] 
+                }]}>
                     <SvgXml xml={cameraIconXml} width={38} height={38} />
                     <Text style={styles.mainButtonLabel}>CAPTURE</Text>
                   </Animated.View>
@@ -259,29 +330,35 @@ export default function MainMenu() {
               <View style={[styles.landscapeButtonGrid, { marginRight: insets.right + 10 }]}>
                 <TouchableOpacity 
                   style={styles.landscapeSecondaryButton}
-                  onPress={() => router.push('/gallery')}
+                  onPress={() => handleSecondaryButtonPress(galleryButtonAnim, '/gallery')}
                   activeOpacity={0.7}
                 >
-                  <SvgXml xml={galleryIconXml} width={24} height={24} />
-                  <Text style={styles.buttonLabel}>Gallery</Text>
+                  <Animated.View style={[styles.landscapeSecondaryButtonInner, { transform: [{ scale: galleryButtonAnim }] }]}>
+                    <SvgXml xml={galleryIconXml} width={24} height={24} />
+                    <Text style={styles.buttonLabel}>Gallery</Text>
+                  </Animated.View>
                 </TouchableOpacity>
 
                 <TouchableOpacity 
                   style={styles.landscapeSecondaryButton}
-                  onPress={() => router.push('/verify')}
+                  onPress={() => handleSecondaryButtonPress(verifyButtonAnim, '/verify')}
                   activeOpacity={0.7}
                 >
-                  <SvgXml xml={verifyIconXml} width={24} height={24} />
-                  <Text style={styles.buttonLabel}>Verify</Text>
+                  <Animated.View style={[styles.landscapeSecondaryButtonInner, { transform: [{ scale: verifyButtonAnim }] }]}>
+                    <SvgXml xml={verifyIconXml} width={24} height={24} />
+                    <Text style={styles.buttonLabel}>Verify</Text>
+                  </Animated.View>
                 </TouchableOpacity>
 
                 <TouchableOpacity 
                   style={styles.landscapeSecondaryButton}
-                  onPress={() => router.push('/security-info')}
+                  onPress={() => handleSecondaryButtonPress(securityButtonAnim, '/security-info')}
                   activeOpacity={0.7}
                 >
-                  <SvgXml xml={securityIconXml} width={24} height={24} />
-                  <Text style={styles.buttonLabel}>Security</Text>
+                  <Animated.View style={[styles.landscapeSecondaryButtonInner, { transform: [{ scale: securityButtonAnim }] }]}>
+                    <SvgXml xml={securityIconXml} width={24} height={24} />
+                    <Text style={styles.buttonLabel}>Security</Text>
+                  </Animated.View>
                 </TouchableOpacity>
               </View>
             </View>
@@ -429,6 +506,10 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 5,
   },
+  secondaryButtonInner: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   disabledButton: {
     borderColor: 'rgba(255, 255, 255, 0.5)',
     opacity: 0.6,
@@ -439,6 +520,28 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     marginTop: 6,
     textAlign: 'center',
+  },
+  statusContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 8,
+  },
+  statusText: {
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 12,
+    fontWeight: '500',
   },
 
   // Landscape mode styles
@@ -488,6 +591,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 5,
+  },
+  landscapeSecondaryButtonInner: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   themeToggle: {
     position: 'absolute',
