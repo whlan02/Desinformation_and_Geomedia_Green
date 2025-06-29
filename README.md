@@ -171,7 +171,7 @@ graph TB
 ### **Quick Start with Docker**
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/geocam-platform.git
+git clone https://github.com/whlan02/Desinformation_and_Geomedia_Green
 cd geocam-platform
 
 # Start all services
@@ -443,15 +443,15 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 📞 Support
 
 For questions, issues, or contributions:
-- **Issues**: [GitHub Issues](https://github.com/your-org/geocam-platform/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/your-org/geocam-platform/discussions)
+- **Issues**: [GitHub Issues](https://github.com/whlan02/Desinformation_and_Geomedia_Green/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/whlan02/Desinformation_and_Geomedia_Green/discussions)
 - **Email**: geocam-support@university.edu
 
 ---
 
 <div align="center">
 
-**[🏠 Home](README.md)** • **[📖 Docs](docs/)** • **[🚀 Demo](https://demo.geocam.app)** • **[🐛 Issues](https://github.com/your-org/geocam-platform/issues)**
+**[🏠 Home](README.md)** • **[📖 Docs](docs/)** • **[🚀 Demo](https://demo.geocam.app)** • **[🐛 Issues](https://github.com/whlan02/Desinformation_and_Geomedia_Green/issues)**
 
 *Built with ❤️ for digital authenticity and truth*
 
