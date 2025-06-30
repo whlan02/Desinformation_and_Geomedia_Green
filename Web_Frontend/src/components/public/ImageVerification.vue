@@ -52,12 +52,12 @@
           <i class="icon" v-if="verificationResult.verification_result?.signature_valid">✓</i>
           <i class="icon" v-else>✗</i>
           <div class="result-title">
-            <h3>{{ verificationResult.verification_result?.signature_valid ? 'Verification Successful' : 'Verification Failed' }}</h3>
-            <p>{{ verificationResult.verification_result?.signature_valid ? 'Image authenticity confirmed' : 'Unable to verify authenticity' }}</p>
+            <h3>{{ verificationResult.verification_result?.signature_valid ? 'Image Verification Successful' : 'Verification Failed' }}</h3>
+            <p>{{ 'The Image is Authentic' }}</p>
           </div>
         </div>
-        <div class="result-content">
-          <p>{{ verificationResult.message }}</p>
+        <div class="result-content" v-if="!verificationResult.verification_result?.signature_valid">
+          <p>Unable to verify authenticity</p>
         </div>
       </div>
 
@@ -138,6 +138,7 @@ import Point from 'ol/geom/Point';
 import { Vector as VectorLayer } from 'ol/layer';
 import { Vector as VectorSource } from 'ol/source';
 import { Style, Icon } from 'ol/style';
+import { Attribution, defaults as defaultControls } from 'ol/control';
 
 export default {
   name: 'ImageVerification',
@@ -252,9 +253,21 @@ export default {
         target: mapContainer.value,
         layers: [
           new TileLayer({
-            source: new OSM()
+            source: new OSM({
+              attributions: [
+                '© <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors'
+              ]
+            })
           })
         ],
+        controls: defaultControls({
+          zoom: false,
+          rotate: false
+        }).extend([
+          new Attribution({
+            collapsible: false
+          })
+        ]),
         view: new View({
           center: coords,
           zoom: 15
@@ -489,6 +502,28 @@ export default {
 .map {
   height: 300px;
   width: 100%;
+  position: relative;
+}
+
+/* OpenLayers attribution styling */
+:deep(.ol-attribution) {
+  position: absolute !important;
+  bottom: 0 !important;
+  right: 0 !important;
+  background: rgba(255,255,255,0.8) !important;
+  padding: 2px 8px !important;
+  font-size: 12px !important;
+  border-radius: 4px 0 0 0 !important;
+  border: none !important;
+}
+
+:deep(.ol-attribution ul) {
+  margin: 0;
+  padding: 0;
+}
+
+:deep(.ol-attribution button) {
+  display: none !important;
 }
 
 .metadata-item {
