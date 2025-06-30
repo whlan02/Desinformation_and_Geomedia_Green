@@ -183,12 +183,12 @@
       
       <!-- Admin Actions -->
       <div class="admin-actions">
-        <router-link to="/admin" class="admin-link">
+        <button @click="refreshData" class="refresh-main-btn" :disabled="loading">
           <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
-            <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"/>
+            <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/>
           </svg>
-          Dashboard
-        </router-link>
+          {{ loading ? 'Refreshing...' : 'Refresh Device Management' }}
+        </button>
       </div>
     </div>
   </section>
@@ -249,7 +249,11 @@ export default {
   },
 
   async mounted() {
+    console.log('🔄 AdminSection mounted, refreshing data...')
     await this.refreshData()
+    console.log('📊 After refresh - Device count:', this.deviceCount, 'Has devices:', this.hasDevices)
+    console.log('📋 Devices:', this.formattedDevices)
+    console.log('🗂️ Devices by OS:', this.devicesByOS)
     // Refresh data every 30 seconds
     this.statsInterval = setInterval(this.loadStats, 30000)
   },
@@ -262,10 +266,27 @@ export default {
 
   methods: {
     async refreshData() {
+      console.log('🔄 Starting refreshData...')
+      console.log('📊 Before fetch - Store state:', {
+        devices: this.deviceStore.devices,
+        deviceCount: this.deviceStore.deviceCount,
+        loading: this.deviceStore.loading,
+        error: this.deviceStore.error
+      })
+      
       await Promise.all([
         this.deviceStore.fetchDevices(),
         this.loadStats()
       ])
+      
+      console.log('✅ After fetch - Store state:', {
+        devices: this.deviceStore.devices,
+        deviceCount: this.deviceStore.deviceCount,
+        loading: this.deviceStore.loading,
+        error: this.deviceStore.error,
+        hasDevices: this.hasDevices,
+        formattedDevices: this.formattedDevices
+      })
     },
 
     async loadStats() {
@@ -756,23 +777,28 @@ export default {
   text-align: center;
 }
 
-.admin-link {
+.refresh-main-btn {
   display: inline-flex;
   align-items: center;
   background: linear-gradient(135deg, #10b981, #059669);
   color: white;
-  text-decoration: none;
+  border: none;
   padding: 0.75rem 2rem;
   border-radius: 8px;
   font-weight: 600;
+  cursor: pointer;
   transition: all 0.3s ease;
 }
 
-.admin-link:hover {
+.refresh-main-btn:hover:not(:disabled) {
   background: linear-gradient(135deg, #059669, #047857);
   transform: translateY(-2px);
-  color: white;
-  text-decoration: none;
+}
+
+.refresh-main-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
 }
 
 /* Responsive Design */

@@ -32,16 +32,20 @@ body {
   min-height: 100vh;
   margin: 0;
   padding: 0;
+  overflow-x: hidden;
+}
+
+/* Hide horizontal scrollbar if any */
+::-webkit-scrollbar-horizontal {
+  display: none;
 }
 
 #app {
   min-height: 100vh;
-  width: 1566.9px;
-  height: 10649px;
+  width: 100%;
   position: relative;
-  max-width: 1566.9px;
   overflow-x: hidden;
-  margin: 0 auto;
+  margin: 0;
 }
 
 /* Responsive Images like original */

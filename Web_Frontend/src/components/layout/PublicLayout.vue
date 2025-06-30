@@ -136,11 +136,11 @@ export default {
 <style scoped>
 /* Public Layout Styles */
 .public-layout {
-  min-height: 10649px;
-  width: 1566.9px;
+  min-height: 100vh;
+  width: 100%;
   display: flex;
   flex-direction: column;
-  margin: 0 auto;
+  margin: 0;
 }
 
 /* Navigation */
@@ -162,10 +162,10 @@ export default {
 }
 
 .nav-container {
-  max-width: 1566.9px; /* match original HTML width */
-  margin: 0 auto;
-  padding-left: 1rem;
-  padding-right: 1rem;
+  width: 100%;
+  margin: 0;
+  padding-left: 2rem;
+  padding-right: 2rem;
   display: flex;
   justify-content: space-between;
   align-items: center;

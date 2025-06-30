@@ -130,15 +130,7 @@
           <p>Upload any GeoCam image to verify its authenticity, check the digital signature, and detect potential geo-spoofing attempts.</p>
         </div>
         
-        <VerificationTool />
-        
-        <div class="demo-section">
-          <h3>Try a Demo</h3>
-          <p>Experience the verification process with our sample GeoCam image</p>
-          <button @click="runDemoVerification" class="demo-btn">
-            Run Demo Verification
-          </button>
-        </div>
+        <ImageVerification />
       </div>
     </section>
 
@@ -431,7 +423,7 @@ geocam extract --image photo.jpg --format json</code></pre>
 
 <script>
 import AdminSection from '../../components/public/AdminSection.vue'
-import VerificationTool from '../../components/public/VerificationTool.vue'
+import ImageVerification from '../../components/public/ImageVerification.vue'
 import ArchitectureDiagram from '../../components/public/ArchitectureDiagram.vue'
 import InteractiveFlow from '../../components/public/InteractiveFlow.vue'
 
@@ -439,34 +431,37 @@ export default {
   name: 'HomePage',
   components: {
     AdminSection,
-    VerificationTool,
+    ImageVerification,
     ArchitectureDiagram,
     InteractiveFlow
-  },
-  methods: {
-    runDemoVerification() {
-      // Demo verification logic
-      console.log('Running demo verification...')
-    }
   }
 }
 </script>
 
 <style scoped>
-/* Global Section Styles - Matching Original GeoCam Pattern */
+/* Reset and fullscreen base */
+.home-page {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+}
+
+/* Global Section Styles - Fullscreen Layout */
 .container {
-  max-width: 1566.9px; /* match original HTML width */
+  width: 100%;
   margin: 0 auto;
   padding-left: 1rem;
   padding-right: 1rem;
 }
 
-/* Wide container matching original max-w-7xl pattern */
+/* Wide container for fullscreen sections */
 .wide-container {
-  max-width: 1566.9px; /* match original HTML width */
+  width: 100%;
+  max-width: 1400px; /* Reasonable max width for content readability */
   margin: 0 auto;
-  padding-left: 1rem;
-  padding-right: 1rem;
+  padding-left: 2rem;
+  padding-right: 2rem;
 }
 
 /* Responsive padding like original sm:px-6 lg:px-8 */
@@ -1280,6 +1275,7 @@ export default {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(350px, 90vw), 1fr));
   gap: 2rem;
+  align-items: stretch;
 }
 
 .example-card {
@@ -1287,6 +1283,8 @@ export default {
   border-radius: 12px;
   overflow: hidden;
   border: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
 }
 
 .example-card h4 {
@@ -1300,6 +1298,7 @@ export default {
 
 .code-block {
   padding: 0;
+  flex: 1;
 }
 
 .code-block pre {
@@ -1311,6 +1310,9 @@ export default {
   font-size: 0.875rem;
   line-height: 1.5;
   overflow-x: auto;
+  height: 100%;
+  display: flex;
+  align-items: flex-start;
 }
 
 .code-block code {
