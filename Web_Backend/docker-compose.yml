@@ -1,0 +1,51 @@
+
+
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: geocam_db
+      POSTGRES_USER: geocam
+      POSTGRES_PASSWORD: geocam
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U geocam"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  steganography-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.node
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+    volumes:
+      - ./temp_images:/app/temp_images
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.python
+    ports:
+      - "5000:5000"
+    environment:
+      - DATABASE_URL=postgresql://geocam:geocam@postgres:5432/geocam_db
+      - STEGANOGRAPHY_SERVICE_URL=http://steganography-service:3001
+      - SECRET_KEY=your-secret-key-here
+    depends_on:
+      postgres:
+        condition: service_healthy
+      steganography-service:
+        condition: service_started
+
+volumes:
+  postgres_data: 
