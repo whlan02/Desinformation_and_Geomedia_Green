@@ -106,25 +106,180 @@ graph TB
     H --> J
 ```
 
-### 🔒 **Security Architecture**
+## 🔍 Image Verification Flow
 
-1. **Device Registration**
-   - Unique secp256k1 key pair generation
-   - Device fingerprint creation
-   - Secure key storage (Android Keystore/iOS Keychain)
+The GeoCam platform implements a comprehensive image verification system that ensures authenticity through cryptographic signatures and steganographic metadata embedding. Below is the complete verification flow:
 
-2. **Photo Capture Process**
-   - GPS coordinate acquisition
-   - Timestamp generation
-   - Metadata compilation
-   - Cryptographic signing
-   - Steganographic embedding
+### **Complete Verification Process**
 
-3. **Verification Process**
-   - Steganographic extraction
-   - Signature validation
-   - Device lookup
-   - Integrity checking
+```mermaid
+graph TB
+    %% User Actions
+    A[User Opens Verify Screen] --> B{Image Selected?}
+    B -->|No| C[Show Empty State]
+    C --> D[User Taps 'Browse Images']
+    D --> E[Show Bottom Sheet Modal]
+    
+    %% Image Selection Options
+    E --> F[Phone Gallery Option]
+    E --> G[GeoCam Gallery Option]
+    
+    F --> H[Launch Image Picker]
+    G --> I[Navigate to Gallery with Select Mode]
+    
+    H --> J[User Selects Image]
+    I --> K[User Selects from GeoCam Gallery]
+    
+    J --> L[Set Selected Image URI]
+    K --> M[Store URI in AsyncStorage]
+    M --> N[Navigate Back to Verify Screen]
+    N --> O[Read URI from AsyncStorage]
+    O --> L
+    
+    %% Start Verification Process
+    L --> P[Start Verification Process]
+    P --> Q[Show Progress Animation]
+    P --> R[Convert Image to Base64]
+    
+    %% Steganography Extraction
+    R --> S[Call Steganography Service]
+    S --> T[Extract Hidden Metadata]
+    T --> U{Metadata Found?}
+    
+    U -->|Yes| V[Parse Decoded Data]
+    U -->|No| W[Set Empty Metadata]
+    
+    %% Signature Verification Process
+    V --> X{Signature & Public Key ID Found?}
+    X -->|Yes| Y[Call Secure Backend Service]
+    X -->|No| Z[Skip Signature Verification]
+    
+    Y --> AA[Backend Retrieves Public Key]
+    AA --> BB[Verify Signature with Public Key]
+    BB --> CC{Signature Valid?}
+    
+    CC -->|Yes| DD[Mark as Authentic]
+    CC -->|No| EE[Mark as Not Authentic]
+    
+    %% Process Results
+    DD --> FF[Combine Results]
+    EE --> FF
+    Z --> FF
+    W --> FF
+    
+    FF --> GG[Update UI with Results]
+    GG --> HH[Show Verification Status]
+    HH --> II[Display Metadata Items]
+    II --> JJ{Location Data Available?}
+    
+    JJ -->|Yes| KK[Show Map with Location]
+    JJ -->|No| LL[Skip Map Display]
+    
+    KK --> MM[Show Action Button]
+    LL --> MM
+    
+    %% Key Management (Background Process)
+    subgraph "Key Management (Device Only)"
+        S1[Private Key Generated on Device]
+        S2[Private Key Stored in Secure Store]
+        S3[Public Key Derived from Private Key]
+        S4[Public Key Sent to Backend]
+        S5[Backend Stores Public Key with Device ID]
+        
+        S1 --> S2
+        S1 --> S3
+        S3 --> S4
+        S4 --> S5
+    end
+    
+    %% Backend Services
+    subgraph "Backend Services"
+        B1[Steganography Service<br/>Port 3001]
+        B2[Secure Backend Service<br/>Port 5001]
+        B3[Public Key Storage]
+        B4[Signature Verification]
+        
+        B1 --> B2
+        B2 --> B3
+        B2 --> B4
+    end
+    
+    %% Connect flows
+    S --> B1
+    Y --> B2
+    AA --> B3
+    BB --> B4
+
+    %% Styling
+    classDef userAction fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
+    classDef process fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    classDef decision fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
+    classDef security fill:#ffebee,stroke:#c62828,stroke-width:2px
+    classDef backend fill:#e8f5e8,stroke:#2e7d32,stroke-width:2px
+    
+    class A,C,D,F,G,H,I,J,K userAction
+    class P,Q,R,S,T,V,FF,GG,HH,II,MM process
+    class B,U,X,CC,JJ decision
+    class S1,S2,S3,S4,S5 security
+    class B1,B2,B3,B4 backend
+```
+
+### **Key Security Principles**
+
+1. **🔐 Private Key Isolation**: Private keys never leave the device and are stored in secure hardware-backed storage
+2. **🔑 Public Key Distribution**: Only public keys are transmitted to the backend for verification
+3. **✅ Signature Verification**: Backend uses stored public keys to cryptographically verify image signatures
+4. **🛡️ Secure Storage**: Private keys are protected by device secure storage (Android Keystore/iOS Keychain)
+5. **🚫 No Key Transmission**: The verification process never requires transmitting private keys
+
+### **Verification Process Steps**
+
+1. **📱 Image Selection**: User selects image from phone gallery or GeoCam gallery
+2. **🔍 Steganography Extraction**: Hidden metadata is extracted from the image
+3. **🔐 Signature Verification**: If signature is present, backend verifies it using stored public key
+4. **📊 Result Processing**: Combines steganographic and cryptographic verification results
+5. **📋 UI Display**: Shows verification status, metadata, and location data if available
+
+### **Security Architecture**
+
+```mermaid
+graph TB
+    subgraph "Device Security Boundary"
+        PK[Private Key<br/>🔒 Secure Storage]
+        SIG[Sign Image<br/>🔐 Private Key]
+        META[Embed Metadata<br/>📊 Steganography]
+    end
+    
+    subgraph "Network Layer"
+        PUB[Public Key<br/>📤 Transmitted]
+        IMG[Signed Image<br/>📸 With Metadata]
+    end
+    
+    subgraph "Backend Verification"
+        STORE[Public Key Storage<br/>🗃️ Database]
+        VERIFY[Signature Verification<br/>✅ Public Key]
+        RESULT[Verification Result<br/>📋 Authentic/Invalid]
+    end
+    
+    PK --> SIG
+    SIG --> META
+    META --> IMG
+    PK --> PUB
+    PUB --> STORE
+    IMG --> VERIFY
+    STORE --> VERIFY
+    VERIFY --> RESULT
+    
+    classDef secure fill:#ffcdd2,stroke:#d32f2f,stroke-width:3px
+    classDef network fill:#e1f5fe,stroke:#1976d2,stroke-width:2px
+    classDef backend fill:#e8f5e8,stroke:#2e7d32,stroke-width:2px
+    
+    class PK,SIG,META secure
+    class PUB,IMG network
+    class STORE,VERIFY,RESULT backend
+```
+
+For a complete technical overview of the verification process, see the [detailed flow diagram](./GeoCam_Verification_Flow_Diagram.md).
 
 ## 💻 Technology Stack
 
@@ -474,6 +629,7 @@ For questions, issues, or contributions:
 - **📱 Mobile App**: [GeoCam App Documentation](./geoCamApp/README.md)
 - **🌐 Web Frontend**: [Frontend Documentation](./Web_Frontend/README.md)
 - **⚙️ Backend Services**: [Backend Documentation](./Web_Backend/README.md)
+- **🔍 Verification Flow**: [Complete Verification Flow Diagram](./GeoCam_Verification_Flow_Diagram.md)
 
 ### **Research Context**
 This project is part of the **Desinformation and Geomedia** research initiative, exploring technological solutions to combat misinformation through verifiable digital media and secure authentication systems.
@@ -511,3 +667,11 @@ This project is part of the **Desinformation and Geomedia** research initiative,
 - **Code Organization**: Improved project structure and component modularity
 - **Safe Area Handling**: Proper support for device notches and home indicators
 - **Gesture Handler Integration**: Native gesture recognition for smooth interactions
+
+### **Security & Verification Enhancements** 🔐
+- **Complete Verification Flow**: Comprehensive image authenticity verification system
+- **Cryptographic Security**: Private keys never leave device, only public keys transmitted
+- **Steganographic Analysis**: Advanced metadata extraction and validation
+- **Signature Verification**: Backend cryptographic validation using stored public keys
+- **Security Architecture**: Multi-layered security with device isolation and secure storage
+- **Detailed Flow Documentation**: Complete technical diagrams and security explanations
