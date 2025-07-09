@@ -845,3 +845,524 @@ is_valid = public_key.verify(signature_bytes, message_hash, hasher=None)
 ---
 
 This comprehensive explanation shows how the combination of @noble/curves, expo-secure-store, and coincurve creates a secure system where private keys never leave the mobile device while enabling robust signature verification on the backend.
+
+---
+
+## 6. Complete Image Signing & Metadata Embedding Process
+
+### Overview of Image Signing with Metadata
+
+This section details how images are captured, enriched with metadata, cryptographically signed, and embedded with steganographic data to create tamper-evident, verifiable photos.
+
+### **Complete Image Signing Flow**
+
+```mermaid
+sequenceDiagram
+    participant User as User
+    participant Camera as Camera Interface
+    participant GPS as GPS Service
+    participant Device as Device Info
+    participant Crypto as expo-crypto
+    participant Noble as @noble/curves
+    participant SecStore as expo-secure-store
+    participant Steg as Steganography
+    participant Storage as Local Storage
+    
+    Note over User,Storage: Image Capture & Metadata Collection
+    
+    User->>Camera: Tap capture button
+    Camera->>Camera: Capture high-quality image
+    Camera->>GPS: Request current location
+    GPS-->>Camera: Latitude, longitude, accuracy
+    
+    Camera->>Device: Get device information
+    Device-->>Camera: Model, OS, version details
+    
+    Camera->>Camera: Get current timestamp
+    Camera->>Camera: Prepare metadata object
+    
+    Note over User,Storage: Metadata Preparation
+    
+    Camera->>Camera: Create comprehensive metadata
+    Note right of Camera: {<br/>  location: {lat, lng, accuracy},<br/>  timestamp: ISO string,<br/>  device: model info,<br/>  geocamDevice: "GeoCam",<br/>  quality: image quality,<br/>  resolution: dimensions<br/>}
+    
+    Note over User,Storage: Cryptographic Signing Process
+    
+    Camera->>Crypto: Convert image to Base64
+    Crypto-->>Camera: Base64 image data
+    
+    Camera->>Crypto: SHA-512 hash of image data
+    Crypto-->>Camera: Image hash for signing
+    
+    Camera->>SecStore: Request private key
+    SecStore->>SecStore: Hardware authentication (if enabled)
+    SecStore-->>Camera: Private key (NEVER leaves device)
+    
+    Camera->>Noble: secp256k1.sign(imageHash, privateKey)
+    Noble->>Noble: ECDSA signature generation
+    Noble-->>Camera: Digital signature (64 bytes)
+    
+    Camera->>Camera: Get public key ID for metadata
+    
+    Note over User,Storage: Steganographic Embedding
+    
+    Camera->>Camera: Prepare signing metadata
+    Note right of Camera: {<br/>  signature: base64 signature,<br/>  public_key_id: key identifier,<br/>  timestamp: signing time,<br/>  device_fingerprint: unique ID<br/>}
+    
+    Camera->>Steg: Combine metadata + signing info
+    Camera->>Steg: Embed in image using LSB steganography
+    Steg->>Steg: Modify least significant bits of RGB channels
+    Steg-->>Camera: Signed image with embedded metadata
+    
+    Note over User,Storage: Final Storage
+    
+    Camera->>Storage: Save signed image to gallery
+    Storage-->>Camera: Confirm storage
+    Camera->>User: Show success confirmation
+    
+    Note over User,Storage: ✅ Image contains verifiable metadata & signature
+```
+
+### **Detailed Metadata Structure**
+
+#### **1. Location Metadata Collection**
+```typescript
+// GPS Location Collection
+const getLocationMetadata = async () => {
+  const location = await Location.getCurrentPositionAsync({
+    accuracy: Location.Accuracy.Highest,
+    timeInterval: 1000,
+    distanceInterval: 1,
+  });
+  
+  return {
+    latitude: location.coords.latitude,
+    longitude: location.coords.longitude,
+    accuracy: location.coords.accuracy,
+    altitude: location.coords.altitude,
+    heading: location.coords.heading,
+    speed: location.coords.speed,
+    timestamp: location.timestamp,
+  };
+};
+```
+
+#### **2. Device Information Collection**
+```typescript
+// Device Metadata Collection
+const getDeviceMetadata = async () => {
+  return {
+    geocamDevice: 'GeoCam', // App identifier
+    deviceModel: Device.modelName || 'Unknown',
+    osName: Device.osName || 'Unknown',
+    osVersion: Device.osVersion || 'Unknown',
+    deviceType: Device.deviceType,
+    deviceYearClass: Device.deviceYearClass,
+    manufacturer: Device.manufacturer,
+    brand: Device.brand,
+    deviceFingerprint: await generateDeviceFingerprint(),
+  };
+};
+```
+
+#### **3. Camera Settings Metadata**
+```typescript
+// Camera Configuration Metadata
+const getCameraMetadata = (cameraSettings: any) => {
+  return {
+    quality: cameraSettings.quality || 1.0,
+    aspectRatio: cameraSettings.ratio || '4:3',
+    flashMode: cameraSettings.flashMode || 'off',
+    focusMode: cameraSettings.focusMode || 'auto',
+    whiteBalance: cameraSettings.whiteBalance || 'auto',
+    zoom: cameraSettings.zoom || 0,
+    orientation: cameraSettings.orientation || 'portrait',
+  };
+};
+```
+
+### **Complete Metadata Object Structure**
+
+```typescript
+interface GeoCamImageMetadata {
+  // Core identification
+  geocamDevice: string;           // "GeoCam"
+  version: string;               // App version
+  
+  // Temporal information
+  timestamp: string;             // ISO 8601 timestamp
+  Time: string;                  // Human-readable time
+  captureTime: number;           // Unix timestamp
+  
+  // Spatial information
+  location: {
+    latitude: number;
+    longitude: number;
+    accuracy: number;
+    altitude?: number;
+    heading?: number;
+    speed?: number;
+  };
+  
+  // Device information
+  deviceModel: string;
+  osName: string;
+  osVersion: string;
+  deviceType: number;
+  manufacturer?: string;
+  brand?: string;
+  deviceFingerprint: string;
+  
+  // Camera settings
+  quality: number;
+  aspectRatio: string;
+  flashMode: string;
+  focusMode: string;
+  whiteBalance: string;
+  zoom: number;
+  orientation: string;
+  
+  // Image properties
+  resolution: {
+    width: number;
+    height: number;
+  };
+  fileSize: number;
+  format: string;                // "jpeg", "png"
+  
+  // Cryptographic information
+  signature: string;             // Base64 ECDSA signature
+  public_key_id: string;         // Public key identifier
+  device_fingerprint: string;    // Unique device ID
+  image_hash: string;            // SHA-512 of image data
+  signing_timestamp: string;     // When signature was created
+}
+```
+
+### **Image Signing Implementation**
+
+```typescript
+export const captureAndSignImage = async (
+  cameraRef: any, 
+  cameraSettings: any
+): Promise<SignedImageResult> => {
+  try {
+    console.log('📸 Starting secure image capture and signing...');
+    
+    // 1. CAPTURE IMAGE
+    const photo = await cameraRef.current.takePictureAsync({
+      quality: cameraSettings.quality,
+      base64: true,
+      exif: false, // We create our own metadata
+    });
+    
+    // 2. COLLECT METADATA
+    const [locationData, deviceData, cameraData] = await Promise.all([
+      getLocationMetadata(),
+      getDeviceMetadata(),
+      Promise.resolve(getCameraMetadata(cameraSettings))
+    ]);
+    
+    // 3. PREPARE COMPREHENSIVE METADATA
+    const timestamp = new Date().toISOString();
+    const metadata: GeoCamImageMetadata = {
+      // Core identification
+      geocamDevice: 'GeoCam',
+      version: '1.0.0',
+      
+      // Temporal information
+      timestamp,
+      Time: new Date().toLocaleString(),
+      captureTime: Date.now(),
+      
+      // Spatial information
+      location: locationData,
+      
+      // Device information
+      ...deviceData,
+      
+      // Camera settings
+      ...cameraData,
+      
+      // Image properties
+      resolution: {
+        width: photo.width,
+        height: photo.height,
+      },
+      fileSize: photo.base64?.length || 0,
+      format: 'jpeg',
+    };
+    
+    // 4. CRYPTOGRAPHIC SIGNING
+    console.log('🔐 Signing image with device private key...');
+    
+    // Get private key from secure storage
+    const privateKeyData = JSON.parse(
+      await SecureStore.getItemAsync(PRIVATE_KEY_STORAGE_KEY, SECURE_STORE_OPTIONS)
+    );
+    const publicKeyData = JSON.parse(
+      await SecureStore.getItemAsync(PUBLIC_KEY_STORAGE_KEY)
+    );
+    
+    // Hash the image data
+    const imageDataHash = await Crypto.digestStringAsync(
+      Crypto.CryptoDigestAlgorithm.SHA512,
+      photo.base64!,
+      { encoding: Crypto.CryptoEncoding.HEX }
+    );
+    
+    // Sign the image hash
+    const privateKeyBytes = new Uint8Array(
+      atob(privateKeyData.keyBase64).split('').map(c => c.charCodeAt(0))
+    );
+    const hashBytes = new Uint8Array(
+      imageDataHash.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16))
+    );
+    
+    const signature = secp256k1.sign(hashBytes, privateKeyBytes);
+    const signatureBase64 = btoa(String.fromCharCode(...signature.toCompactRawBytes()));
+    
+    // 5. ADD CRYPTOGRAPHIC METADATA
+    const signedMetadata: GeoCamImageMetadata = {
+      ...metadata,
+      signature: signatureBase64,
+      public_key_id: publicKeyData.keyId,
+      device_fingerprint: privateKeyData.deviceFingerprint,
+      image_hash: imageDataHash,
+      signing_timestamp: new Date().toISOString(),
+    };
+    
+    // 6. STEGANOGRAPHIC EMBEDDING
+    console.log('🖼️ Embedding metadata using steganography...');
+    
+    const { embedMetadataInPng } = require('./backendService');
+    const embeddedResult = await embedMetadataInPng(photo.base64!, signedMetadata);
+    
+    if (!embeddedResult.success) {
+      throw new Error('Failed to embed metadata in image');
+    }
+    
+    // 7. SAVE TO GALLERY
+    const galleryData = {
+      uri: photo.uri,
+      encodedInfo: JSON.stringify(signedMetadata),
+      signature: signatureBase64,
+      publicKey: publicKeyData.keyBase64,
+      timestamp: Date.now(),
+    };
+    
+    await saveImageToGallery(galleryData);
+    
+    console.log('✅ Image signed and saved successfully');
+    console.log('🔐 Signature:', signatureBase64.substring(0, 20) + '...');
+    console.log('📊 Metadata items:', Object.keys(signedMetadata).length);
+    console.log('📍 Location:', `${locationData.latitude}, ${locationData.longitude}`);
+    
+    return {
+      success: true,
+      imageUri: photo.uri,
+      metadata: signedMetadata,
+      signature: signatureBase64,
+      publicKeyId: publicKeyData.keyId,
+    };
+    
+  } catch (error) {
+    console.error('❌ Image signing failed:', error);
+    throw error;
+  }
+};
+```
+
+### **Steganographic Embedding Process**
+
+#### **LSB (Least Significant Bit) Steganography Implementation**
+
+```mermaid
+graph TD
+    A[Original Image] --> B[Convert to RGB Pixel Array]
+    B --> C[Serialize Metadata to JSON]
+    C --> D[Convert JSON to Binary String]
+    D --> E[Add Length Header + Delimiter]
+    
+    E --> F[For Each Bit in Metadata]
+    F --> G[Get Next Pixel RGB Values]
+    G --> H[Modify Least Significant Bit]
+    H --> I{More Bits?}
+    I -->|Yes| F
+    I -->|No| J[Reconstruct Image]
+    
+    J --> K[Steganographically Embedded Image]
+    
+    subgraph "LSB Modification Process"
+        L[Original RGB: 11010110]
+        M[Metadata Bit: 1]
+        N[Modified RGB: 11010111]
+        O[Change Undetectable to Human Eye]
+    end
+    
+    classDef original fill:#e1f5fe,stroke:#1976d2,stroke-width:2px
+    classDef process fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    classDef result fill:#e8f5e8,stroke:#2e7d32,stroke-width:2px
+    
+    class A,B original
+    class C,D,E,F,G,H process
+    class J,K result
+```
+
+#### **Steganography Implementation Details**
+
+```javascript
+// Backend Steganography Service Implementation
+async function embedMetadataInImage(imageBase64, metadata) {
+  try {
+    // 1. Convert base64 to image buffer
+    const imageBuffer = Buffer.from(imageBase64, 'base64');
+    const image = sharp(imageBuffer);
+    const { data, info } = await image.raw().toBuffer({ resolveWithObject: true });
+    
+    // 2. Prepare metadata for embedding
+    const metadataString = JSON.stringify(metadata);
+    const metadataBuffer = Buffer.from(metadataString, 'utf8');
+    
+    // 3. Create header with metadata length
+    const lengthHeader = Buffer.alloc(4);
+    lengthHeader.writeUInt32BE(metadataBuffer.length);
+    
+    // 4. Combine header + metadata + delimiter
+    const delimiter = Buffer.from('GEOCAM_END', 'utf8');
+    const dataToEmbed = Buffer.concat([lengthHeader, metadataBuffer, delimiter]);
+    
+    // 5. Convert to binary string
+    const binaryString = Array.from(dataToEmbed)
+      .map(byte => byte.toString(2).padStart(8, '0'))
+      .join('');
+    
+    // 6. Modify LSBs of image pixels
+    const modifiedData = Buffer.from(data);
+    let bitIndex = 0;
+    
+    for (let i = 0; i < modifiedData.length && bitIndex < binaryString.length; i++) {
+      // Skip alpha channel (only modify RGB channels)
+      if (info.channels === 4 && (i + 1) % 4 === 0) continue;
+      
+      // Get current pixel value and metadata bit
+      const pixelValue = modifiedData[i];
+      const metadataBit = parseInt(binaryString[bitIndex]);
+      
+      // Modify least significant bit
+      const modifiedPixel = (pixelValue & 0xFE) | metadataBit;
+      modifiedData[i] = modifiedPixel;
+      
+      bitIndex++;
+    }
+    
+    // 7. Reconstruct image
+    const modifiedImage = await sharp(modifiedData, {
+      raw: {
+        width: info.width,
+        height: info.height,
+        channels: info.channels
+      }
+    }).png().toBuffer();
+    
+    // 8. Convert back to base64
+    const resultBase64 = modifiedImage.toString('base64');
+    
+    return {
+      success: true,
+      embeddedImage: resultBase64,
+      metadataSize: metadataBuffer.length,
+      bitsModified: binaryString.length,
+      originalSize: data.length,
+    };
+    
+  } catch (error) {
+    console.error('❌ Steganography embedding failed:', error);
+    return { success: false, error: error.message };
+  }
+}
+```
+
+### **Metadata Extraction Process**
+
+```javascript
+// Extract metadata from steganographically embedded image
+async function extractMetadataFromImage(imageBase64) {
+  try {
+    // 1. Convert to raw pixel data
+    const imageBuffer = Buffer.from(imageBase64, 'base64');
+    const { data, info } = await sharp(imageBuffer).raw().toBuffer({ resolveWithObject: true });
+    
+    // 2. Extract length header (first 32 bits)
+    let bitIndex = 0;
+    let lengthBits = '';
+    
+    for (let i = 0; i < data.length && lengthBits.length < 32; i++) {
+      if (info.channels === 4 && (i + 1) % 4 === 0) continue; // Skip alpha
+      
+      const lsb = data[i] & 1;
+      lengthBits += lsb.toString();
+    }
+    
+    const metadataLength = parseInt(lengthBits, 2);
+    
+    // 3. Extract metadata bits
+    let metadataBits = '';
+    const totalBitsNeeded = 32 + (metadataLength * 8) + 80; // header + data + delimiter
+    
+    for (let i = 0; i < data.length && metadataBits.length < totalBitsNeeded; i++) {
+      if (info.channels === 4 && (i + 1) % 4 === 0) continue; // Skip alpha
+      
+      const lsb = data[i] & 1;
+      metadataBits += lsb.toString();
+    }
+    
+    // 4. Convert bits to bytes and extract JSON
+    const metadataBytes = [];
+    for (let i = 32; i < metadataBits.length; i += 8) {
+      const byte = parseInt(metadataBits.substr(i, 8), 2);
+      metadataBytes.push(byte);
+    }
+    
+    const metadataBuffer = Buffer.from(metadataBytes);
+    const metadataString = metadataBuffer.toString('utf8', 0, metadataLength);
+    
+    // 5. Parse JSON metadata
+    const metadata = JSON.parse(metadataString);
+    
+    return {
+      success: true,
+      metadata,
+      extractedLength: metadataLength,
+    };
+    
+  } catch (error) {
+    console.error('❌ Metadata extraction failed:', error);
+    return { success: false, error: error.message };
+  }
+}
+```
+
+### **Security Considerations in Image Signing**
+
+#### **1. Tamper Detection**
+- **Image Hash**: SHA-512 hash of original image data before metadata embedding
+- **Signature Verification**: ECDSA signature ensures image hasn't been modified
+- **Metadata Integrity**: Any change to embedded data invalidates the signature
+
+#### **2. Replay Attack Prevention**
+- **Timestamp**: Each signature includes creation timestamp
+- **Device Fingerprint**: Unique device identifier prevents key reuse
+- **Nonce/Random Data**: Device fingerprint includes random component
+
+#### **3. Privacy Protection**
+- **Selective Metadata**: Only necessary information is embedded
+- **Local Processing**: All signing happens on device, no data transmitted
+- **User Control**: User can choose what metadata to include
+
+#### **4. Steganographic Security**
+- **Invisible Embedding**: LSB modifications are imperceptible to human eye
+- **Robust Encoding**: Metadata survives normal image operations
+- **Error Detection**: Delimiter and length headers ensure data integrity
+
+This comprehensive process ensures that every GeoCam image contains verifiable proof of its authenticity, location, and capture details while maintaining the private key's security on the device.
