@@ -18,6 +18,7 @@ import sqlite3
 import os
 import time
 import struct
+import requests
 
 # For proper secp256k1 verification
 try:
@@ -200,6 +201,67 @@ def register_device_secure(registration_data: dict):
         raise
     finally:
         conn.close()
+
+def call_steganography_service(image_data: bytes):
+    """Call the Node.js steganography service to verify and extract signature from image"""
+    try:
+        # Steganography service URL
+        steg_url = "http://localhost:3001/pure-png-verify"
+        
+        # Convert image to base64 for the Node.js service
+        image_base64 = base64.b64encode(image_data).decode('utf-8')
+        
+        # Prepare request data
+        request_data = {
+            'pngBase64': image_base64
+        }
+        
+        logger.info(f"🔍 Calling steganography service for image verification...")
+        
+        # Make request to steganography service
+        response = requests.post(steg_url, json=request_data, timeout=30)
+        
+        if response.status_code == 200:
+            result = response.json()
+            if result.get('success'):
+                logger.info(f"✅ Steganography service verification successful")
+                
+                # Extract verification result
+                verification_result = result.get('verification_result', {})
+                
+                return {
+                    'success': True,
+                    'signature_valid': verification_result.get('signature_valid', False),
+                    'is_authentic': verification_result.get('is_authentic', False),
+                    'decoded_info': verification_result.get('decoded_info', {}),
+                    'message': verification_result.get('message', 'Verification completed'),
+                    'method': verification_result.get('method', 'steganography-service')
+                }
+            else:
+                logger.error(f"❌ Steganography service failed: {result.get('error')}")
+                return {
+                    'success': False,
+                    'error': result.get('error', 'Unknown steganography error')
+                }
+        else:
+            logger.error(f"❌ Steganography service HTTP error: {response.status_code}")
+            return {
+                'success': False,
+                'error': f'Steganography service error: {response.status_code}'
+            }
+            
+    except requests.exceptions.RequestException as e:
+        logger.error(f"❌ Failed to call steganography service: {e}")
+        return {
+            'success': False,
+            'error': f'Failed to connect to steganography service: {str(e)}'
+        }
+    except Exception as e:
+        logger.error(f"❌ Unexpected error calling steganography service: {e}")
+        return {
+            'success': False,
+            'error': f'Unexpected steganography error: {str(e)}'
+        }
 
 def verify_secp256k1_signature(signature_base64: str, data_hash: str, public_key_base64: str, timestamp: str = None) -> dict:
     """
@@ -427,8 +489,10 @@ def verify_image_secure():
                 return jsonify({'error': 'No image file provided'}), 400
             
             image_file = request.files['image']
-            signature = request.form.get('signature')
-            public_key_id = request.form.get('public_key_id')
+            image_data = image_file.read()
+            
+            # Check for optional parameters
+            installation_id = request.form.get('installation_id')
             timestamp = request.form.get('timestamp')
             
         else:
@@ -437,109 +501,71 @@ def verify_image_secure():
             if not data:
                 return jsonify({'error': 'No JSON data provided'}), 400
                 
-            image_data = data.get('image_data')  # Base64 encoded image
-            signature = data.get('signature')
-            public_key_id = data.get('public_key_id')
+            image_data_b64 = data.get('image_data')  # Base64 encoded image
+            if not image_data_b64:
+                return jsonify({'error': 'No image data provided'}), 400
+            
+            try:
+                image_data = base64.b64decode(image_data_b64)
+            except Exception:
+                return jsonify({'error': 'Invalid base64 image data'}), 400
+                
+            installation_id = data.get('installation_id')
             timestamp = data.get('timestamp')
         
-        # Validate required fields
-        if not signature or not public_key_id:
-            return jsonify({'error': 'Missing required fields: signature and public_key_id'}), 400
+        # Validate image size
+        if len(image_data) > 50 * 1024 * 1024:  # 50MB limit
+            return jsonify({'error': 'Image too large (max 50MB)'}), 413
         
         # Additional security: Rate limiting check (basic implementation)
         client_ip = request.remote_addr
         current_time = datetime.now()
         
-        # Get device information by public key ID
-        device_info = get_device_by_public_key_id(public_key_id)
-        if not device_info:
-            # Log failed attempt for security monitoring
-            logger.warning(f"🚨 Verification attempt with unknown public key: {public_key_id} from {client_ip}")
-            return jsonify({'error': 'Device not found or inactive'}), 404
+        # Call steganography service to verify the image
+        logger.info(f"🔍 Verifying image using steganography service...")
+        steg_result = call_steganography_service(image_data)
         
-        # Calculate image hash with proper error handling
-        try:
-            if request.content_type and 'multipart/form-data' in request.content_type:
-                image_data = image_file.read()
-                if len(image_data) > 50 * 1024 * 1024:  # 50MB limit
-                    return jsonify({'error': 'Image too large (max 50MB)'}), 413
-                image_hash = hashlib.sha512(image_data).hexdigest()
-            else:
-                # For JSON requests, assume image_data is base64 encoded
-                if not image_data:
-                    return jsonify({'error': 'No image data provided'}), 400
-                try:
-                    image_bytes = base64.b64decode(image_data)
-                    if len(image_bytes) > 50 * 1024 * 1024:  # 50MB limit
-                        return jsonify({'error': 'Image too large (max 50MB)'}), 413
-                    image_hash = hashlib.sha512(image_bytes).hexdigest()
-                except Exception:
-                    return jsonify({'error': 'Invalid base64 image data'}), 400
-        except Exception as e:
-            logger.error(f"❌ Image processing error: {e}")
-            return jsonify({'error': 'Failed to process image'}), 400
+        if not steg_result['success']:
+            logger.error(f"❌ Steganography verification failed: {steg_result['error']}")
+            return jsonify({
+                'success': False,
+                'verification_result': {
+                    'signature_valid': False,
+                    'is_authentic': False,
+                    'message': steg_result['error'] or 'GeoCam signature is invalid'
+                }
+            })
         
-        # Perform secure signature verification
-        verification_result = verify_secp256k1_signature(
-            signature, 
-            image_hash, 
-            device_info['public_key_base64'],
-            timestamp
-        )
+        # Extract verification results
+        signature_valid = steg_result.get('signature_valid', False)
+        is_authentic = steg_result.get('is_authentic', False)
+        decoded_info = steg_result.get('decoded_info', {})
         
-        is_signature_valid = verification_result['valid']
+        # For now, we'll use the steganography service result directly
+        # In a full implementation, we'd also cross-reference with device registry
         
-        # Log verification attempt with detailed security info
-        client_info = {
-            'ip': client_ip,
-            'user_agent': request.headers.get('User-Agent', 'unknown'),
-            'verification_details': verification_result
-        }
-        log_verification_attempt(public_key_id, image_hash, is_signature_valid, client_info)
-        
-        # Update device last activity only if verification succeeds
-        if is_signature_valid:
-            try:
-                conn = sqlite3.connect(DATABASE_FILE)
-                cursor = conn.cursor()
-                cursor.execute('''
-                    UPDATE device_registry 
-                    SET last_activity = ? 
-                    WHERE public_key_id = ?
-                ''', (datetime.now().isoformat(), public_key_id))
-                conn.commit()
-                conn.close()
-            except Exception as e:
-                logger.warning(f"⚠️ Could not update device activity: {e}")
+        # Calculate image hash for logging
+        image_hash = hashlib.sha512(image_data).hexdigest()
         
         # Prepare detailed response
         response_data = {
-            'signature_valid': is_signature_valid,
-            'is_authentic': is_signature_valid,
-            'device_info': {
-                'device_model': device_info['device_model'],
-                'os_name': device_info['os_name'],
-                'registration_date': device_info['registration_timestamp'],
-                'public_key_fingerprint': device_info['public_key_fingerprint']
-            },
+            'signature_valid': signature_valid,
+            'is_authentic': is_authentic,
             'verification_timestamp': current_time.isoformat(),
             'image_hash': image_hash,
-            'security_checks': verification_result['security_checks']
+            'decoded_info': decoded_info,
+            'message': steg_result.get('message', 'Verification completed'),
+            'method': steg_result.get('method', 'steganography-service')
         }
         
-        # Add error details if verification failed
-        if not is_signature_valid and verification_result.get('error'):
-            response_data['error_details'] = verification_result['error']
-        
         logger.info(f"🔍 Image verification completed")
-        logger.info(f"📊 Signature valid: {is_signature_valid}")
-        logger.info(f"📱 Device: {device_info['device_model']}")
-        logger.info(f"🛡️  Security checks: {verification_result['security_checks']}")
+        logger.info(f"📊 Signature valid: {signature_valid}")
+        logger.info(f"� Is authentic: {is_authentic}")
         
         return jsonify({
             'success': True,
             'verification_result': response_data,
-            'message': 'Image verification completed with comprehensive security checks'
+            'message': 'Image verification completed using steganography service'
         })
         
     except Exception as e:

@@ -43,6 +43,15 @@ def health_check():
         'timestamp': datetime.now().isoformat()
     })
 
+@app.route('/api/health', methods=['GET'])
+def api_health_check():
+    """Health check endpoint for API path"""
+    return jsonify({
+        'status': 'OK',
+        'service': 'GeoCam API Service',
+        'timestamp': datetime.now().isoformat()
+    })
+
 @app.route('/api/register-device', methods=['POST'])
 def register_device_endpoint():
     """Register a new GeoCam device"""

@@ -16,7 +16,6 @@ import {
 import { CameraView, CameraType, FlashMode, useCameraPermissions } from 'expo-camera';
 import { useRef, useState, useEffect, useCallback } from 'react';
 import * as MediaLibrary from 'expo-media-library';
-import { WebView } from 'react-native-webview';
 import * as Device from 'expo-device';
 import * as Location from 'expo-location';
 import * as FileSystem from 'expo-file-system';
@@ -59,9 +58,7 @@ export default function CameraScreen() {
   const [timerCountdown, setTimerCountdown] = useState(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   
-  const [webViewHtml, setWebViewHtml] = useState<string | null>(null);
   const [isEncoding, setIsEncoding] = useState(false);
-  const webViewRef = useRef<WebView | null>(null);
   
   type KeyMetadata = {
     fingerprint?: string;
@@ -77,11 +74,6 @@ export default function CameraScreen() {
 
   const [keyPair, setKeyPair] = useState<KeyPair | null>(null);
   const [isLoadingKeys, setIsLoadingKeys] = useState(true);
-  
-  // State for current steganography workflow
-  const [currentBasicDataStr, setCurrentBasicDataStr] = useState<string | null>(null);
-  const [currentSignature, setCurrentSignature] = useState<string | null>(null);
-  const [currentPhotoBase64, setCurrentPhotoBase64] = useState<string | null>(null);
   
   // Preview animation
   const previewScale = useRef(new Animated.Value(1)).current;
@@ -504,23 +496,57 @@ export default function CameraScreen() {
       console.log('📝 Prepared basic data for encoding:', basicData);
       const basicDataStr = JSON.stringify(basicData);
       
-      console.log('📤 Sending image for processing and signing...');
+      console.log('📤 Step 1: Sending image to backend for processing...');
       
-      const signResult = await signImagePurePng(
+      // Step 1: Send image + metadata to backend, get hash to sign
+      const processResult = await processGeoCamImageBackend(
         photo.base64,
         basicDataStr,
-        keyPair!.publicKey.keyBase64,
-        keyPair!.privateKey.keyBase64
+        keyPair!.publicKey.keyBase64
       );
       
-      if (!signResult.success) {
-        console.error('❌ Image signing failed:', signResult.error);
+      if (!processResult.success) {
+        console.error('❌ Backend processing failed:', processResult.error);
         setIsEncoding(false);
         return;
       }
       
-      console.log('✅ Image signing completed');
-      console.log('📊 Processing stats:', signResult.stats);
+      console.log('✅ Step 1 completed - received hash to sign');
+      console.log('🔐 Hash to sign:', processResult.hashToSign?.substring(0, 16) + '...');
+      
+      // Step 2: Sign the hash using mobile app's private key
+      console.log('🔐 Step 2: Signing hash with device private key...');
+      const { secp256k1 } = await import('@noble/curves/secp256k1');
+      
+      // Convert HEX hash string to bytes (same as secp256k1Utils.ts)
+      const hashBytes = new Uint8Array(
+        processResult.hashToSign!.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16))
+      );
+      const privateKeyBytes = new Uint8Array(
+        atob(keyPair!.privateKey.keyBase64).split('').map(c => c.charCodeAt(0))
+      );
+      
+      const signature = secp256k1.sign(hashBytes, privateKeyBytes);
+      const signatureBase64 = btoa(String.fromCharCode(...signature.toCompactRawBytes()));
+      
+      console.log('✅ Signature generated on device');
+      console.log('🔐 Signature length:', signatureBase64.length);
+      
+      // Step 3: Send signature back to backend for final assembly
+      console.log('📤 Step 3: Sending signature to backend for final assembly...');
+      const completeResult = await completeGeoCamImageBackend(
+        processResult.sessionId!,
+        signatureBase64
+      );
+      
+      if (!completeResult.success) {
+        console.error('❌ Final assembly failed:', completeResult.error);
+        setIsEncoding(false);
+        return;
+      }
+      
+      console.log('✅ Complete workflow finished');
+      console.log('📊 Processing stats:', completeResult.stats);
       
       // Save final PNG to device
       console.log('💾 Saving signed image to device...');
@@ -533,7 +559,7 @@ export default function CameraScreen() {
         throw new Error('Could not access document directory');
       }
       
-      await FileSystem.writeAsStringAsync(filePath, signResult.pngBase64!, {
+      await FileSystem.writeAsStringAsync(filePath, completeResult.pngBase64!, {
         encoding: FileSystem.EncodingType.Base64,
       });
       
@@ -564,303 +590,10 @@ export default function CameraScreen() {
       }
 
     } catch (error) {
-      console.error('Failed to take picture or process with pure PNG:', error);
+      console.error('Failed to take picture or process with backend:', error);
       completeProgress();
     } finally {
       setIsEncoding(false);
-    }
-  };
-
-  const handleWebViewMessage = async (event: any) => {
-    const messageData = JSON.parse(event.nativeEvent.data);
-    console.log('📨 WebView message received:', messageData.type);
-    
-    if (messageData.type === 'requestSignatureForOneCanvasRGBA') {
-      // NEW: Handle RGBA-based signature request
-      const { rgbaBase64ForSigning, basicInfo, publicKey, privateKey, callbackId, imageWidth, imageHeight } = messageData;
-      
-      try {
-        console.log('🔐 React Native: Computing SHA-512 hash for RGBA data (NEW METHOD)...');
-        console.log('📊 RGBA data size:', rgbaBase64ForSigning.length, 'chars');
-        console.log('📊 Image dimensions:', imageWidth, 'x', imageHeight);
-        console.log('🎯 This avoids all PNG compatibility issues!');
-        
-        // Hash the RGBA data directly using React Native crypto
-        const rgbaHash = await require('expo-crypto').digestStringAsync(
-          require('expo-crypto').CryptoDigestAlgorithm.SHA512,
-          rgbaBase64ForSigning,
-          { encoding: require('expo-crypto').CryptoEncoding.HEX }
-        );
-        
-        console.log('✅ SHA-512 hash computed from RGBA data:', rgbaHash.length, 'chars');
-        console.log('🔐 RGBA Hash preview:', rgbaHash.substring(0, 16) + '...');
-        
-        // Sign the RGBA hash using secp256k1
-        const { secp256k1 } = await import('@noble/curves/secp256k1');
-        const dataToSign = new TextEncoder().encode(rgbaHash);
-        const privateKeyBytes = new Uint8Array(
-          atob(privateKey).split('').map(c => c.charCodeAt(0))
-        );
-        
-        const signature = secp256k1.sign(dataToSign, privateKeyBytes);
-        const signatureBase64 = btoa(
-          String.fromCharCode(...signature.toCompactRawBytes())
-        );
-        
-        console.log('✅ RGBA data signed with secp256k1 in React Native');
-        console.log('🔐 Signature length:', signatureBase64.length);
-        console.log('🎯 This signature is based on RGBA data!');
-        
-        setCurrentSignature(signatureBase64);
-        
-        // Continue the workflow in THE SAME WebView by calling the completion function
-        console.log('🔄 Continuing workflow in THE SAME canvas (RGBA method)...');
-        
-        // Inject JavaScript to complete the workflow in the same WebView
-        if (webViewRef && webViewRef.current) {
-          webViewRef.current.injectJavaScript(`
-            if (typeof window.completeOneCanvasWorkflow === 'function') {
-              window.completeOneCanvasWorkflow('${signatureBase64}', '${publicKey}');
-            } else {
-              console.error('completeOneCanvasWorkflow function not found');
-            }
-          `);
-        }
-        
-      } catch (error) {
-        console.error('❌ Failed to hash and sign RGBA data in React Native:', error);
-        setWebViewHtml(null);
-        setIsEncoding(false);
-      }
-      
-    } else if (messageData.type === 'requestSignatureForOneCanvas') {
-      // Handle PNG-based signature request with secp256k1
-      const { pngBase64ForSigning, basicInfo, publicKey, privateKey, callbackId } = messageData;
-      
-      try {
-        console.log('🔐 React Native: Computing SHA-512 hash for PNG...');
-        console.log('📊 PNG for signing size:', pngBase64ForSigning.length, 'chars');
-        
-        // Hash the PNG with basic data using React Native crypto
-        const imageHash = await require('expo-crypto').digestStringAsync(
-          require('expo-crypto').CryptoDigestAlgorithm.SHA512,
-          pngBase64ForSigning,
-          { encoding: require('expo-crypto').CryptoEncoding.HEX }
-        );
-        
-        console.log('✅ SHA-512 hash computed:', imageHash.length, 'chars');
-        
-        // Sign the hash using secp256k1
-        const { secp256k1 } = await import('@noble/curves/secp256k1');
-        const dataToSign = new TextEncoder().encode(imageHash);
-        const privateKeyBytes = new Uint8Array(
-          atob(privateKey).split('').map(c => c.charCodeAt(0))
-        );
-        
-        const signature = secp256k1.sign(dataToSign, privateKeyBytes);
-        const signatureBase64 = btoa(
-          String.fromCharCode(...signature.toCompactRawBytes())
-        );
-        
-        console.log('✅ PNG signed with secp256k1 in React Native');
-        console.log('🔐 Signature length:', signatureBase64.length);
-        
-        setCurrentSignature(signatureBase64);
-        
-        // Continue the workflow in THE SAME WebView by calling the completion function
-        console.log('🔄 Continuing workflow in THE SAME canvas...');
-        
-        // Inject JavaScript to complete the workflow in the same WebView
-        if (webViewRef && webViewRef.current) {
-          webViewRef.current.injectJavaScript(`
-            if (typeof window.completeOneCanvasWorkflow === 'function') {
-              window.completeOneCanvasWorkflow('${signatureBase64}', '${publicKey}');
-            } else {
-              console.error('completeOneCanvasWorkflow function not found');
-            }
-          `);
-        }
-        
-      } catch (error) {
-        console.error('❌ Failed to hash and sign PNG in React Native:', error);
-        setWebViewHtml(null);
-        setIsEncoding(false);
-      }
-      
-    } else if (messageData.type === 'oneCanvasComplete') {
-      // Handle completion from the TRUE ONE CANVAS workflow
-      setWebViewHtml(null);
-      
-      const { finalPngBase64, width, height, basicInfo, signature, publicKey } = messageData;
-      
-      try {
-        console.log('🎉 === TRUE ONE CANVAS GEOCAM WORKFLOW COMPLETED ===');
-        console.log('✅ Step 1: JPEG → Canvas (alpha channel added)');
-        console.log('✅ Step 2: Basic data encoded (exclude last row)');
-        console.log('✅ Step 3: PNG for signature created');
-        console.log('✅ Step 4: Signature generated in React Native');
-        console.log('✅ Step 5: Signature encoded to last row (SAME CANVAS)');
-        console.log('✅ Step 6: Final PNG created (SAME CANVAS)');
-        console.log('🎯 TRUE ONE CANVAS WORKFLOW COMPLETED!');
-        
-        console.log('📊 Final image dimensions:', width, 'x', height);
-        console.log('📊 Final PNG base64 length:', finalPngBase64.length);
-        
-        // Save the final PNG to device
-        const filename = FileSystem.cacheDirectory + `geocam-${Date.now()}.png`;
-        
-        await FileSystem.writeAsStringAsync(filename, finalPngBase64, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-        
-        // Save to MediaLibrary 
-        const asset = await MediaLibrary.saveToLibraryAsync(filename);
-        setLastPhoto(filename);
-        
-        console.log('📱 MediaLibrary saveToLibraryAsync result:', asset);
-        console.log('📁 ONE CANVAS image path:', filename);
-        
-        // Save to gallery storage
-        const galleryData = {
-          uri: filename,
-          encodedInfo: currentBasicDataStr || '',
-          signature: currentSignature || '',
-          publicKey: keyPair!.publicKey.keyBase64,
-          timestamp: Date.now(),
-        };
-        
-        try {
-          await saveImageToGallery(galleryData);
-          console.log('💾 Final image saved to gallery storage');
-          
-          // No longer automatically navigating to image detail
-          // User needs to tap the preview thumbnail to see the image
-        } catch (galleryError) {
-          console.error('Failed to save to gallery storage:', galleryError);
-        }
-        
-        console.log('🎉 === TRUE ONE CANVAS WORKFLOW COMPLETED ===');
-        console.log('✅ Image with encoded data saved successfully');
-                   
-                 } catch (error) {
-        console.error('❌ Failed to save final image:', error);
-      }
-      
-        setIsEncoding(false);
-      
-    } else if (messageData.type === 'signingComplete') {
-      // Handle completion from the signing workflow
-      setWebViewHtml(null);
-      
-      const { finalPngBase64, width, height } = messageData;
-      
-      try {
-        console.log('🎉 === CORRECT GEOCAM WORKFLOW COMPLETED ===');
-        console.log('📷 Step 1: JPEG → Canvas (alpha channel added)');
-        console.log('📝 Step 2: Basic data encoded (exclude last row)');
-        console.log('🔗 Step 3: PNG for signature created');
-        console.log('🔐 Step 4: Signature generated in React Native');
-        console.log('📝 Step 5: Signature encoded to last row');
-        console.log('🖼️ Step 6: Final PNG created');
-        console.log('✅ CORRECT WORKFLOW COMPLETED!');
-        
-        console.log('📊 Final image dimensions:', width, 'x', height);
-        console.log('📊 Final PNG base64 length:', finalPngBase64.length);
-        
-        // Save the final PNG to device
-        const filename = FileSystem.cacheDirectory + `geocam-${Date.now()}.png`;
-        
-        await FileSystem.writeAsStringAsync(filename, finalPngBase64, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-        
-        // Save to MediaLibrary 
-        const asset = await MediaLibrary.saveToLibraryAsync(filename);
-        setLastPhoto(filename);
-        
-        console.log('📱 MediaLibrary saveToLibraryAsync result:', asset);
-        console.log('📁 CORRECT WORKFLOW image path:', filename);
-        
-        // Save to gallery storage
-        const galleryData = {
-          uri: filename,
-          encodedInfo: currentBasicDataStr || '',
-          signature: currentSignature || '',
-          publicKey: keyPair!.publicKey.keyBase64,
-          timestamp: Date.now(),
-        };
-        
-        try {
-          await saveImageToGallery(galleryData);
-          console.log('💾 Final image saved to gallery storage');
-          
-          // No longer automatically navigating to image detail
-          // User needs to tap the preview thumbnail to see the image
-        } catch (galleryError) {
-          console.error('Failed to save to gallery storage:', galleryError);
-        }
-        
-        console.log('🎉 === GEOCAM CORRECT WORKFLOW COMPLETED ===');
-        console.log('✅ Image with encoded data saved successfully');
-        
-      } catch (error) {
-        console.error('❌ Failed to save final image:', error);
-        }
-        
-        setIsEncoding(false);
-      
-    } else if (messageData.type === 'correctSigningComplete') {
-      // Also handle the correctSigningComplete message type (if it exists)
-      setWebViewHtml(null);
-      
-      const { finalPngBase64, width, height, basicInfo, signature, publicKey } = messageData;
-      
-      try {
-        console.log('🎉 === CORRECT GEOCAM WORKFLOW COMPLETED ===');
-        
-        // Save the final PNG to device
-        const filename = FileSystem.cacheDirectory + `geocam-${Date.now()}.png`;
-        
-        await FileSystem.writeAsStringAsync(filename, finalPngBase64, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-        
-        const asset = await MediaLibrary.saveToLibraryAsync(filename);
-        setLastPhoto(filename);
-        console.log('📁 CORRECT SIGNING image path:', filename);
-        
-        // Save to gallery storage
-        const galleryData = {
-          uri: filename,
-          encodedInfo: currentBasicDataStr || '',
-          signature: currentSignature || '',
-          publicKey: keyPair!.publicKey.keyBase64,
-          timestamp: Date.now(),
-        };
-        
-        try {
-          await saveImageToGallery(galleryData);
-          console.log('💾 Final image saved to gallery storage');
-          
-          // No longer automatically navigating to image detail
-          // User needs to tap the preview thumbnail to see the image
-        } catch (galleryError) {
-          console.error('Failed to save to gallery storage:', galleryError);
-        }
-        
-        console.log('🎉 === GEOCAM CORRECT WORKFLOW COMPLETED ===');
-        console.log('✅ Image with encoded data saved successfully');
-                   
-                 } catch (error) {
-        console.error('❌ Failed to save final image:', error);
-      }
-      
-        setIsEncoding(false);
-      
-    } else if (messageData.type === 'error') {
-      console.error('❌ WebView workflow error:', messageData.error);
-      setWebViewHtml(null);
-    setIsEncoding(false);
     }
   };
 
@@ -1107,42 +840,6 @@ export default function CameraScreen() {
             showPercentage={true}
             showTimeRemaining={true}
             message="Capturing..."
-          />
-        </View>
-      )}
-
-      {/* WebView */}
-      {webViewHtml && (
-        <View style={styles.hiddenWebViewContainer}>
-          <WebView
-            ref={webViewRef}
-            originWhitelist={['*']}
-            source={{ html: webViewHtml, baseUrl: '' }}
-            onMessage={handleWebViewMessage}
-            style={styles.webViewContent}
-            javaScriptEnabled={true}
-            domStorageEnabled={true}
-            onLoadStart={() => {
-              console.log('🌐 WebView loading started...');
-            }}
-            onLoadEnd={() => {
-              console.log('🌐 WebView loading completed');
-            }}
-            onError={(syntheticEvent) => {
-              const {nativeEvent} = syntheticEvent;
-              console.error('❌ WebView error: ', nativeEvent);
-              setIsEncoding(false);
-              setWebViewHtml(null);
-            }}
-            onHttpError={(syntheticEvent) => {
-              const {nativeEvent} = syntheticEvent;
-              console.error('❌ WebView HTTP error: ', nativeEvent);
-            }}
-            onContentProcessDidTerminate={() => {
-              console.error('❌ WebView content process terminated');
-              setIsEncoding(false);
-              setWebViewHtml(null);
-            }}
           />
         </View>
       )}
@@ -1430,20 +1127,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  hiddenWebViewContainer: {
-    position: 'absolute',
-    width: 0,
-    height: 0,
-    opacity: 0,
-    top: -3000,
-    left: -3000,
-    overflow: 'hidden',
-  },
-  webViewContent: {
-    flex: 1,
-    width: '100%',
-    height: '100%',
   },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,

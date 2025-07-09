@@ -794,27 +794,22 @@ export const processGeoCamImageBackend = async (
     console.log('📊 Basic info length:', basicInfo.length);
     console.log('📊 Public key length:', publicKey.length);
 
-    // Create form data
-    const formData = new FormData();
-    
-    // For React Native, we need to use a different approach for file upload
-    // Create a file-like object that FormData can handle
-    const jpegUri = `data:image/jpeg;base64,${jpegBase64}`;
-    
-    formData.append('image', {
-      uri: jpegUri,
-      type: 'image/jpeg',
-      name: 'geocam.jpg'
-    } as any);
-    formData.append('basicInfo', basicInfo);
-    formData.append('publicKey', publicKey);
+    // Send as JSON instead of FormData for React Native compatibility
+    const payload = {
+      jpegBase64: jpegBase64,
+      basicInfo: basicInfo,
+      publicKey: publicKey
+    };
 
     const url = buildSteganographyUrl('/process-geocam-image');
     console.log('🌐 Processing URL:', url);
 
     const response = await fetch(url, {
       method: 'POST',
-      body: formData,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
     });
 
     console.log('📨 Response status:', response.status);
@@ -963,10 +958,7 @@ export const signImagePurePng = async (
   error?: string;
 }> => {
   try {
-    console.log('🎯 === SIGNING WORKFLOW (NO Canvas) ===');
-    console.log('📤 Sending complete signing request to backend...');
-    console.log('📊 JPEG base64 length:', jpegBase64.length);
-    console.log('📊 Basic info length:', basicInfo.length);
+    console.log('🎯 Starting image signing...');
 
     const requestData = {
       jpegBase64,
@@ -976,7 +968,6 @@ export const signImagePurePng = async (
     };
 
     const url = buildSteganographyUrl('/pure-png-sign');
-    console.log('🌐 Signing URL:', url);
 
     const response = await fetch(url, {
       method: 'POST',
@@ -986,12 +977,9 @@ export const signImagePurePng = async (
       body: JSON.stringify(requestData),
     });
 
-    console.log('📨 Response status:', response.status);
-
     let result;
     try {
       const responseText = await response.text();
-      console.log('📥 Raw response length:', responseText.length);
       result = JSON.parse(responseText);
     } catch (parseError) {
       console.error('❌ Failed to parse response:', parseError);
@@ -1003,9 +991,6 @@ export const signImagePurePng = async (
 
     if (response.ok && result.success) {
       console.log('✅ Signing successful');
-      console.log('📊 PNG base64 length:', result.pngBase64?.length);
-      console.log('📊 Stats:', result.stats);
-      console.log('🎯 NO Canvas used - signature integrity preserved');
 
       return {
         success: true,
@@ -1032,15 +1017,13 @@ export const signImagePurePng = async (
 
 export const verifyImagePurePng = async (pngBase64: string): Promise<ImageVerificationResponse> => {
   try {
-    console.log('📤 Sending verification request to backend...');
-    console.log('📊 PNG base64 length:', pngBase64.length);
+    console.log('📤 Starting verification...');
 
     const requestData = {
       pngBase64
     };
 
     const url = buildSteganographyUrl('/pure-png-verify');
-    console.log('🌐verification URL:', url);
 
     const response = await fetch(url, {
       method: 'POST',
@@ -1049,8 +1032,6 @@ export const verifyImagePurePng = async (pngBase64: string): Promise<ImageVerifi
       },
       body: JSON.stringify(requestData),
     });
-
-    console.log('📨 Response status:', response.status);
 
     let result;
     try {
@@ -1064,10 +1045,7 @@ export const verifyImagePurePng = async (pngBase64: string): Promise<ImageVerifi
     }
 
     if (response.ok && result.success) {
-      console.log('✅ verification successful');
-      console.log('🔐 Signature valid:', result.verification_result?.signature_valid);
-      console.log('📊 Method:', result.method);
-      console.log('🎯 NO Canvas used - verification complete');
+      console.log('✅ Verification successful');
 
       return {
         success: true,
@@ -1080,7 +1058,7 @@ export const verifyImagePurePng = async (pngBase64: string): Promise<ImageVerifi
         }
       };
     } else {
-      console.error('❌ verification failed:', result);
+      console.error('❌ Verification failed:', result);
       return {
         success: false,
         message: result.error || 'verification failed',

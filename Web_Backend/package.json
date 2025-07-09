@@ -12,11 +12,10 @@
   },
   "dependencies": {
     "@noble/curves": "^1.9.2",
-    "@noble/ed25519": "^2.3.0",
-    "@types/pngjs": "^6.0.5",
     "body-parser": "^1.20.2",
     "canvas": "^2.11.2",
     "cors": "^2.8.5",
+    "exif-js": "^2.3.0",
     "express": "^4.18.2",
     "form-data": "^4.0.3",
     "multer": "^1.4.5-lts.1",
