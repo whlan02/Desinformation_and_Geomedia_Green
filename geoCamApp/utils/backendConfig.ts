@@ -30,7 +30,6 @@ export const BACKEND_CONFIG = {
     VERIFY_IMAGE: '/api/verify-image-secure',
     DEVICES: '/api/devices-secure',
     HEALTH: '/api/health',
-    STATS: '/api/verification-stats',
   },
   
   // Request configuration
@@ -48,68 +47,39 @@ export const buildSteganographyUrl = (endpoint: string): string => {
   return `${BACKEND_CONFIG.STEGANOGRAPHY_URL}${endpoint}`;
 };
 
-// Test backend connectivity
-export const testBackendConnection = async (): Promise<boolean> => {
-  try {
-    console.log('🔍 Testing backend connection...');
-    console.log('🌐 Using BASE_URL:', BACKEND_CONFIG.BASE_URL);
-    console.log('🔧 Using STEGANOGRAPHY_URL:', BACKEND_CONFIG.STEGANOGRAPHY_URL);
-    
-    // Create AbortController for timeout
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // Increased timeout for production
-    
-    const response = await fetch(buildApiUrl(BACKEND_CONFIG.ENDPOINTS.HEALTH), {
-      method: 'GET',
-      signal: controller.signal,
-    });
-    
-    clearTimeout(timeoutId);
-    console.log('✅ Backend connection test result:', response.ok, response.status);
-    return response.ok;
-  } catch (error) {
-    console.error('❌ Backend connection test failed:', error);
-    return false;
-  }
-};
-
-// Test steganography service connectivity
-export const testSteganographyConnection = async (): Promise<boolean> => {
-  try {
-    console.log('🔍 Testing steganography service connection...');
-    
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
-    
-    const response = await fetch(`${BACKEND_CONFIG.STEGANOGRAPHY_URL}/health`, {
-      method: 'GET',
-      signal: controller.signal,
-    });
-    
-    clearTimeout(timeoutId);
-    console.log('✅ Steganography service test result:', response.ok, response.status);
-    return response.ok;
-  } catch (error) {
-    console.error('❌ Steganography service test failed:', error);
-    return false;
-  }
-};
-
 // Comprehensive service health check
 export const testAllServices = async (): Promise<{api: boolean, steganography: boolean}> => {
   console.log('🏥 Running comprehensive service health check...');
   console.log('🔧 Backend mode:', USE_LOCAL_FOR_TESTING ? 'Local Development' : 'Production (Render)');
   
-  const [apiHealth, stegHealth] = await Promise.all([
-    testBackendConnection(),
-    testSteganographyConnection()
-  ]);
-  
-  const result = {
-    api: apiHealth,
-    steganography: stegHealth
-  };
-  
-  console.log('📊 Health check results:', result);
-  return result;
+  try {
+    // Test API health
+    const apiResponse = await fetch(buildApiUrl(BACKEND_CONFIG.ENDPOINTS.HEALTH), {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+      },
+    });
+    const apiHealth = apiResponse.ok;
+
+    // Test steganography service health
+    const stegResponse = await fetch(`${BACKEND_CONFIG.STEGANOGRAPHY_URL}/health`, {
+      method: 'GET',
+    });
+    const stegHealth = stegResponse.ok;
+    
+    const result = {
+      api: apiHealth,
+      steganography: stegHealth
+    };
+    
+    console.log('📊 Health check results:', result);
+    return result;
+  } catch (error) {
+    console.error('❌ Health check error:', error);
+    return {
+      api: false,
+      steganography: false
+    };
+  }
 }; 
