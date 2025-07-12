@@ -505,3 +505,259 @@ export const deleteSecp256k1Keys = async (): Promise<boolean> => {
     return false;
   }
 }; 
+
+// =============================================================================
+// MIGRATED FUNCTIONS FROM secureKeyManager.ts (Key Management Functions)
+// =============================================================================
+
+// Secure storage configuration for migrated key functions
+const SECURE_STORE_OPTIONS_V2 = {
+  requireAuthentication: false,
+  authenticationPrompt: 'Authenticate to access GeoCam keys',
+  keychainService: 'com.geocam.secure.keychain',
+  showModal: true,
+  cancelable: false,
+};
+
+// Key storage identifiers for migrated functions
+const PRIVATE_KEY_STORAGE_KEY_V2 = 'geocam_private_key_v2';
+const PUBLIC_KEY_STORAGE_KEY_V2 = 'geocam_public_key_v2';
+const KEY_METADATA_STORAGE_KEY_V2 = 'geocam_key_metadata_v2';
+const DEVICE_FINGERPRINT_KEY_V2 = 'geocam_device_fingerprint';
+
+// Interfaces for migrated functions
+export interface SecureKeyPair {
+  privateKey: {
+    keyId: string;
+    algorithm: 'secp256k1';
+    generatedAt: string;
+    deviceFingerprint: string;
+  };
+  publicKey: {
+    keyId: string;
+    keyBase64: string;
+    algorithm: 'secp256k1';
+    fingerprint: string;
+    generatedAt: string;
+    deviceFingerprint: string;
+  };
+  metadata: {
+    keyId: string;
+    fingerprint: string;
+    deviceModel: string;
+    osName: string;
+    osVersion: string;
+    generatedAt: string;
+    securityLevel: 'hardware' | 'software';
+  };
+}
+
+/**
+ * Generate device fingerprint for hardware-based identification
+ * MIGRATED FROM: secureKeyManager.ts
+ */
+export const generateDeviceFingerprint = async (): Promise<string> => {
+  try {
+    let existingFingerprint = await SecureStore.getItemAsync(DEVICE_FINGERPRINT_KEY_V2);
+    
+    if (existingFingerprint) {
+      return existingFingerprint;
+    }
+    
+    const deviceInfo = {
+      model: Device.modelName || 'unknown',
+      osName: Device.osName || 'unknown',
+      osVersion: Device.osVersion || 'unknown',
+      deviceType: Device.deviceType || 'unknown',
+      randomComponent: await Crypto.getRandomBytesAsync(16)
+    };
+    
+    const fingerprintData = JSON.stringify(deviceInfo);
+    const fingerprint = await Crypto.digestStringAsync(
+      Crypto.CryptoDigestAlgorithm.SHA256,
+      fingerprintData,
+      { encoding: Crypto.CryptoEncoding.HEX }
+    );
+    
+    await SecureStore.setItemAsync(DEVICE_FINGERPRINT_KEY_V2, fingerprint);
+    return fingerprint;
+  } catch (error) {
+    console.error('❌ Failed to generate device fingerprint:', error);
+    throw new Error('Device fingerprint generation failed');
+  }
+};
+
+/**
+ * Generate secure key pair - private key never leaves device
+ * MIGRATED FROM: secureKeyManager.ts
+ */
+export const generateSecureKeyPair = async (): Promise<SecureKeyPair> => {
+  try {
+    console.log('🔐 Generating secure secp256k1 key pair...');
+    
+    const deviceFingerprint = await generateDeviceFingerprint();
+    console.log('📱 Device fingerprint generated:', deviceFingerprint);
+    
+    const privateKeyBytes = secp256k1.utils.randomPrivateKey();
+    const publicKeyPoint = secp256k1.getPublicKey(privateKeyBytes);
+    
+    const privateKeyBase64 = btoa(String.fromCharCode(...privateKeyBytes));
+    const publicKeyBase64 = btoa(String.fromCharCode(...publicKeyPoint));
+    
+    const publicKeyHash = await Crypto.digestStringAsync(
+      Crypto.CryptoDigestAlgorithm.SHA256,
+      publicKeyBase64,
+      { encoding: Crypto.CryptoEncoding.HEX }
+    );
+    const fingerprint = publicKeyHash.substring(0, 16);
+    
+    const keyId = `geocam_${Date.now()}_${fingerprint}`;
+    const generatedAt = new Date().toISOString();
+    
+    await SecureStore.setItemAsync(
+      PRIVATE_KEY_STORAGE_KEY_V2,
+      JSON.stringify({
+        keyId,
+        keyBase64: privateKeyBase64,
+        algorithm: 'secp256k1',
+        generatedAt,
+        deviceFingerprint
+      }),
+      SECURE_STORE_OPTIONS_V2
+    );
+    
+    const publicKeyData = {
+      keyId,
+      keyBase64: publicKeyBase64,
+      algorithm: 'secp256k1' as const,
+      fingerprint,
+      generatedAt,
+      deviceFingerprint
+    };
+    
+    await SecureStore.setItemAsync(
+      PUBLIC_KEY_STORAGE_KEY_V2,
+      JSON.stringify(publicKeyData)
+    );
+    
+    const metadata = {
+      keyId,
+      fingerprint,
+      deviceModel: Device.modelName || 'unknown',
+      osName: Device.osName || 'unknown',
+      osVersion: Device.osVersion || 'unknown',
+      generatedAt,
+      securityLevel: 'hardware' as const
+    };
+    
+    await SecureStore.setItemAsync(
+      KEY_METADATA_STORAGE_KEY_V2,
+      JSON.stringify(metadata)
+    );
+    
+    console.log('✅ Secure key pair generated successfully');
+    
+    return {
+      privateKey: {
+        keyId,
+        algorithm: 'secp256k1',
+        generatedAt,
+        deviceFingerprint
+      },
+      publicKey: publicKeyData,
+      metadata
+    };
+    
+  } catch (error) {
+    console.error('❌ Secure key pair generation failed:', error);
+    throw new Error('Failed to generate secure key pair');
+  }
+};
+
+/**
+ * Check if secure keys exist
+ * MIGRATED FROM: secureKeyManager.ts
+ */
+export const hasSecureKeys = async (): Promise<boolean> => {
+  try {
+    console.log('🔍 Checking if secure keys exist...');
+    
+    const privateKeyExists = await SecureStore.getItemAsync(PRIVATE_KEY_STORAGE_KEY_V2, SECURE_STORE_OPTIONS_V2);
+    const publicKeyExists = await SecureStore.getItemAsync(PUBLIC_KEY_STORAGE_KEY_V2);
+    
+    console.log('🔑 Private key exists:', !!privateKeyExists);
+    console.log('🔑 Public key exists:', !!publicKeyExists);
+    
+    const keysExist = !!(privateKeyExists && publicKeyExists);
+    console.log('✅ Secure keys exist:', keysExist);
+    
+    return keysExist;
+  } catch (error) {
+    console.error('❌ Failed to check for secure keys:', error);
+    return false;
+  }
+};
+
+/**
+ * Delete secure keys (for reset/debugging)
+ * MIGRATED FROM: secureKeyManager.ts
+ */
+export const deleteSecureKeys = async (): Promise<boolean> => {
+  try {
+    await SecureStore.deleteItemAsync(PRIVATE_KEY_STORAGE_KEY_V2, SECURE_STORE_OPTIONS_V2);
+    await SecureStore.deleteItemAsync(PUBLIC_KEY_STORAGE_KEY_V2);
+    await SecureStore.deleteItemAsync(KEY_METADATA_STORAGE_KEY_V2);
+    
+    console.log('✅ Secure keys deleted successfully');
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to delete secure keys:', error);
+    return false;
+  }
+};
+
+/**
+ * Initialize secure key management
+ * MIGRATED FROM: secureBackendService.ts
+ */
+export const initializeSecureKeys = async (): Promise<{
+  success: boolean;
+  hasKeys: boolean;
+  message: string;
+}> => {
+  try {
+    console.log('🔐 Initializing secure key management...');
+    
+    const keyExists = await hasSecureKeys();
+    
+    if (keyExists) {
+      console.log('✅ Secure keys already exist');
+      return {
+        success: true,
+        hasKeys: true,
+        message: 'Secure keys already initialized'
+      };
+    }
+    
+    console.log('🔑 Generating new secure key pair...');
+    const keyPair = await generateSecureKeyPair();
+    
+    console.log('✅ Secure key pair generated successfully');
+    console.log('🔑 Key ID:', keyPair.privateKey.keyId);
+    console.log('🔑 Public Key Fingerprint:', keyPair.metadata.fingerprint);
+    
+    return {
+      success: true,
+      hasKeys: true,
+      message: 'Secure keys generated successfully'
+    };
+    
+  } catch (error) {
+    console.error('❌ Failed to initialize secure keys:', error);
+    return {
+      success: false,
+      hasKeys: false,
+      message: `Key initialization failed: ${error instanceof Error ? error.message : String(error)}`
+    };
+  }
+}; 

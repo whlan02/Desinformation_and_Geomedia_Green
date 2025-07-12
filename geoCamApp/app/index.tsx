@@ -1,12 +1,10 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Animated, StatusBar, Platform, useWindowDimensions, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Animated, StatusBar, useWindowDimensions, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ImageBackground } from 'react-native';
 import { SvgXml } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { generateSecp256k1KeyPair, getStoredSecp256k1KeyPair, storeSecp256k1KeyPair, hasStoredSecp256k1KeyPair } from '../utils/secp256k1Utils';
-import { initializeSecureKeys } from '../utils/secureBackendService';
-import { hasSecureKeys } from '../utils/secureKeyManager';
+import { initializeSecureKeys, getStoredSecp256k1KeyPair, hasStoredSecp256k1KeyPair, hasSecureKeys } from '../utils/secp256k1Utils';
 import { useTheme } from '../contexts/ThemeContext';
 
 // Define SVG strings directly
@@ -20,7 +18,7 @@ const securityIconXml = `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.
 
 export default function MainMenu() {
   const router = useRouter();
-  const { colors, isDark, toggleTheme } = useTheme();
+  const {isDark, toggleTheme } = useTheme();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const [keysInitialized, setKeysInitialized] = useState(false);

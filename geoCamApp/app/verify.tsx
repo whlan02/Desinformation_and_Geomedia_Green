@@ -22,7 +22,7 @@ import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system';
 import { LinearGradient } from 'expo-linear-gradient';
-import { verifyImageSecure } from '../utils/secureBackendService';
+import { verifyImageSecure } from '../utils/backendService';
 import { getGalleryImages, saveImageToGallery } from '../utils/galleryStorage';
 import CircularProgress from '../components/CircularProgress';
 import { Ionicons } from '@expo/vector-icons';

@@ -1,6 +1,8 @@
 import * as Device from 'expo-device';
 import * as FileSystem from 'expo-file-system';
 import * as SecureStore from 'expo-secure-store';
+import * as Crypto from 'expo-crypto';
+import { secp256k1 } from '@noble/curves/secp256k1';
 import { buildApiUrl, buildSteganographyUrl, BACKEND_CONFIG } from './backendConfig';
 import { getStoredSecp256k1KeyPair } from './secp256k1Utils';
 
@@ -368,13 +370,14 @@ export const performFreshDeviceStart = async (): Promise<{
 
     // Step 2: Reset local keys and device name
     console.log('🔑 Step 2: Resetting local keys and device name...');
-    const { deleteSecp256k1Keys } = await import('./secp256k1Utils');
+    const { deleteSecp256k1Keys, deleteSecureKeys } = await import('./secp256k1Utils.js');
     const keyResetSuccess = await deleteSecp256k1Keys();
+    const secureKeyResetSuccess = await deleteSecureKeys();
     const deviceNameClearSuccess = await clearGeoCamDeviceName();
     
     steps.keyReset = {
-      success: keyResetSuccess && deviceNameClearSuccess,
-      message: keyResetSuccess && deviceNameClearSuccess ? 
+      success: keyResetSuccess && secureKeyResetSuccess && deviceNameClearSuccess,
+      message: keyResetSuccess && secureKeyResetSuccess && deviceNameClearSuccess ? 
         'Keys and device name cleared' : 
         'Failed to clear keys or device name'
     };
@@ -386,7 +389,7 @@ export const performFreshDeviceStart = async (): Promise<{
 
     // Step 3: Generate new keys
     console.log('🔐 Step 3: Generating new keys...');
-    const { generateSecp256k1KeyPair, storeSecp256k1KeyPair } = await import('./secp256k1Utils');
+    const { generateSecp256k1KeyPair, storeSecp256k1KeyPair } = await import('./secp256k1Utils.js');
     
     try {
       const newKeyPair = await generateSecp256k1KeyPair();
@@ -1204,6 +1207,101 @@ export const verifyImageSteganography = async (
     return {
       success: false,
       error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}; 
+
+// =============================================================================
+// MIGRATED FUNCTIONS FROM secureBackendService.ts (Backend Service Functions)
+// =============================================================================
+
+// Interface for secure verification response
+export interface SecureVerificationResponse {
+  success: boolean;
+  verification_result?: {
+    signature_valid: boolean;
+    is_authentic: boolean;
+    device_info: {
+      device_model: string;
+      os_name: string;
+      registration_date: string;
+      public_key_fingerprint: string;
+    };
+    verification_timestamp: string;
+    image_hash: string;
+    security_checks: {
+      signature_format: boolean;
+      public_key_format: boolean;
+      hash_format: boolean;
+      timestamp_valid: boolean;
+      signature_verified: boolean;
+    };
+    error_details?: string;
+  };
+  message?: string;
+  error?: string;
+}
+
+// Key management functions are imported from secp256k1Utils when needed
+
+/**
+ * Verify image using secure backend (public key only)
+ * MIGRATED FROM: secureBackendService.ts
+ */
+export const verifyImageSecure = async (
+  imageBase64: string,
+  signature: string,
+  publicKeyId: string,
+  timestamp?: string
+): Promise<SecureVerificationResponse> => {
+  try {
+    console.log('🔍 Starting secure image verification...');
+    console.log('📊 Image size:', Math.round(imageBase64.length / 1024), 'KB');
+    console.log('🔑 Public Key ID:', publicKeyId);
+    
+    const verificationData = {
+      image_data: imageBase64,
+      signature: signature,
+      public_key_id: publicKeyId,
+      timestamp: timestamp || new Date().toISOString()
+    };
+    
+    const response = await fetch(buildApiUrl('/api/verify-image-secure'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(verificationData),
+    });
+    
+    const result = await response.json();
+    
+    if (response.ok && result.success) {
+      console.log('✅ Secure image verification completed');
+      console.log('📊 Signature valid:', result.verification_result.signature_valid);
+      console.log('🛡️  Security checks:', result.verification_result.security_checks);
+      console.log('📱 Device:', result.verification_result.device_info.device_model);
+      
+      return {
+        success: true,
+        verification_result: result.verification_result,
+        message: result.message
+      };
+    } else {
+      console.error('❌ Secure image verification failed:', result);
+      return {
+        success: false,
+        message: result.error || 'Verification failed',
+        error: result.error
+      };
+    }
+    
+  } catch (error) {
+    console.error('❌ Secure image verification error:', error);
+    return {
+      success: false,
+      message: `Verification error: ${error instanceof Error ? error.message : String(error)}`,
+      error: String(error)
     };
   }
 }; 

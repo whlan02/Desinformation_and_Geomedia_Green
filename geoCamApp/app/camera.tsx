@@ -22,7 +22,7 @@ import * as FileSystem from 'expo-file-system';
 import * as Haptics from 'expo-haptics';
 import { saveImageToGallery } from '../utils/galleryStorage';
 import { getStoredSecp256k1KeyPair } from '../utils/secp256k1Utils';
-import { getStoredGeoCamDeviceName, processGeoCamImageBackend, completeGeoCamImageBackend, signImagePurePng } from '../utils/backendService';
+import { getStoredGeoCamDeviceName, processGeoCamImageBackend, completeGeoCamImageBackend } from '../utils/backendService';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import CircularProgress from '../components/CircularProgress';

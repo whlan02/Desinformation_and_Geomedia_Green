@@ -7,7 +7,7 @@ import { generateSecuritySummary, getSecurityRecommendations, supportsHardwareSe
 import { deleteSecp256k1Keys, hasStoredSecp256k1KeyPair } from '../utils/secp256k1Utils';
 import { testAllServices } from '../utils/backendConfig';
 import { getStoredGeoCamDeviceName, performFreshDeviceStart } from '../utils/backendService';
-import { hasSecureKeys, deleteSecureKeys } from '../utils/secureKeyManager';
+import { hasSecureKeys, deleteSecureKeys } from '../utils/secp256k1Utils';
 import { useTheme } from '../contexts/ThemeContext';
 
 export default function SecurityInfo() {

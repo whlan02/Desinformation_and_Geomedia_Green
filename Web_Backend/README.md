@@ -3,7 +3,7 @@
 This backend consists of two microservices:
 
 1. **Node.js Steganography Service** (Port 3001) - Handles image steganography encoding/decoding
-2. **Python Flask API Service** (Port 5000) - Handles device registration and verification logic
+2. **Python Flask API Service** (Port 5001) - Handles device registration and verification logic
 
 ## Architecture
 
@@ -11,7 +11,7 @@ This backend consists of two microservices:
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │   GeoCam App    │    │  Python Flask   │    │  Node.js Steg   │
 │  (React Native) │◄──►│   API Service   │◄──►│    Service      │
-└─────────────────┘    │   (Port 5000)   │    │   (Port 3001)   │
+└─────────────────┘    │   (Port 5001)   │    │   (Port 3001)   │
                        └─────────────────┘    └─────────────────┘
                               │
                     ┌─────────────────┐
@@ -43,7 +43,7 @@ This backend consists of two microservices:
 3. **Check service health:**
    ```bash
    # Check API service
-   curl http://localhost:5000/health
+   curl http://localhost:5001/health
    
    # Check steganography service
    curl http://localhost:3001/health
@@ -84,7 +84,7 @@ python app.py
 
 ## API Endpoints
 
-### Python Flask API (Port 5000)
+### Python Flask API (Port 5001)
 
 #### Device Registration
 - **POST** `/api/register-device`
@@ -215,7 +215,7 @@ The system automatically creates tables on startup. For schema changes:
 
 ```bash
 # Test device registration
-curl -X POST http://localhost:5000/api/register-device \
+curl -X POST http://localhost:5001/api/register-device \
   -H "Content-Type: application/json" \
   -d '{
     "installation_id": "test_install_123",
@@ -225,7 +225,7 @@ curl -X POST http://localhost:5000/api/register-device \
   }'
 
 # Test image verification
-curl -X POST http://localhost:5000/api/verify-image \
+curl -X POST http://localhost:5001/api/verify-image \
   -F "image=@test_image.jpg"
 ```
 
