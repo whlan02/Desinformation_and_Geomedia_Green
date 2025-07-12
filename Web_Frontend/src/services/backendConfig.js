@@ -1,5 +1,5 @@
 // Production URLs
-const PRODUCTION_BASE_URL = 'https://geocam-api.onrender.com';
+const PRODUCTION_BASE_URL = 'https://register-device-production.up.railway.app';
 const PRODUCTION_STEG_URL = 'https://desinformationandgeomediagreen-production.up.railway.app';
 
 // Development URLs (using Vite proxy)
