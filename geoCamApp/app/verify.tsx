@@ -22,7 +22,7 @@ import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system';
 import { LinearGradient } from 'expo-linear-gradient';
-import { verifyImagePurePng } from '../utils/backendService';
+import { verifyImageSecure } from '../utils/backendService';
 import { getGalleryImages, saveImageToGallery } from '../utils/galleryStorage';
 import CircularProgress from '../components/CircularProgress';
 import { Ionicons } from '@expo/vector-icons';
@@ -239,8 +239,41 @@ export default function Verify() {
       
       console.log('📄 Image converted to base64, length:', base64Data.length);
       
-      const verificationResult = await verifyImagePurePng(base64Data);
-      setVerificationResult(verificationResult); // Store the full result for import
+      // Combined verification: first extract steganography data, then verify signature
+      const { verifyImagePurePng } = require('../utils/backendService');
+      const extractionResult = await verifyImagePurePng(base64Data);
+      
+      if (extractionResult.success && extractionResult.verification_result) {
+        // Extract signature and public key information
+        const { signature, public_key_id } = extractionResult.verification_result;
+        
+        if (signature && public_key_id) {
+          // Use secure backend for signature verification
+          const secureVerificationResult = await verifyImageSecure(base64Data, signature, public_key_id);
+          
+          // Combine extraction data with secure verification result
+          const verificationResult = {
+            success: secureVerificationResult.success,
+            verification_result: {
+              ...extractionResult.verification_result,
+              signature_valid: secureVerificationResult.verification_result?.signature_valid || false,
+              is_authentic: secureVerificationResult.verification_result?.is_authentic || false,
+              device_info: secureVerificationResult.verification_result?.device_info,
+              security_checks: secureVerificationResult.verification_result?.security_checks
+            }
+          };
+          
+          setVerificationResult(verificationResult);
+        } else {
+          // Fallback to extraction result if no signature/public key found
+          setVerificationResult(extractionResult);
+        }
+      } else {
+        // Fallback to extraction result if extraction failed
+        setVerificationResult(extractionResult);
+      }
+      
+      const verificationResult = extractionResult; // Use extraction result for UI processing
       
       if (verificationResult.success) {
         if (verificationResult.verification_result?.decoded_data) {

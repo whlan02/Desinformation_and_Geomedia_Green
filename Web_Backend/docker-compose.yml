@@ -36,7 +36,7 @@ services:
       context: .
       dockerfile: Dockerfile.python
     ports:
-      - "5000:5000"
+      - "5001:5001"
     environment:
       - DATABASE_URL=postgresql://geocam:geocam@postgres:5432/geocam_db
       - STEGANOGRAPHY_SERVICE_URL=http://steganography-service:3001

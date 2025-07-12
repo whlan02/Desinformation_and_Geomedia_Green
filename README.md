@@ -106,25 +106,180 @@ graph TB
     H --> J
 ```
 
-### 🔒 **Security Architecture**
+## 🔍 Image Verification Flow
 
-1. **Device Registration**
-   - Unique secp256k1 key pair generation
-   - Device fingerprint creation
-   - Secure key storage (Android Keystore/iOS Keychain)
+The GeoCam platform implements a comprehensive image verification system that ensures authenticity through cryptographic signatures and steganographic metadata embedding. Below is the complete verification flow:
 
-2. **Photo Capture Process**
-   - GPS coordinate acquisition
-   - Timestamp generation
-   - Metadata compilation
-   - Cryptographic signing
-   - Steganographic embedding
+### **Complete Verification Process**
 
-3. **Verification Process**
-   - Steganographic extraction
-   - Signature validation
-   - Device lookup
-   - Integrity checking
+```mermaid
+graph TB
+    %% User Actions
+    A[User Opens Verify Screen] --> B{Image Selected?}
+    B -->|No| C[Show Empty State]
+    C --> D[User Taps 'Browse Images']
+    D --> E[Show Bottom Sheet Modal]
+    
+    %% Image Selection Options
+    E --> F[Phone Gallery Option]
+    E --> G[GeoCam Gallery Option]
+    
+    F --> H[Launch Image Picker]
+    G --> I[Navigate to Gallery with Select Mode]
+    
+    H --> J[User Selects Image]
+    I --> K[User Selects from GeoCam Gallery]
+    
+    J --> L[Set Selected Image URI]
+    K --> M[Store URI in AsyncStorage]
+    M --> N[Navigate Back to Verify Screen]
+    N --> O[Read URI from AsyncStorage]
+    O --> L
+    
+    %% Start Verification Process
+    L --> P[Start Verification Process]
+    P --> Q[Show Progress Animation]
+    P --> R[Convert Image to Base64]
+    
+    %% Steganography Extraction
+    R --> S[Call Steganography Service]
+    S --> T[Extract Hidden Metadata]
+    T --> U{Metadata Found?}
+    
+    U -->|Yes| V[Parse Decoded Data]
+    U -->|No| W[Set Empty Metadata]
+    
+    %% Signature Verification Process
+    V --> X{Signature & Public Key ID Found?}
+    X -->|Yes| Y[Call Secure Backend Service]
+    X -->|No| Z[Skip Signature Verification]
+    
+    Y --> AA[Backend Retrieves Public Key]
+    AA --> BB[Verify Signature with Public Key]
+    BB --> CC{Signature Valid?}
+    
+    CC -->|Yes| DD[Mark as Authentic]
+    CC -->|No| EE[Mark as Not Authentic]
+    
+    %% Process Results
+    DD --> FF[Combine Results]
+    EE --> FF
+    Z --> FF
+    W --> FF
+    
+    FF --> GG[Update UI with Results]
+    GG --> HH[Show Verification Status]
+    HH --> II[Display Metadata Items]
+    II --> JJ{Location Data Available?}
+    
+    JJ -->|Yes| KK[Show Map with Location]
+    JJ -->|No| LL[Skip Map Display]
+    
+    KK --> MM[Show Action Button]
+    LL --> MM
+    
+    %% Key Management (Background Process)
+    subgraph "Key Management (Device Only)"
+        S1[Private Key Generated on Device]
+        S2[Private Key Stored in Secure Store]
+        S3[Public Key Derived from Private Key]
+        S4[Public Key Sent to Backend]
+        S5[Backend Stores Public Key with Device ID]
+        
+        S1 --> S2
+        S1 --> S3
+        S3 --> S4
+        S4 --> S5
+    end
+    
+    %% Backend Services
+    subgraph "Backend Services"
+        B1[Steganography Service<br/>Port 3001]
+        B2[Secure Backend Service<br/>Port 5001]
+        B3[Public Key Storage]
+        B4[Signature Verification]
+        
+        B1 --> B2
+        B2 --> B3
+        B2 --> B4
+    end
+    
+    %% Connect flows
+    S --> B1
+    Y --> B2
+    AA --> B3
+    BB --> B4
+
+    %% Styling
+    classDef userAction fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
+    classDef process fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    classDef decision fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
+    classDef security fill:#ffebee,stroke:#c62828,stroke-width:2px
+    classDef backend fill:#e8f5e8,stroke:#2e7d32,stroke-width:2px
+    
+    class A,C,D,F,G,H,I,J,K userAction
+    class P,Q,R,S,T,V,FF,GG,HH,II,MM process
+    class B,U,X,CC,JJ decision
+    class S1,S2,S3,S4,S5 security
+    class B1,B2,B3,B4 backend
+```
+
+### **Key Security Principles**
+
+1. **🔐 Private Key Isolation**: Private keys never leave the device and are stored in secure hardware-backed storage
+2. **🔑 Public Key Distribution**: Only public keys are transmitted to the backend for verification
+3. **✅ Signature Verification**: Backend uses stored public keys to cryptographically verify image signatures
+4. **🛡️ Secure Storage**: Private keys are protected by device secure storage (Android Keystore/iOS Keychain)
+5. **🚫 No Key Transmission**: The verification process never requires transmitting private keys
+
+### **Verification Process Steps**
+
+1. **📱 Image Selection**: User selects image from phone gallery or GeoCam gallery
+2. **🔍 Steganography Extraction**: Hidden metadata is extracted from the image
+3. **🔐 Signature Verification**: If signature is present, backend verifies it using stored public key
+4. **📊 Result Processing**: Combines steganographic and cryptographic verification results
+5. **📋 UI Display**: Shows verification status, metadata, and location data if available
+
+### **Security Architecture**
+
+```mermaid
+graph TB
+    subgraph "Device Security Boundary"
+        PK[Private Key<br/>🔒 Secure Storage]
+        SIG[Sign Image<br/>🔐 Private Key]
+        META[Embed Metadata<br/>📊 Steganography]
+    end
+    
+    subgraph "Network Layer"
+        PUB[Public Key<br/>📤 Transmitted]
+        IMG[Signed Image<br/>📸 With Metadata]
+    end
+    
+    subgraph "Backend Verification"
+        STORE[Public Key Storage<br/>🗃️ Database]
+        VERIFY[Signature Verification<br/>✅ Public Key]
+        RESULT[Verification Result<br/>📋 Authentic/Invalid]
+    end
+    
+    PK --> SIG
+    SIG --> META
+    META --> IMG
+    PK --> PUB
+    PUB --> STORE
+    IMG --> VERIFY
+    STORE --> VERIFY
+    VERIFY --> RESULT
+    
+    classDef secure fill:#ffcdd2,stroke:#d32f2f,stroke-width:3px
+    classDef network fill:#e1f5fe,stroke:#1976d2,stroke-width:2px
+    classDef backend fill:#e8f5e8,stroke:#2e7d32,stroke-width:2px
+    
+    class PK,SIG,META secure
+    class PUB,IMG network
+    class STORE,VERIFY,RESULT backend
+```
+
+For a complete technical overview of the verification process, see the [detailed flow diagram](./GeoCam_Verification_Flow_Diagram.md).
 
 ## 💻 Technology Stack
 
@@ -474,6 +629,7 @@ For questions, issues, or contributions:
 - **📱 Mobile App**: [GeoCam App Documentation](./geoCamApp/README.md)
 - **🌐 Web Frontend**: [Frontend Documentation](./Web_Frontend/README.md)
 - **⚙️ Backend Services**: [Backend Documentation](./Web_Backend/README.md)
+- **🔍 Verification Flow**: [Complete Verification Flow Diagram](./GeoCam_Verification_Flow_Diagram.md)
 
 ### **Research Context**
 This project is part of the **Desinformation and Geomedia** research initiative, exploring technological solutions to combat misinformation through verifiable digital media and secure authentication systems.
@@ -511,3 +667,214 @@ This project is part of the **Desinformation and Geomedia** research initiative,
 - **Code Organization**: Improved project structure and component modularity
 - **Safe Area Handling**: Proper support for device notches and home indicators
 - **Gesture Handler Integration**: Native gesture recognition for smooth interactions
+
+### **Security & Verification Enhancements** 🔐
+- **Complete Verification Flow**: Comprehensive image authenticity verification system
+- **Cryptographic Security**: Private keys never leave device, only public keys transmitted
+- **Steganographic Analysis**: Advanced metadata extraction and validation
+- **Signature Verification**: Backend cryptographic validation using stored public keys
+- **Security Architecture**: Multi-layered security with device isolation and secure storage
+- **Detailed Flow Documentation**: Complete technical diagrams and security explanations
+
+## 🔧 Key Management & Verification Libraries
+
+### **Mobile App Libraries for Secure Key Management**
+
+#### **1. @noble/curves v1.9.2**
+- **Purpose**: Production-grade secp256k1 elliptic curve cryptography
+- **Implementation**: Pure JavaScript implementation with security focus
+- **Key Features**:
+  - Secure random key generation: `secp256k1.utils.randomPrivateKey()`
+  - Public key derivation: `secp256k1.getPublicKey(privateKey)`
+  - Digital signature creation: `secp256k1.sign(hash, privateKey)`
+  - No native dependencies, fully auditable JavaScript code
+
+```javascript
+// Key generation implementation
+const privateKeyBytes = secp256k1.utils.randomPrivateKey();
+const publicKeyPoint = secp256k1.getPublicKey(privateKeyBytes);
+const signature = secp256k1.sign(imageHash, privateKeyBytes);
+```
+
+#### **2. expo-secure-store v14.2.3**
+- **Purpose**: Hardware-backed secure key storage
+- **Implementation**: Uses iOS Keychain and Android Keystore
+- **Security Features**:
+  - Hardware security module (HSM) integration when available
+  - Biometric authentication support
+  - Keychain services isolation
+  - Encrypted storage with device-specific keys
+
+```javascript
+// Secure storage configuration
+const SECURE_STORE_OPTIONS = {
+  requireAuthentication: false, // Can be enabled for biometric auth
+  authenticationPrompt: 'Authenticate to access GeoCam keys',
+  keychainService: 'com.geocam.secure.keychain',
+  showModal: true,
+  cancelable: false,
+};
+```
+
+#### **3. expo-crypto v13.1.0**
+- **Purpose**: Cryptographic hash functions and secure random generation
+- **Implementation**: Native crypto operations
+- **Key Features**:
+  - SHA-256/SHA-512 hashing: `Crypto.digestStringAsync()`
+  - Secure random bytes: `Crypto.getRandomBytesAsync()`
+  - Device fingerprint generation using hardware characteristics
+
+```javascript
+// Device fingerprint generation
+const fingerprint = await Crypto.digestStringAsync(
+  Crypto.CryptoDigestAlgorithm.SHA256,
+  deviceInfo,
+  { encoding: Crypto.CryptoEncoding.HEX }
+);
+```
+
+### **Backend Libraries for Signature Verification**
+
+#### **1. coincurve v19.0.1**
+- **Purpose**: Production-grade secp256k1 verification library
+- **Implementation**: Python bindings to libsecp256k1 (Bitcoin Core library)
+- **Security Features**:
+  - Constant-time operations to prevent timing attacks
+  - Comprehensive signature verification
+  - Memory-safe operations
+  - Industry-standard cryptographic implementation
+
+```python
+# Signature verification implementation
+public_key = coincurve.PublicKey(public_key_bytes)
+signature_verified = public_key.verify(signature_bytes, hash_bytes, hasher=None)
+```
+
+#### **2. cryptography v41.0.7**
+- **Purpose**: Fallback cryptographic operations and certificate handling
+- **Implementation**: Python cryptographic toolkit
+- **Features**:
+  - Hash function implementations
+  - Key format conversions
+  - Certificate and key serialization
+
+#### **3. hashlib (Python Standard Library)**
+- **Purpose**: SHA-512 image hashing for signature verification
+- **Implementation**: Built-in Python cryptographic hashing
+- **Usage**: `hashlib.sha512(image_data).hexdigest()`
+
+### **Implementation Architecture**
+
+#### **Mobile App Security Implementation**
+```typescript
+// Private key generation (never transmitted)
+export const generateSecureKeyPair = async (): Promise<SecureKeyPair> => {
+  const privateKeyBytes = secp256k1.utils.randomPrivateKey();
+  const publicKeyPoint = secp256k1.getPublicKey(privateKeyBytes);
+  
+  // Store private key securely on device
+  await SecureStore.setItemAsync(
+    PRIVATE_KEY_STORAGE_KEY,
+    JSON.stringify({
+      keyId,
+      keyBase64: privateKeyBase64,
+      algorithm: 'secp256k1',
+      generatedAt,
+      deviceFingerprint
+    }),
+    SECURE_STORE_OPTIONS
+  );
+  
+  return { privateKey, publicKey, metadata };
+};
+
+// Image signing (private key never leaves device)
+export const signImageDataSecurely = async (imageData: string, metadata: any) => {
+  const privateKeyData = JSON.parse(await SecureStore.getItemAsync(PRIVATE_KEY_STORAGE_KEY));
+  const imageDataHash = await Crypto.digestStringAsync(
+    Crypto.CryptoDigestAlgorithm.SHA512,
+    imageData,
+    { encoding: Crypto.CryptoEncoding.HEX }
+  );
+  
+  const signature = secp256k1.sign(hashBytes, privateKeyBytes);
+  return { signature, publicKeyId, timestamp, metadata };
+};
+```
+
+#### **Backend Verification Implementation**
+```python
+def verify_secp256k1_signature(signature_base64: str, data_hash: str, public_key_base64: str) -> dict:
+    """Secure signature verification using coincurve library"""
+    
+    # Multi-layer security checks
+    verification_result = {
+        'valid': False,
+        'security_checks': {
+            'signature_format': False,
+            'public_key_format': False,
+            'hash_format': False,
+            'signature_verified': False
+        }
+    }
+    
+    # 1. Validate signature format (64 bytes for secp256k1)
+    signature_bytes = base64.b64decode(signature_base64)
+    if len(signature_bytes) != 64:
+        return verification_result
+    
+    # 2. Validate public key format (33 bytes compressed)
+    public_key_bytes = base64.b64decode(public_key_base64)
+    if len(public_key_bytes) != 33 or public_key_bytes[0] not in [0x02, 0x03]:
+        return verification_result
+    
+    # 3. Cryptographic verification using coincurve
+    try:
+        public_key = coincurve.PublicKey(public_key_bytes)
+        hash_bytes = bytes.fromhex(data_hash)
+        signature_verified = public_key.verify(signature_bytes, hash_bytes, hasher=None)
+        
+        verification_result['valid'] = signature_verified
+        verification_result['security_checks']['signature_verified'] = signature_verified
+        
+    except Exception as e:
+        verification_result['error'] = f'Cryptographic verification failed: {str(e)}'
+    
+    return verification_result
+```
+
+### **Security Guarantees**
+
+#### **Private Key Protection**
+1. **Never Transmitted**: Private keys remain on the device at all times
+2. **Hardware Security**: Stored in iOS Keychain/Android Keystore with hardware backing
+3. **Encrypted Storage**: Device-specific encryption keys protect stored data
+4. **Biometric Protection**: Optional biometric authentication for key access
+
+#### **Public Key Infrastructure**
+1. **Secure Transmission**: Only public keys are sent to the backend
+2. **Database Storage**: Public keys stored in SQLite with device registration
+3. **Key Rotation**: Support for key updates and device re-registration
+4. **Device Revocation**: Ability to deactivate compromised devices
+
+#### **Signature Verification**
+1. **Production-Grade Crypto**: Uses libsecp256k1 (Bitcoin Core library)
+2. **Constant-Time Operations**: Prevents timing-based attacks
+3. **Comprehensive Validation**: Multi-layer security checks before verification
+4. **Audit Trail**: Complete logging of verification attempts
+
+### **Implementation Success Factors**
+
+#### **Mobile App**
+- **@noble/curves**: Provides secure, auditable secp256k1 implementation
+- **expo-secure-store**: Ensures private keys never leave secure hardware
+- **expo-crypto**: Provides cryptographic primitives for hashing and random generation
+- **Device Fingerprinting**: Creates unique device identifiers for registration
+
+#### **Backend**
+- **coincurve**: Production-grade signature verification with libsecp256k1
+- **Security Checks**: Multi-layer validation before cryptographic operations
+- **Audit Logging**: Complete tracking of all verification attempts
+- **Rate Limiting**: Protection against abuse and replay attacks
+
+This implementation ensures that private keys remain secure on the device while enabling robust image authenticity verification through public key cryptography.

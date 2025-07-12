@@ -6,7 +6,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { generateSecuritySummary, getSecurityRecommendations, supportsHardwareSecurity } from '../utils/deviceSecurityInfo';
 import { deleteSecp256k1Keys, hasStoredSecp256k1KeyPair } from '../utils/secp256k1Utils';
 import { testAllServices } from '../utils/backendConfig';
-import { checkDeviceRegistration, getStoredGeoCamDeviceName, registerDevice, clearGeoCamDeviceName, performFreshDeviceStart } from '../utils/backendService';
+import { getStoredGeoCamDeviceName, performFreshDeviceStart } from '../utils/backendService';
+import { hasSecureKeys, deleteSecureKeys } from '../utils/secp256k1Utils';
 import { useTheme } from '../contexts/ThemeContext';
 
 export default function SecurityInfo() {
@@ -18,14 +19,6 @@ export default function SecurityInfo() {
   const [backendStatus, setBackendStatus] = useState<{api: boolean, steganography: boolean} | null>(null);
   const [isTestingBackend, setIsTestingBackend] = useState(false);
   const [geocamDeviceName, setGeocamDeviceName] = useState<string | null>(null);
-  const [deviceRegistrationStatus, setDeviceRegistrationStatus] = useState<{
-    isRegistered: boolean;
-    isChecking: boolean;
-    registrationMessage?: string;
-  }>({
-    isRegistered: false,
-    isChecking: false,
-  });
   const [keysInitialized, setKeysInitialized] = useState(false);
 
   useEffect(() => {
@@ -33,13 +26,19 @@ export default function SecurityInfo() {
     checkKeys();
     loadGeoCamDeviceName();
     testBackendConnectivity();
-    checkDeviceRegistrationStatus();
   }, []);
 
   const checkKeys = async () => {
     try {
-      const hasKeys = await hasStoredSecp256k1KeyPair();
-      setKeysInitialized(hasKeys);
+      // Check for both old and new key systems
+      const hasOldKeys = await hasStoredSecp256k1KeyPair();
+      const hasNewKeys = await hasSecureKeys();
+      
+      console.log('🔑 Key status check:');
+      console.log('  - Old keys:', hasOldKeys);
+      console.log('  - New secure keys:', hasNewKeys);
+      
+      setKeysInitialized(hasOldKeys || hasNewKeys);
     } catch (error) {
       console.error('Failed to check keys status:', error);
       setKeysInitialized(false);
@@ -55,25 +54,6 @@ export default function SecurityInfo() {
       }
     } catch (error) {
       console.error('❌ Failed to load GeoCam device name:', error);
-    }
-  };
-
-  const checkDeviceRegistrationStatus = async () => {
-    setDeviceRegistrationStatus(prev => ({ ...prev, isChecking: true }));
-    try {
-      const isRegistered = await checkDeviceRegistration();
-      setDeviceRegistrationStatus({
-        isRegistered,
-        isChecking: false,
-        registrationMessage: isRegistered ? 'Device is registered' : 'Device is not registered'
-      });
-    } catch (error) {
-      console.error('Failed to check device registration:', error);
-      setDeviceRegistrationStatus({
-        isRegistered: false,
-        isChecking: false,
-        registrationMessage: 'Failed to check registration status'
-      });
     }
   };
 
@@ -109,7 +89,7 @@ export default function SecurityInfo() {
   const handleResetKeys = async () => {
     Alert.alert(
       '🔄 Fresh Device Start',
-      'This will completely reset your device:\n\n• Delete device from database\n• Reset cryptographic keys\n• Generate new keys\n• Re-register with new identity\n\nAll previous photos will show as invalid. Continue?',
+      'This will completely reset your device:\n\n• Delete device from database\n• Reset cryptographic keys\n• Generate new keys\n\nAll previous photos will show as invalid. Continue?',
       [
         {
           text: 'Cancel',
@@ -120,14 +100,15 @@ export default function SecurityInfo() {
           style: 'destructive',
           onPress: async () => {
             // Show loading state
-            setDeviceRegistrationStatus({ 
-              isRegistered: false, 
-              isChecking: true, 
-              registrationMessage: 'Performing fresh device start...' 
-            });
             setGeocamDeviceName(null);
             
             try {
+              // Delete both old and new secure keys
+              console.log('🔑 Deleting all keys (old and new)...');
+              await deleteSecp256k1Keys();
+              await deleteSecureKeys();
+              console.log('✅ All keys deleted');
+              
               const result = await performFreshDeviceStart();
               
               if (result.success) {
@@ -139,16 +120,13 @@ export default function SecurityInfo() {
                     result.steps.keyReset.success ? '✅' : '❌'
                   } Key reset\n${
                     result.steps.keyGeneration.success ? '✅' : '❌'
-                  } New key generation\n${
-                    result.steps.registration.success ? '✅' : '❌'
-                  } Re-registration`
+                  } New key generation`
                 );
                 
                 // Refresh all UI states
                 loadSecurityInfo();
                 checkKeys();
                 loadGeoCamDeviceName();
-                checkDeviceRegistrationStatus();
               } else {
                 Alert.alert(
                   '❌ Fresh Start Failed', 
@@ -159,7 +137,6 @@ export default function SecurityInfo() {
                 loadSecurityInfo();
                 checkKeys();
                 loadGeoCamDeviceName();
-                checkDeviceRegistrationStatus();
               }
             } catch (error) {
               Alert.alert(
@@ -171,56 +148,6 @@ export default function SecurityInfo() {
               loadSecurityInfo();
               checkKeys();
               loadGeoCamDeviceName();
-              checkDeviceRegistrationStatus();
-            }
-          },
-        },
-      ],
-    );
-  };
-
-  const handleManualRegistration = async () => {
-    if (!keysInitialized) {
-      Alert.alert('❌ Error', 'Device keys must be initialized before registration.');
-      return;
-    }
-
-    Alert.alert(
-      '📱 Register Device',
-      'This will register your device with the backend. Continue?',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Register',
-          onPress: async () => {
-            setDeviceRegistrationStatus(prev => ({ ...prev, isChecking: true }));
-            try {
-              // Clear any stale device name first
-              await clearGeoCamDeviceName();
-              
-              const result = await registerDevice();
-              if (result.success) {
-                Alert.alert('✅ Success', `Device registered as ${result.geocam_name || `GeoCam${result.geocam_sequence}`}`);
-                loadGeoCamDeviceName(); // Refresh device name
-                checkDeviceRegistrationStatus(); // Refresh registration status
-              } else {
-                Alert.alert('❌ Registration Failed', result.message || 'Unknown error');
-                setDeviceRegistrationStatus({
-                  isRegistered: false,
-                  isChecking: false,
-                  registrationMessage: result.message || 'Registration failed'
-                });
-              }
-            } catch (error) {
-              Alert.alert('❌ Error', `Registration error: ${error instanceof Error ? error.message : String(error)}`);
-              setDeviceRegistrationStatus({
-                isRegistered: false,
-                isChecking: false,
-                registrationMessage: 'Registration error'
-              });
             }
           },
         },
@@ -277,31 +204,6 @@ export default function SecurityInfo() {
           ) : null}
         </View>
 
-        {/* Registration Status Card */}
-        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.cardTitle, { color: colors.text }]}>Registration Status</Text>
-          {deviceRegistrationStatus.isChecking ? (
-            <Text style={[styles.statusText, { color: colors.textSecondary }]}>Checking registration status...</Text>
-          ) : (
-            <Text style={[
-              styles.statusText,
-              { color: deviceRegistrationStatus.isRegistered ? colors.success : colors.error }
-            ]}>
-              {deviceRegistrationStatus.isRegistered ? '✅' : '❌'} {deviceRegistrationStatus.registrationMessage}
-            </Text>
-          )}
-          
-          {/* Manual Registration Button */}
-          {!deviceRegistrationStatus.isRegistered && !deviceRegistrationStatus.isChecking && keysInitialized && (
-            <TouchableOpacity 
-              style={[styles.registerButton, { backgroundColor: colors.accent, marginTop: 12 }]} 
-              onPress={handleManualRegistration}
-            >
-              <Text style={[styles.buttonText, { color: colors.buttonText }]}>Register Device</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-        
         {supportsHardwareSecurity() && (
           <View style={[styles.hardwareSecurityBadge, { backgroundColor: `${colors.success}20`, borderColor: colors.success }]}>
             <Text style={[styles.badgeText, { color: colors.success }]}>✅ Hardware Security Available</Text>
@@ -349,7 +251,6 @@ export default function SecurityInfo() {
               checkKeys();
               loadGeoCamDeviceName();
               testBackendConnectivity();
-              checkDeviceRegistrationStatus();
             }}
           >
             <Text style={[styles.buttonText, { color: colors.buttonText }]}>Refresh All</Text>
@@ -483,12 +384,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginLeft: 8,
     alignItems: 'center',
-  },
-  registerButton: {
-    padding: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    alignSelf: 'stretch',
   },
   buttonText: {
     fontSize: 16,

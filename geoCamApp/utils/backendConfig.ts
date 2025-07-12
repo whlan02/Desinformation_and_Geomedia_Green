@@ -7,13 +7,13 @@ const isDevelopment = __DEV__ || process.env.NODE_ENV === 'development';
 const PRODUCTION_BASE_URL = 'https://geocam-api.onrender.com';
 const PRODUCTION_STEG_URL = 'https://desinformationandgeomediagreen-production.up.railway.app';
 
-// Development URLs
-const DEV_BASE_URL = Platform.OS === 'web' ? 'http://localhost:5000' : 'http://192.168.178.52:5000';
+// Development URLs - Updated for secure backend testing
+const DEV_BASE_URL = Platform.OS === 'web' ? 'http://localhost:5001' : 'http://192.168.178.52:5001';
 const DEV_STEG_URL = Platform.OS === 'web' ? 'http://localhost:3001' : 'http://192.168.178.52:3001';
 
 // HYBRID TESTING MODE: Use production for API, local for steganography
-const USE_LOCAL_FOR_TESTING = false;
-const USE_LOCAL_STEGANOGRAPHY_ONLY = false; // Set to false for production
+const USE_LOCAL_FOR_TESTING = true;  // Changed to true for secure backend testing
+const USE_LOCAL_STEGANOGRAPHY_ONLY = true; // Changed to true for local testing
 
 // Backend configuration
 export const BACKEND_CONFIG = {
@@ -24,12 +24,13 @@ export const BACKEND_CONFIG = {
   STEGANOGRAPHY_URL: USE_LOCAL_STEGANOGRAPHY_ONLY ? DEV_STEG_URL : 
                      (USE_LOCAL_FOR_TESTING ? DEV_STEG_URL : PRODUCTION_STEG_URL),
   
-  // API endpoints
+  // API endpoints - Updated for secure backend
   ENDPOINTS: {
-    REGISTER_DEVICE: '/api/register-device',
-    VERIFY_IMAGE: '/api/verify-image',
-    DEVICES: '/api/devices',
-    HEALTH: '/health',
+    REGISTER_DEVICE: '/api/register-device-secure',
+    VERIFY_IMAGE: '/api/verify-image-secure',
+    DEVICES: '/api/devices-secure',
+    HEALTH: '/api/health',
+    STATS: '/api/verification-stats',
   },
   
   // Request configuration

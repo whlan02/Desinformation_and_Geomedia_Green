@@ -1,6 +1,8 @@
 import * as Device from 'expo-device';
 import * as FileSystem from 'expo-file-system';
 import * as SecureStore from 'expo-secure-store';
+import * as Crypto from 'expo-crypto';
+import { secp256k1 } from '@noble/curves/secp256k1';
 import { buildApiUrl, buildSteganographyUrl, BACKEND_CONFIG } from './backendConfig';
 import { getStoredSecp256k1KeyPair } from './secp256k1Utils';
 
@@ -182,7 +184,8 @@ export const checkDeviceRegistration = async (): Promise<boolean> => {
       const devices = result.devices || [];
       const registeredDevice = devices.find((device: any) => 
         device.installation_id === keyPair.privateKey.installationId ||
-        (device.public_key_data && device.public_key_data.hash === keyPair.fingerprint)
+        device.public_key_fingerprint === keyPair.fingerprint ||
+        device.public_key_id === keyPair.publicKey.keyId
       );
       
       if (registeredDevice && registeredDevice.geocam_sequence) {
@@ -367,13 +370,14 @@ export const performFreshDeviceStart = async (): Promise<{
 
     // Step 2: Reset local keys and device name
     console.log('🔑 Step 2: Resetting local keys and device name...');
-    const { deleteSecp256k1Keys } = await import('./secp256k1Utils');
+    const { deleteSecp256k1Keys, deleteSecureKeys } = await import('./secp256k1Utils.js');
     const keyResetSuccess = await deleteSecp256k1Keys();
+    const secureKeyResetSuccess = await deleteSecureKeys();
     const deviceNameClearSuccess = await clearGeoCamDeviceName();
     
     steps.keyReset = {
-      success: keyResetSuccess && deviceNameClearSuccess,
-      message: keyResetSuccess && deviceNameClearSuccess ? 
+      success: keyResetSuccess && secureKeyResetSuccess && deviceNameClearSuccess,
+      message: keyResetSuccess && secureKeyResetSuccess && deviceNameClearSuccess ? 
         'Keys and device name cleared' : 
         'Failed to clear keys or device name'
     };
@@ -385,7 +389,7 @@ export const performFreshDeviceStart = async (): Promise<{
 
     // Step 3: Generate new keys
     console.log('🔐 Step 3: Generating new keys...');
-    const { generateSecp256k1KeyPair, storeSecp256k1KeyPair } = await import('./secp256k1Utils');
+    const { generateSecp256k1KeyPair, storeSecp256k1KeyPair } = await import('./secp256k1Utils.js');
     
     try {
       const newKeyPair = await generateSecp256k1KeyPair();
@@ -793,27 +797,22 @@ export const processGeoCamImageBackend = async (
     console.log('📊 Basic info length:', basicInfo.length);
     console.log('📊 Public key length:', publicKey.length);
 
-    // Create form data
-    const formData = new FormData();
-    
-    // For React Native, we need to use a different approach for file upload
-    // Create a file-like object that FormData can handle
-    const jpegUri = `data:image/jpeg;base64,${jpegBase64}`;
-    
-    formData.append('image', {
-      uri: jpegUri,
-      type: 'image/jpeg',
-      name: 'geocam.jpg'
-    } as any);
-    formData.append('basicInfo', basicInfo);
-    formData.append('publicKey', publicKey);
+    // Send as JSON instead of FormData for React Native compatibility
+    const payload = {
+      jpegBase64: jpegBase64,
+      basicInfo: basicInfo,
+      publicKey: publicKey
+    };
 
     const url = buildSteganographyUrl('/process-geocam-image');
     console.log('🌐 Processing URL:', url);
 
     const response = await fetch(url, {
       method: 'POST',
-      body: formData,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
     });
 
     console.log('📨 Response status:', response.status);
@@ -962,10 +961,7 @@ export const signImagePurePng = async (
   error?: string;
 }> => {
   try {
-    console.log('🎯 === SIGNING WORKFLOW (NO Canvas) ===');
-    console.log('📤 Sending complete signing request to backend...');
-    console.log('📊 JPEG base64 length:', jpegBase64.length);
-    console.log('📊 Basic info length:', basicInfo.length);
+    console.log('🎯 Starting image signing...');
 
     const requestData = {
       jpegBase64,
@@ -975,7 +971,6 @@ export const signImagePurePng = async (
     };
 
     const url = buildSteganographyUrl('/pure-png-sign');
-    console.log('🌐 Signing URL:', url);
 
     const response = await fetch(url, {
       method: 'POST',
@@ -985,12 +980,9 @@ export const signImagePurePng = async (
       body: JSON.stringify(requestData),
     });
 
-    console.log('📨 Response status:', response.status);
-
     let result;
     try {
       const responseText = await response.text();
-      console.log('📥 Raw response length:', responseText.length);
       result = JSON.parse(responseText);
     } catch (parseError) {
       console.error('❌ Failed to parse response:', parseError);
@@ -1002,9 +994,6 @@ export const signImagePurePng = async (
 
     if (response.ok && result.success) {
       console.log('✅ Signing successful');
-      console.log('📊 PNG base64 length:', result.pngBase64?.length);
-      console.log('📊 Stats:', result.stats);
-      console.log('🎯 NO Canvas used - signature integrity preserved');
 
       return {
         success: true,
@@ -1031,15 +1020,13 @@ export const signImagePurePng = async (
 
 export const verifyImagePurePng = async (pngBase64: string): Promise<ImageVerificationResponse> => {
   try {
-    console.log('📤 Sending verification request to backend...');
-    console.log('📊 PNG base64 length:', pngBase64.length);
+    console.log('📤 Starting verification...');
 
     const requestData = {
       pngBase64
     };
 
     const url = buildSteganographyUrl('/pure-png-verify');
-    console.log('🌐verification URL:', url);
 
     const response = await fetch(url, {
       method: 'POST',
@@ -1048,8 +1035,6 @@ export const verifyImagePurePng = async (pngBase64: string): Promise<ImageVerifi
       },
       body: JSON.stringify(requestData),
     });
-
-    console.log('📨 Response status:', response.status);
 
     let result;
     try {
@@ -1063,10 +1048,7 @@ export const verifyImagePurePng = async (pngBase64: string): Promise<ImageVerifi
     }
 
     if (response.ok && result.success) {
-      console.log('✅ verification successful');
-      console.log('🔐 Signature valid:', result.verification_result?.signature_valid);
-      console.log('📊 Method:', result.method);
-      console.log('🎯 NO Canvas used - verification complete');
+      console.log('✅ Verification successful');
 
       return {
         success: true,
@@ -1079,7 +1061,7 @@ export const verifyImagePurePng = async (pngBase64: string): Promise<ImageVerifi
         }
       };
     } else {
-      console.error('❌ verification failed:', result);
+      console.error('❌ Verification failed:', result);
       return {
         success: false,
         message: result.error || 'verification failed',
@@ -1225,6 +1207,101 @@ export const verifyImageSteganography = async (
     return {
       success: false,
       error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}; 
+
+// =============================================================================
+// MIGRATED FUNCTIONS FROM secureBackendService.ts (Backend Service Functions)
+// =============================================================================
+
+// Interface for secure verification response
+export interface SecureVerificationResponse {
+  success: boolean;
+  verification_result?: {
+    signature_valid: boolean;
+    is_authentic: boolean;
+    device_info: {
+      device_model: string;
+      os_name: string;
+      registration_date: string;
+      public_key_fingerprint: string;
+    };
+    verification_timestamp: string;
+    image_hash: string;
+    security_checks: {
+      signature_format: boolean;
+      public_key_format: boolean;
+      hash_format: boolean;
+      timestamp_valid: boolean;
+      signature_verified: boolean;
+    };
+    error_details?: string;
+  };
+  message?: string;
+  error?: string;
+}
+
+// Key management functions are imported from secp256k1Utils when needed
+
+/**
+ * Verify image using secure backend (public key only)
+ * MIGRATED FROM: secureBackendService.ts
+ */
+export const verifyImageSecure = async (
+  imageBase64: string,
+  signature: string,
+  publicKeyId: string,
+  timestamp?: string
+): Promise<SecureVerificationResponse> => {
+  try {
+    console.log('🔍 Starting secure image verification...');
+    console.log('📊 Image size:', Math.round(imageBase64.length / 1024), 'KB');
+    console.log('🔑 Public Key ID:', publicKeyId);
+    
+    const verificationData = {
+      image_data: imageBase64,
+      signature: signature,
+      public_key_id: publicKeyId,
+      timestamp: timestamp || new Date().toISOString()
+    };
+    
+    const response = await fetch(buildApiUrl('/api/verify-image-secure'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(verificationData),
+    });
+    
+    const result = await response.json();
+    
+    if (response.ok && result.success) {
+      console.log('✅ Secure image verification completed');
+      console.log('📊 Signature valid:', result.verification_result.signature_valid);
+      console.log('🛡️  Security checks:', result.verification_result.security_checks);
+      console.log('📱 Device:', result.verification_result.device_info.device_model);
+      
+      return {
+        success: true,
+        verification_result: result.verification_result,
+        message: result.message
+      };
+    } else {
+      console.error('❌ Secure image verification failed:', result);
+      return {
+        success: false,
+        message: result.error || 'Verification failed',
+        error: result.error
+      };
+    }
+    
+  } catch (error) {
+    console.error('❌ Secure image verification error:', error);
+    return {
+      success: false,
+      message: `Verification error: ${error instanceof Error ? error.message : String(error)}`,
+      error: String(error)
     };
   }
 }; 

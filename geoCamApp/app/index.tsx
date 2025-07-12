@@ -1,11 +1,10 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Animated, StatusBar, Platform, useWindowDimensions, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Animated, StatusBar, useWindowDimensions, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ImageBackground } from 'react-native';
 import { SvgXml } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { generateSecp256k1KeyPair, getStoredSecp256k1KeyPair, storeSecp256k1KeyPair, hasStoredSecp256k1KeyPair } from '../utils/secp256k1Utils';
-import { ensureDeviceRegistration } from '../utils/backendService';
+import { initializeSecureKeys, getStoredSecp256k1KeyPair, hasStoredSecp256k1KeyPair, hasSecureKeys } from '../utils/secp256k1Utils';
 import { useTheme } from '../contexts/ThemeContext';
 
 // Define SVG strings directly
@@ -19,7 +18,7 @@ const securityIconXml = `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.
 
 export default function MainMenu() {
   const router = useRouter();
-  const { colors, isDark, toggleTheme } = useTheme();
+  const {isDark, toggleTheme } = useTheme();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const [keysInitialized, setKeysInitialized] = useState(false);
@@ -28,11 +27,10 @@ export default function MainMenu() {
     isRegistered: boolean;
     isChecking: boolean;
     message: string;
-    geocamName?: string;
   }>({
     isRegistered: false,
     isChecking: false,
-    message: 'Not checked',
+    message: 'Keys not initialized',
   });
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const buttonPressAnim = useRef(new Animated.Value(1)).current;
@@ -70,83 +68,86 @@ export default function MainMenu() {
     try {
       console.log('🔐 Checking app key initialization status...');
       
-      // Check if keys already exist
-      const hasKeys = await hasStoredSecp256k1KeyPair();
+      // Check if secure keys already exist (new system)
+      const hasNewKeys = await hasSecureKeys();
+      console.log('🔑 Has new secure keys:', hasNewKeys);
       
-      if (hasKeys) {
-        console.log('✅ App keys already initialized');
+      if (hasNewKeys) {
+        console.log('✅ Secure keys already initialized');
+        setKeysInitialized(true);
+        setRegistrationStatus({
+          isRegistered: true,
+          isChecking: false,
+          message: 'Keys ready for signing',
+        });
+        return;
+      }
+      
+      // Check if old keys exist (for backwards compatibility)
+      const hasOldKeys = await hasStoredSecp256k1KeyPair();
+      console.log('🔑 Has old keys:', hasOldKeys);
+      
+      if (hasOldKeys) {
+        console.log('✅ Old keys found - converting to secure keys');
         // Double-check by trying to load them
         const keyPair = await getStoredSecp256k1KeyPair();
         if (keyPair) {
           console.log('✅ Key validation successful');
           setKeysInitialized(true);
-          // Now check and ensure device registration
-          await handleDeviceRegistration();
+          setRegistrationStatus({
+            isRegistered: true,
+            isChecking: false,
+            message: 'Keys ready for signing',
+          });
         } else {
-          console.warn('⚠️ Keys flag exists but keys not loadable - regenerating...');
-          await generateAndStoreNewKeys();
+          console.warn('⚠️ Keys flag exists but keys not loadable - initializing secure keys...');
+          await initializeSecureKeysForApp();
         }
       } else {
-        console.log('🔑 No keys found - generating new device keys for app installation...');
-        await generateAndStoreNewKeys();
+        console.log('🔑 No keys found - initializing secure keys for app installation...');
+        await initializeSecureKeysForApp();
       }
     } catch (error) {
       console.error('❌ Failed to initialize app keys:', error);
       setKeysInitialized(false);
-    }
-    
-    setIsInitializingKeys(false);
-  };
-
-  const generateAndStoreNewKeys = async () => {
-    try {
-      // Generate new keys for this app installation
-      const newKeyPair = await generateSecp256k1KeyPair();
-      await storeSecp256k1KeyPair(newKeyPair.privateKey, newKeyPair.publicKey, newKeyPair.fingerprint);
-      
-      // Verify keys were stored correctly
-      const verification = await getStoredSecp256k1KeyPair();
-      if (verification) {
-        console.log('✅ App keys successfully generated and verified');
-        setKeysInitialized(true);
-        // Now check and ensure device registration
-        await handleDeviceRegistration();
-      } else {
-        throw new Error('Key storage verification failed');
-      }
-    } catch (error) {
-      console.error('❌ Failed to generate/store keys:', error);
-      setKeysInitialized(false);
-      throw error;
-    }
-  };
-
-  const handleDeviceRegistration = async () => {
-    try {
-      setRegistrationStatus(prev => ({ ...prev, isChecking: true, message: 'Checking registration...' }));
-      console.log('🔄 Handling device registration...');
-      
-      const result = await ensureDeviceRegistration();
-      
-      setRegistrationStatus({
-        isRegistered: result.isRegistered,
-        isChecking: false,
-        message: result.message,
-        geocamName: result.geocamName,
-      });
-      
-      if (result.success) {
-        console.log('✅ Device registration handled successfully:', result.message);
-      } else {
-        console.error('❌ Device registration failed:', result.message);
-      }
-    } catch (error) {
-      console.error('❌ Device registration error:', error);
       setRegistrationStatus({
         isRegistered: false,
         isChecking: false,
-        message: `Registration error: ${error instanceof Error ? error.message : String(error)}`,
+        message: 'Key initialization failed',
       });
+    } finally {
+      // Always set isInitializingKeys to false when done
+      console.log('🔐 Setting isInitializingKeys to false (finally block)');
+      setIsInitializingKeys(false);
+    }
+  };
+
+  const initializeSecureKeysForApp = async () => {
+    try {
+      console.log('🔐 Initializing secure keys...');
+      const initResult = await initializeSecureKeys();
+      
+      if (initResult.success) {
+        console.log('✅ Secure keys initialized successfully');
+        setKeysInitialized(true);
+        setRegistrationStatus({
+          isRegistered: true,
+          isChecking: false,
+          message: 'Keys ready for signing',
+        });
+        console.log('🔐 Secure keys initialization complete');
+      } else {
+        throw new Error(initResult.message);
+      }
+    } catch (error) {
+      console.error('❌ Failed to initialize secure keys:', error);
+      setKeysInitialized(false);
+      setRegistrationStatus({
+        isRegistered: false,
+        isChecking: false,
+        message: 'Key initialization failed',
+      });
+      throw error;
     }
   };
 
@@ -227,9 +228,9 @@ export default function MainMenu() {
                 }]} />
                 <Text style={styles.statusText}>
                   {isInitializingKeys ? 'Initializing...' :
-                   registrationStatus.isChecking ? 'Checking registration...' :
+                   registrationStatus.isChecking ? 'Setting up keys...' :
                    !keysInitialized ? 'Key setup failed' :
-                   !registrationStatus.isRegistered ? 'Device not registered' :
+                   !registrationStatus.isRegistered ? 'Keys not ready' :
                    'Ready to capture'}
                 </Text>
               </View>

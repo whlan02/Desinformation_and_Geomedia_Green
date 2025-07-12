@@ -6,6 +6,9 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { PNG } = require('pngjs');
+const { createCanvas, loadImage } = require('canvas');
+const UPNG = require('upng-js');
+const EXIF = require('exif-js');
 
 // Logging utility for consistent formatting
 const LOG_LEVELS = {
@@ -72,6 +75,95 @@ const upload = multer({
 // Ensure temp directory exists
 if (!fs.existsSync('temp_images')) {
   fs.mkdirSync('temp_images');
+}
+
+// Helper function to handle EXIF orientation
+function getCanvasWithCorrectOrientation(img, orientation) {
+  const canvas = createCanvas(img.width, img.height);
+  const ctx = canvas.getContext('2d');
+  
+  // Default case - no rotation needed
+  if (!orientation || orientation === 1) {
+    ctx.drawImage(img, 0, 0);
+    return canvas;
+  }
+  
+  // Handle different EXIF orientations
+  switch (orientation) {
+    case 2:
+      // Flip horizontal
+      ctx.translate(img.width, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage(img, 0, 0);
+      break;
+    case 3:
+      // Rotate 180°
+      ctx.translate(img.width, img.height);
+      ctx.rotate(Math.PI);
+      ctx.drawImage(img, 0, 0);
+      break;
+    case 4:
+      // Flip vertical
+      ctx.translate(0, img.height);
+      ctx.scale(1, -1);
+      ctx.drawImage(img, 0, 0);
+      break;
+    case 5:
+      // Rotate 90° CCW + flip horizontal
+      canvas.width = img.height;
+      canvas.height = img.width;
+      ctx.rotate(-Math.PI / 2);
+      ctx.scale(-1, 1);
+      ctx.drawImage(img, -img.height, 0);
+      break;
+    case 6:
+      // Rotate 90° CW
+      canvas.width = img.height;
+      canvas.height = img.width;
+      ctx.rotate(Math.PI / 2);
+      ctx.drawImage(img, 0, -img.height);
+      break;
+    case 7:
+      // Rotate 90° CW + flip horizontal
+      canvas.width = img.height;
+      canvas.height = img.width;
+      ctx.rotate(Math.PI / 2);
+      ctx.scale(-1, 1);
+      ctx.drawImage(img, -img.width, -img.height);
+      break;
+    case 8:
+      // Rotate 90° CCW
+      canvas.width = img.height;
+      canvas.height = img.width;
+      ctx.rotate(-Math.PI / 2);
+      ctx.drawImage(img, -img.height, 0);
+      break;
+    default:
+      ctx.drawImage(img, 0, 0);
+  }
+  
+  return canvas;
+}
+
+// Helper function to extract EXIF orientation from image buffer
+function getImageOrientation(buffer) {
+  return new Promise((resolve) => {
+    try {
+      // Create a temporary image element-like object for EXIF.js
+      const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+      
+      EXIF.getData({
+        __exifJSArrayBuffer: arrayBuffer
+      }, function() {
+        const orientation = EXIF.getTag(this, "Orientation") || 1;
+        console.log('📱 EXIF Orientation detected:', orientation);
+        resolve(orientation);
+      });
+    } catch (error) {
+      console.log('⚠️ Could not read EXIF data, using default orientation');
+      resolve(1); // Default orientation
+    }
+  });
 }
 
 // Simplified steganography implementation for Node.js
@@ -326,19 +418,9 @@ class GeoCamPNGVerifier {
         
         log('SUCCESS', '✅ PNG parsed successfully');
         log('INFO', '📊 Image dimensions:', data.width, 'x', data.height);
-        log('INFO', '📊 RGBA data length:', data.data.length);
         
-        // IMMEDIATE RGBA DEBUGGING: Check raw PNG data before any processing
-        log('DEBUG', '🔧 DEBUGGING: Raw PNG RGBA values (immediately after parsing):');
-        log('DEBUG', '🔧 DEBUGGING: First 20 RGBA values from PNG:');
-        for (let i = 0; i < 20; i++) {
-          log('DEBUG', `   PNG RGBA[${i}]: ${data.data[i]} (0x${data.data[i].toString(16).padStart(2, '0')})`);
-        }
-        log('DEBUG', '🔧 DEBUGGING: Last 20 RGBA values from PNG:');
-        const dataLen = data.data.length;
-        for (let i = dataLen - 20; i < dataLen; i++) {
-          log('DEBUG', `   PNG RGBA[${i}]: ${data.data[i]} (0x${data.data[i].toString(16).padStart(2, '0')})`);
-        }
+        // Minimal debug info (removed excessive RGBA logging for performance)
+        log('DEBUG', '🔧 RGBA data length:', data.data.length);
         
         resolve({
           width: data.width,
@@ -350,100 +432,79 @@ class GeoCamPNGVerifier {
   }
 
   /**
-   * Step 3: Extract signature package from last row alpha channels
+   * Step 3: Extract signature package from last row alpha channels (OPTIMIZED)
    */
   extractSignatureFromLastRow(rgbaData, width, height) {
     log('INFO', '🔍 Extracting signature from last row...');
     
     const lastRowY = height - 1;
-    let binaryString = '';
-    let nullFound = false;
-    let validJsonFound = false;
-    let jsonEndPos = -1;
+    const lastRowStart = lastRowY * width * 4;
     
-    // First pass: collect all binary data
-    for (let x = 0; x < width && !nullFound; x++) {
-      const pixelIndex = (lastRowY * width + x) * 4;
-      const alphaIndex = pixelIndex + 3;
-      const alphaValue = rgbaData[alphaIndex];
+    // Extract all bytes from last row alpha channels first
+    const alphaBytes = [];
+    for (let x = 0; x < width; x++) {
+      const alphaIndex = lastRowStart + (x * 4) + 3;
+      alphaBytes.push(rgbaData[alphaIndex]);
+    }
+    
+    // Convert bytes directly to string (much faster than bit-by-bit)
+    let extractedString = '';
+    for (let i = 0; i < alphaBytes.length - 1; i += 2) {
+      // Combine two alpha bytes to form one 16-bit character
+      const byte1 = alphaBytes[i];
+      const byte2 = alphaBytes[i + 1] || 0;
       
-      // Unpack 8 bits from alpha channel (matching storage order)
-      for (let bit = 0; bit < 8; bit++) {
-        binaryString += ((alphaValue & (1 << (7 - bit))) ? '1' : '0');
-      }
+      // MSB first: byte1 is high byte, byte2 is low byte
+      const charCode = (byte1 << 8) | byte2;
       
-      // Try to find valid JSON every 16 bits
-      if (binaryString.length >= this.STEG_PARAMS.codeUnitSize && 
-          binaryString.length % this.STEG_PARAMS.codeUnitSize === 0) {
-        const testStr = this.binaryToString(binaryString);
-        
-        try {
-          // Look for complete JSON object
-          let braceCount = 0;
-          let inString = false;
-          let escapeNext = false;
-          
-          for (let i = 0; i < testStr.length; i++) {
-            const char = testStr[i];
-            
-            if (!inString) {
-              if (char === '{') braceCount++;
-              else if (char === '}') {
-                braceCount--;
-                if (braceCount === 0) {
-                  // Found potential JSON end
-                  try {
-                    const jsonStr = testStr.substring(0, i + 1);
-                    JSON.parse(jsonStr); // Test if valid JSON
-                    validJsonFound = true;
-                    jsonEndPos = i + 1;
-                    break;
-                  } catch (e) {
-                    // Not valid JSON yet, continue
-                  }
-                }
-              }
-            }
-            
-            if (char === '"' && !escapeNext) {
-              inString = !inString;
-            }
-            escapeNext = char === '\\' && !escapeNext;
-          }
-          
-          if (validJsonFound) break;
-        } catch (e) {
-          // Continue searching
+      if (charCode === 0) break; // Null terminator
+      extractedString += String.fromCharCode(charCode);
+    }
+    
+    log('DEBUG', '🔧 Extracted string length:', extractedString.length);
+    log('DEBUG', '🔧 Extracted string preview:', extractedString.substring(0, 100));
+    
+    // Find JSON boundaries quickly
+    const jsonStart = extractedString.indexOf('{');
+    if (jsonStart === -1) {
+      throw new Error('Invalid signature format: No JSON start found');
+    }
+    
+    // Find matching closing brace
+    let braceCount = 0;
+    let jsonEnd = -1;
+    
+    for (let i = jsonStart; i < extractedString.length; i++) {
+      const char = extractedString[i];
+      if (char === '{') braceCount++;
+      else if (char === '}') {
+        braceCount--;
+        if (braceCount === 0) {
+          jsonEnd = i + 1;
+          break;
         }
       }
     }
     
-    if (!validJsonFound || jsonEndPos === -1) {
-      log('ERROR', '❌ No valid JSON found in signature data');
-      throw new Error('Invalid signature format');
+    if (jsonEnd === -1) {
+      throw new Error('Invalid signature format: No JSON end found');
     }
     
-    // Extract only the valid JSON part
-    const signatureData = this.binaryToString(binaryString).substring(0, jsonEndPos);
+    const signatureData = extractedString.substring(jsonStart, jsonEnd);
     
     try {
-      // Add debug logging
-      log('INFO', '📝 Raw binary length:', binaryString.length, 'bits');
-      log('INFO', '📝 Valid JSON length:', jsonEndPos, 'characters');
-      log('INFO', '📝 Raw signature data:', signatureData);
-      
       const parsed = JSON.parse(signatureData);
-      log('SUCCESS', '✅ Signature extracted');
-      log('INFO', '📊 Signature package:', {
-        publicKeyLength: parsed.publicKey ? parsed.publicKey.length : 'N/A',
-        signatureLength: parsed.signature ? parsed.signature.length : 'N/A',
-        timestamp: parsed.timestamp
-      });
+      
+      // Quick validation
+      if (!parsed.publicKey || !parsed.signature || !parsed.timestamp) {
+        throw new Error('Missing required signature fields');
+      }
+      
+      log('SUCCESS', '✅ Signature extracted and parsed');
       return parsed;
     } catch (error) {
-      log('ERROR', '❌ Failed to parse signature data:', error.message);
-      log('ERROR', '❌ Raw data preview:', signatureData.substring(0, 100));
-      throw new Error('Invalid signature format');
+      log('ERROR', '❌ Failed to parse signature data:', error);
+      throw new Error('Invalid signature format: ' + error.message);
     }
   }
 
@@ -465,7 +526,7 @@ class GeoCamPNGVerifier {
   }
 
   /**
-   * Step 5: Extract Basic Data from alpha channels (excluding last row)
+   * Step 5: Extract Basic Data from alpha channels (OPTIMIZED)
    */
   extractBasicDataFromAlphaChannels(rgbaData, width, height) {
     log('INFO', '📝 Step 5: Extracting Basic Data from Alpha channels...');
@@ -473,34 +534,79 @@ class GeoCamPNGVerifier {
     const maxHeight = height - 1; // Exclude last row
     let binaryData = '';
     
+    // Extract LSB from alpha channels (exclude last row)
     for (let y = 0; y < maxHeight; y++) {
       for (let x = 0; x < width; x++) {
         const pixelIndex = (y * width + x) * 4;
-        const alphaIndex = pixelIndex + 3; // Alpha channel only
+        const alphaIndex = pixelIndex + 3;
         const alphaValue = rgbaData[alphaIndex];
         
-        // Extract 8 bits from alpha channel
-        for (let bit = 0; bit < 8; bit++) {
-          binaryData += (alphaValue & (1 << (7 - bit))) ? '1' : '0';
-        }
+        // Extract LSB
+        const bit = alphaValue & 1;
+        binaryData += bit.toString();
         
-        // Check if we found the delimiter every 16 bits (codeUnitSize)
-        if (binaryData.length >= this.STEG_PARAMS.codeUnitSize && binaryData.length % this.STEG_PARAMS.codeUnitSize === 0) {
-          const testStr = this.binaryToString(binaryData);
-          if (testStr.includes(this.STEG_PARAMS.delimiter)) {
-            const endIndex = testStr.indexOf(this.STEG_PARAMS.delimiter);
-            const result = testStr.substring(0, endIndex);
-            log('SUCCESS', '✅ Basic Data extracted from Alpha channels (' + result.length + ' chars)');
-            return result;
-          }
-        }
+        // Stop if we have enough bits for reasonable data
+        if (binaryData.length >= 32000) break; // 2000 characters * 16 bits
+      }
+      if (binaryData.length >= 32000) break;
+    }
+    
+    log('DEBUG', '🔧 Binary data length:', binaryData.length);
+    
+    // Convert binary to string (16 bits per character)
+    let extractedString = '';
+    for (let i = 0; i < binaryData.length; i += 16) {
+      const chunk = binaryData.substr(i, 16);
+      if (chunk.length === 16) {
+        const charCode = parseInt(chunk, 2);
+        if (charCode === 0) break; // Null terminator
+        extractedString += String.fromCharCode(charCode);
       }
     }
     
-    // Fallback: decode without delimiter
-    const result = this.binaryToString(binaryData);
-    log('WARN', '⚠️ Delimiter not found, returning raw decoded data from Alpha channels');
-    return result;
+    log('DEBUG', '🔧 Extracted string length:', extractedString.length);
+    log('DEBUG', '🔧 Extracted string preview:', extractedString.substring(0, 100));
+    
+    // Try to find JSON in the extracted string
+    try {
+      const jsonStart = extractedString.indexOf('{');
+      if (jsonStart === -1) {
+        log('WARN', '⚠️ No JSON start found in basic data');
+        return "{}"; // Return empty JSON if no data found
+      }
+      
+      // Find matching closing brace
+      let braceCount = 0;
+      let jsonEnd = -1;
+      
+      for (let i = jsonStart; i < extractedString.length; i++) {
+        const char = extractedString[i];
+        if (char === '{') braceCount++;
+        else if (char === '}') {
+          braceCount--;
+          if (braceCount === 0) {
+            jsonEnd = i + 1;
+            break;
+          }
+        }
+      }
+      
+      if (jsonEnd === -1) {
+        log('WARN', '⚠️ No JSON end found in basic data');
+        return "{}";
+      }
+      
+      const jsonString = extractedString.substring(jsonStart, jsonEnd);
+      
+      // Try to parse to validate
+      const parsed = JSON.parse(jsonString);
+      log('SUCCESS', '✅ Basic data extracted and parsed successfully');
+      return jsonString;
+      
+    } catch (error) {
+      log('WARN', '⚠️ Failed to parse basic data as JSON:', error.message);
+      return "{}"; // Return empty JSON on parse error
+    }
   }
 
   /**
@@ -531,15 +637,22 @@ class GeoCamPNGVerifier {
   }
 
   /**
-   * Step 7: Compute SHA-512 hash of the clean PNG
+   * Step 7: Compute SHA-512 hash of the clean PNG - MATCHING SIGNING PROCESS
    */
-  computePngHash(pngBuffer) {
-    log('INFO', 'Computing SHA-512 hash of clean PNG');
+  computePngHash(cleanedRgbaData, width, height, basicInfo) {
+    log('INFO', 'Computing SHA-512 hash matching signing process');
     
-    // Hash the PNG buffer directly (same as during signing)
-    const hash = crypto.createHash('sha512').update(pngBuffer).digest('hex');
+    // Generate hash the same way as during signing
+    const combinedData = JSON.stringify({
+      basicInfo: basicInfo,
+      rgbaChecksum: cleanedRgbaData.slice(0, 1000).join(''),
+      width: width,
+      height: height
+    });
     
-    log('SUCCESS', 'SHA-512 hash computed', {
+    const hash = crypto.createHash('sha512').update(combinedData).digest('hex');
+    
+    log('SUCCESS', 'SHA-512 hash computed (matching signing process)', {
       length: hash.length,
       preview: hash.substring(0, 16)
     });
@@ -548,14 +661,16 @@ class GeoCamPNGVerifier {
   }
 
   /**
-   * Step 8: Verify signature using extracted public key and Noble Ed25519
+   * Step 8: Verify signature using extracted public key and Noble secp256k1
    */
   async verifySignature(hash, signatureBase64, publicKeyBase64) {
     log('INFO', 'Starting signature verification');
     
     try {
-      // Convert hash to bytes for verification (same as app signing)
-      const hashBytes = new TextEncoder().encode(hash);
+      // Convert HEX hash string to bytes (same as mobile app signing)
+      const hashBytes = new Uint8Array(
+        hash.match(/.{1,2}/g).map(byte => parseInt(byte, 16))
+      );
       
       // Convert signature from Base64 to Uint8Array
       const signatureBytes = new Uint8Array(
@@ -567,31 +682,26 @@ class GeoCamPNGVerifier {
         Buffer.from(publicKeyBase64, 'base64')
       );
       
-      // Validate key and signature lengths
-      if (publicKeyBytes.length !== 32) {
-        throw new Error(`Invalid public key length: ${publicKeyBytes.length}, expected 32`);
+      // Validate key and signature lengths for secp256k1
+      if (publicKeyBytes.length !== 33) {
+        throw new Error(`Invalid secp256k1 public key length: ${publicKeyBytes.length}, expected 33 (compressed)`);
       }
       if (signatureBytes.length !== 64) {
-        throw new Error(`Invalid signature length: ${signatureBytes.length}, expected 64`);
+        throw new Error(`Invalid secp256k1 signature length: ${signatureBytes.length}, expected 64`);
       }
       
       log('DEBUG', 'Verification data lengths', {
-        hash: hashBytes.length,
+        hashHex: hash.length,
+        hashBytes: hashBytes.length,
         signature: signatureBytes.length,
         publicKey: publicKeyBytes.length
       });
       
-      // Verify signature using Noble Ed25519
-      const ed25519 = await import('@noble/ed25519');
+      // Verify signature using Noble secp256k1 to match mobile app
+      const { secp256k1 } = await import('@noble/curves/secp256k1');
       
-      // Set up SHA-512 using the correct Noble Ed25519 setup method
-      ed25519.etc.sha512Async = async (...messages) => {
-        const concat = ed25519.etc.concatBytes(...messages);
-        const hash = crypto.createHash('sha512').update(concat).digest();
-        return hash;
-      };
-      
-      const isValid = await ed25519.verifyAsync(signatureBytes, hashBytes, publicKeyBytes);
+      // Verify the signature (secp256k1 format from mobile app)
+      const isValid = secp256k1.verify(signatureBytes, hashBytes, publicKeyBytes);
       
       log(isValid ? 'SUCCESS' : 'ERROR', 'Signature verification completed', {
         valid: isValid,
@@ -643,11 +753,11 @@ class GeoCamPNGVerifier {
       // Step 5: Extract Basic Data
       const basicDataStr = this.extractBasicDataFromAlphaChannels(cleanedRgbaData, width, height);
       
-      // Step 6: Rebuild clean PNG
-      const cleanPngBuffer = await this.rebuildCleanPNG(cleanedRgbaData, width, height);
+      // Step 6: Convert cleaned RGBA to Array for hash computation
+      const cleanedRgbaArray = Array.from(cleanedRgbaData);
       
-      // Step 7: Compute hash
-      const pngHash = await this.computePngHash(cleanPngBuffer);
+      // Step 7: Compute hash (matching signing process)
+      const pngHash = this.computePngHash(cleanedRgbaArray, width, height, basicDataStr);
       
       // Step 8: Verify signature
       const verificationResult = await this.verifySignature(
@@ -662,8 +772,7 @@ class GeoCamPNGVerifier {
         imageInfo: {
           width,
           height,
-          originalSize: pngBuffer.length,
-          cleanSize: cleanPngBuffer.length
+          originalSize: pngBuffer.length
         }
       });
       
@@ -682,8 +791,7 @@ class GeoCamPNGVerifier {
         imageInfo: {
           width,
           height,
-          originalSize: pngBuffer.length,
-          cleanSize: cleanPngBuffer.length
+          originalSize: pngBuffer.length
         }
       };
       
@@ -706,6 +814,268 @@ class GeoCamPNGVerifier {
 
 // Initialize GeoCam verifiers
 const geocamPNGVerifier = new GeoCamPNGVerifier();
+
+/**
+ * PurePngProcessor - Helper class for PNG processing workflow
+ */
+class PurePngProcessor {
+  constructor() {
+    this.STEG_PARAMS = {
+      codeUnitSize: 16,
+      delimiter: '###END###'
+    };
+  }
+
+  /**
+   * Convert string to binary representation
+   */
+  stringToBinary(str) {
+    let binary = '';
+    for (let i = 0; i < str.length; i++) {
+      const charCode = str.charCodeAt(i);
+      binary += charCode.toString(2).padStart(this.STEG_PARAMS.codeUnitSize, '0');
+    }
+    return binary;
+  }
+
+  /**
+   * Convert binary to string
+   */
+  binaryToString(binary) {
+    let str = '';
+    for (let i = 0; i < binary.length; i += this.STEG_PARAMS.codeUnitSize) {
+      const chunk = binary.substr(i, this.STEG_PARAMS.codeUnitSize);
+      if (chunk.length === this.STEG_PARAMS.codeUnitSize) {
+        str += String.fromCharCode(parseInt(chunk, 2));
+      }
+    }
+    return str;
+  }
+
+  /**
+   * Embed basic info in alpha channels (exclude last row for signature)
+   */
+  async embedBasicInfoInAlpha(rgba, basicInfo, width, height) {
+    console.log('🔐 Embedding basic info into alpha channels...');
+    
+    // Create a copy of the RGBA data
+    const rgbaWithBasicInfo = new Uint8Array(rgba);
+    
+    // Encode basic info as binary
+    const binaryData = this.stringToBinary(basicInfo);
+    console.log('📊 Basic info binary length:', binaryData.length, 'bits');
+    
+    // Embed in alpha channels (exclude last row)
+    const lastRowStart = (height - 1) * width * 4;
+    let bitIndex = 0;
+    
+    for (let i = 3; i < lastRowStart && bitIndex < binaryData.length; i += 4) {
+      const bit = parseInt(binaryData[bitIndex]);
+      rgbaWithBasicInfo[i] = (rgbaWithBasicInfo[i] & 0xFE) | bit;
+      bitIndex++;
+    }
+    
+    console.log('✅ Basic info embedded (excluding last row)');
+    return rgbaWithBasicInfo;
+  }
+
+  /**
+   * Embed signature package in last row only (OPTIMIZED - FIXED INDEXING)
+   */
+  async embedSignatureInLastRow(rgba, signaturePackage, width, height) {
+    console.log('🔐 Embedding signature in last row...');
+    
+    // Create a copy of the RGBA data
+    const finalRgba = new Uint8Array(rgba);
+    
+    // Prepare signature package
+    const signatureJson = JSON.stringify(signaturePackage);
+    console.log('📊 Signature JSON length:', signatureJson.length, 'characters');
+    console.log('📊 Signature JSON preview:', signatureJson.substring(0, 100));
+    
+    // Convert string directly to bytes (FIXED: match extraction logic)
+    const lastRowStart = (height - 1) * width * 4;
+    let charIndex = 0;
+    
+    // Process last row pixels, each character needs 2 alpha channels
+    for (let x = 0; x < width && charIndex < signatureJson.length; x++) {
+      const char = signatureJson[charIndex];
+      const charCode = char.charCodeAt(0);
+      
+      // Split 16-bit character into two 8-bit bytes (MSB first)
+      const highByte = (charCode >> 8) & 0xFF;
+      const lowByte = charCode & 0xFF;
+      
+      // Store in consecutive alpha channels (pixel x and x+1)
+      const alpha1Index = lastRowStart + (x * 4) + 3;
+      const alpha2Index = lastRowStart + ((x + 1) * 4) + 3;
+      
+      if (alpha1Index < finalRgba.length) finalRgba[alpha1Index] = highByte;
+      if (alpha2Index < finalRgba.length) finalRgba[alpha2Index] = lowByte;
+      
+      // Move to next character (we used 2 pixels)
+      x++; // Skip the next pixel since we used it for lowByte
+      charIndex++;
+    }
+    
+    console.log('✅ Signature embedded in last row (' + charIndex + ' characters)');
+    return finalRgba;
+  }
+
+  /**
+   * Extract basic info from alpha channels (exclude last row)
+   */
+  async extractBasicInfoFromAlpha(rgba, width, height) {
+    console.log('🔍 Extracting basic info from alpha channels...');
+    
+    let binaryData = '';
+    const lastRowStart = (height - 1) * width * 4;
+    
+    // Extract from alpha channels (exclude last row)
+    for (let i = 3; i < lastRowStart; i += 4) {
+      binaryData += (rgba[i] & 1).toString();
+    }
+    
+    // Convert binary to string
+    const basicInfo = this.binaryToString(binaryData);
+    console.log('✅ Basic info extracted:', basicInfo.length, 'characters');
+    
+    return basicInfo;
+  }
+
+  /**
+   * Clean last row (set alpha to 255)
+   */
+  async cleanLastRow(rgba, width, height) {
+    console.log('🧹 Cleaning last row...');
+    
+    const cleanedRgba = new Uint8Array(rgba);
+    const lastRowStart = (height - 1) * width * 4;
+    
+    // Set all alpha values in last row to 255
+    for (let i = lastRowStart + 3; i < cleanedRgba.length; i += 4) {
+      cleanedRgba[i] = 255;
+    }
+    
+    console.log('✅ Last row cleaned');
+    return cleanedRgba;
+  }
+}
+
+// Initialize the processor
+const purePngProcessor = new PurePngProcessor();
+
+// Backend steganography helper class
+class BackendSteganography {
+  constructor() {
+    this.STEG_PARAMS = {
+      codeUnitSize: 16,
+      delimiter: '###END###'
+    };
+  }
+
+  /**
+   * Convert string to binary representation
+   */
+  stringToBinary(str) {
+    let binary = '';
+    for (let i = 0; i < str.length; i++) {
+      const charCode = str.charCodeAt(i);
+      binary += charCode.toString(2).padStart(this.STEG_PARAMS.codeUnitSize, '0');
+    }
+    return binary;
+  }
+
+  /**
+   * Encode basic info into RGBA array
+   */
+  encodeBasicInfoIntoRGBA(rgbaArray, width, height, basicInfo) {
+    console.log('🔐 Encoding basic info into RGBA array...');
+    
+    const binaryData = this.stringToBinary(basicInfo);
+    console.log('📊 Basic info binary length:', binaryData.length, 'bits');
+    
+    // Create copy of RGBA array
+    const rgbaWithInfo = [...rgbaArray];
+    
+    // Embed in alpha channels (exclude last row)
+    const lastRowStart = (height - 1) * width * 4;
+    let bitIndex = 0;
+    
+    for (let i = 3; i < lastRowStart && bitIndex < binaryData.length; i += 4) {
+      const bit = parseInt(binaryData[bitIndex]);
+      rgbaWithInfo[i] = (rgbaWithInfo[i] & 0xFE) | bit;
+      bitIndex++;
+    }
+    
+    console.log('✅ Basic info encoded into RGBA');
+    return rgbaWithInfo;
+  }
+
+  /**
+   * Store signature in last row (OPTIMIZED - FIXED INDEXING + SIZE CHECK)
+   */
+  storeSignatureInLastRow(rgbaArray, width, height, publicKey, signature) {
+    console.log('🔐 Storing signature in last row...');
+    
+    // Create signature package
+    const signaturePackage = {
+      publicKey,
+      signature,
+      timestamp: new Date().toISOString(),
+      version: '3.0-backend-workflow'
+    };
+    
+    const signatureJson = JSON.stringify(signaturePackage);
+    console.log('📊 Signature JSON length:', signatureJson.length, 'characters');
+    
+    // Check if last row has enough space
+    const maxCharsInLastRow = Math.floor(width / 2); // Each character needs 2 pixels
+    if (signatureJson.length > maxCharsInLastRow) {
+      console.warn('⚠️ Signature too large for last row!');
+      console.warn('📊 Signature needs:', signatureJson.length, 'characters');
+      console.warn('📊 Last row can fit:', maxCharsInLastRow, 'characters');
+      console.warn('📊 Image width:', width, 'pixels');
+      
+      // Truncate or throw error
+      throw new Error(`Signature too large (${signatureJson.length} chars) for image width (${width} pixels, max ${maxCharsInLastRow} chars)`);
+    }
+    
+    // Create copy of RGBA array
+    const finalRgba = [...rgbaArray];
+    
+    // Embed using optimized byte-level approach (FIXED: match extraction logic)
+    const lastRowStart = (height - 1) * width * 4;
+    let charIndex = 0;
+    
+    // Process last row pixels, each character needs 2 alpha channels
+    for (let x = 0; x < width && charIndex < signatureJson.length; x++) {
+      const char = signatureJson[charIndex];
+      const charCode = char.charCodeAt(0);
+      
+      // Split 16-bit character into two 8-bit bytes (MSB first)
+      const highByte = (charCode >> 8) & 0xFF;
+      const lowByte = charCode & 0xFF;
+      
+      // Store in consecutive alpha channels (pixel x and x+1)
+      const alpha1Index = lastRowStart + (x * 4) + 3;
+      const alpha2Index = lastRowStart + ((x + 1) * 4) + 3;
+      
+      if (alpha1Index < finalRgba.length) finalRgba[alpha1Index] = highByte;
+      if (alpha2Index < finalRgba.length) finalRgba[alpha2Index] = lowByte;
+      
+      // Move to next character (we used 2 pixels)
+      x++; // Skip the next pixel since we used it for lowByte
+      charIndex++;
+    }
+    
+    console.log('✅ Signature stored in last row (' + charIndex + ' characters)');
+    return finalRgba;
+  }
+}
+
+// Initialize backend steganography
+const backendSteg = new BackendSteganography();
 
 // Crypto utilities (ported from mobile app)
 // crypto is already imported at the top of the file
@@ -954,1507 +1324,211 @@ function cleanupTempFiles() {
 // Run cleanup every 30 minutes
 setInterval(cleanupTempFiles, 30 * 60 * 1000);
 
-// Routes
-
-// Health check
+// Health check endpoint
 app.get('/health', (req, res) => {
   res.json({
-    status: 'OK',
+    status: 'healthy',
     service: 'GeoCam Steganography Service',
     timestamp: new Date().toISOString(),
-    port: PORT,
+    version: '3.0',
     endpoints: [
-      'GET /health - Health check',
-      'POST /pure-png-sign - Image signing endpoint',
-      'POST /pure-png-verify - Image verification endpoint',
-      'POST /decode-image - Legacy decoder',
-      'POST /verify-geocam-png - Legacy PNG verification',
-      'POST /verify-geocam-rgba - RGBA verification'
+      '/health',
+      '/pure-png-verify',
+      '/process-geocam-image',
+      '/complete-geocam-image',
+      '/pure-png-sign'
     ]
   });
 });
 
-// Decode steganography from image using GeoCam PNG Verification
-app.post('/decode-image', upload.single('image'), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No image file provided' });
-    }
+// ==================== NEW CLEANER WORKFLOW ENDPOINTS ====================
 
-    console.log('📷 Processing GeoCam PNG for verification...');
-    console.log('📁 File:', req.file.filename, 'Size:', req.file.size);
+/**
+ * NEW WORKFLOW: Step 1 - Process image and return hash for signing
+ * App sends: image + public key
+ * Backend: JPEG→PNG, embed metadata (exclude last row), create hash, return hash
+ */
+app.post('/pure-png-process', async (req, res) => {
+  console.log('🎯 === NEW WORKFLOW: Step 1 - Process Image ===');
+  
+  try {
+    const { imageBase64, basicInfo, publicKey } = req.body;
     
-    // Read the uploaded file as buffer
-    const pngBuffer = fs.readFileSync(req.file.path);
-    
-    // Check if it's a PNG file (GeoCam images should be PNG)
-    if (!pngBuffer.slice(0, 8).equals(Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]))) {
-      console.log('⚠️ Not a PNG file, falling back to legacy steganography...');
-      
-      // Fallback to legacy steganography for non-PNG files
-      const image = await loadImage(req.file.path);
-      const canvas = createCanvas(image.width, image.height);
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(image, 0, 0);
-      
-      const decodedMessage = steg.decode(canvas);
-      
-      // Clean up temp file
-      fs.unlink(req.file.path, () => {});
-      
-      return res.json({
-        success: !!decodedMessage,
-        decodedInfo: decodedMessage || 'No hidden data found',
-        signatureVerification: {
-          valid: false,
-          message: 'Legacy format - No signature verification available'
-        },
-        rawData: decodedMessage,
-        workflow: 'legacy'
-      });
-    }
-    
-    console.log('✅ PNG file detected - using GeoCam verification workflow');
-    
-    // Use the new GeoCam PNG Verification workflow
-    const verificationResult = await geocamPNGVerifier.verifyGeoCamPNG(pngBuffer);
-    
-    // Clean up temp file
-    fs.unlink(req.file.path, () => {});
-    
-    if (!verificationResult.success) {
-      return res.json({
+    if (!imageBase64 || !basicInfo || !publicKey) {
+      return res.status(400).json({
         success: false,
-        error: verificationResult.error,
-        signatureVerification: verificationResult.verification,
-        workflow: 'geocam'
+        error: 'Missing required fields: imageBase64, basicInfo, publicKey'
       });
     }
-    
-    // Parse the extracted basic data
-    let parsedBasicData = null;
-    try {
-      parsedBasicData = JSON.parse(verificationResult.extractedData.basicInfo);
-    } catch (parseError) {
-      console.log('⚠️ Basic data is not JSON, treating as plain text');
-      parsedBasicData = verificationResult.extractedData.basicInfo;
-    }
-    
-    console.log('🎉 GeoCam PNG verification completed successfully!');
-    
-    res.json({
-      success: true,
-      decodedInfo: parsedBasicData,
-      signatureVerification: verificationResult.verification,
-      extractedData: {
-        basicInfo: parsedBasicData,
-        signatureMetadata: verificationResult.extractedData.signatureData
-      },
-      imageInfo: verificationResult.imageInfo,
-      rawData: verificationResult.extractedData.basicInfo,
-      workflow: 'geocam'
-    });
 
-  } catch (error) {
-    console.error('❌ GeoCam PNG verification error:', error);
-    
-    // Clean up temp file if it exists
-    if (req.file) {
-      fs.unlink(req.file.path, () => {});
-    }
-    
-    res.status(500).json({ 
-      error: 'Failed to verify GeoCam PNG',
-      details: error.message,
-      workflow: 'geocam'
-    });
-  }
-});
+    console.log('📱 Processing image with new workflow');
+    console.log('📊 JPEG base64 length:', imageBase64.length);
+    console.log('📝 Basic info length:', basicInfo.length);
+    console.log('🔑 Public key length:', publicKey.length);
 
-// Encode steganography into image (for future use)
-app.post('/encode-image', upload.single('image'), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No image file provided' });
-    }
+    // Create temp file from base64
+    const tempFilePath = path.join('temp_images', `temp_${Date.now()}.jpg`);
+    const jpegBuffer = Buffer.from(imageBase64, 'base64');
+    fs.writeFileSync(tempFilePath, jpegBuffer);
+    console.log('💾 Created temporary file:', tempFilePath);
 
-    const { message } = req.body;
-    if (!message) {
-      fs.unlink(req.file.path, () => {});
-      return res.status(400).json({ error: 'No message provided for encoding' });
-    }
+    // Load image using loadImage
+    const img = await loadImage(tempFilePath);
+    console.log('✅ JPEG loaded:', img.width, 'x', img.height);
 
-    console.log('📷 Processing image for steganography encoding...');
+    // Get EXIF orientation
+    const exifBuffer = fs.readFileSync(tempFilePath);
+    const orientation = await getImageOrientation(exifBuffer);
     
-    // Load image with canvas
-    const image = await loadImage(req.file.path);
-    const canvas = createCanvas(image.width, image.height);
+    // Convert to RGBA with correct orientation
+    const canvas = getCanvasWithCorrectOrientation(img, orientation);
     const ctx = canvas.getContext('2d');
-    ctx.drawImage(image, 0, 0);
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const rgba = imageData.data;
+    console.log('✅ JPEG → Canvas → RGBA completed with orientation', orientation);
+    console.log('📊 Final dimensions:', canvas.width, 'x', canvas.height);
+    console.log('📊 RGBA array length:', rgba.length);
 
-    // Encode message
-    const encodedCanvas = steg.encode(message, canvas);
-    
-    // Convert to base64
-    const base64Data = encodedCanvas.toDataURL('image/jpeg', 0.9);
-    
-    // Clean up temp file
-    fs.unlink(req.file.path, () => {});
+    // Embed basic info in alpha channels (exclude last row)
+    console.log('🔐 Embedding basic info into RGBA (excluding last row)...');
+    const processor = new PurePngProcessor();
+    const rgbaWithBasicInfo = await processor.embedBasicInfoInAlpha(rgba, basicInfo, canvas.width, canvas.height);
+    console.log('✅ Basic info embedded into Alpha channels');
 
-    res.json({
+    // Create hash of processed image (without signature)
+    console.log('🔐 Creating hash of processed image...');
+    const hashToSign = crypto.createHash('sha512')
+      .update(Buffer.from(rgbaWithBasicInfo))
+      .digest('hex');
+    console.log('🔐 Generated hash for signing:', hashToSign.length, 'characters');
+    console.log('🔐 Hash preview:', hashToSign.substring(0, 16) + '...');
+
+    // Store processed data temporarily
+    const sessionId = crypto.randomBytes(16).toString('hex');
+    global.processingCache = global.processingCache || {};
+    global.processingCache[sessionId] = {
+      rgbaWithBasicInfo,
+      width: canvas.width,
+      height: canvas.height,
+      publicKey,
+      basicInfo,
+      hashToSign,
+      timestamp: Date.now()
+    };
+
+    // Cleanup temp file
+    if (fs.existsSync(tempFilePath)) {
+      fs.unlinkSync(tempFilePath);
+    }
+
+    console.log('✅ Step 1 completed: Image processed, hash ready for signing');
+    
+    return res.json({
       success: true,
-      encodedImage: base64Data
+      sessionId,
+      hashToSign,
+      imageInfo: {
+        width: canvas.width,
+        height: canvas.height,
+        rgbaLength: rgbaWithBasicInfo.length
+      }
     });
 
   } catch (error) {
-    console.error('❌ Steganography encoding error:', error);
-    
-    if (req.file) {
-      fs.unlink(req.file.path, () => {});
-    }
-    
-    res.status(500).json({ 
-      error: 'Failed to encode image',
-      details: error.message 
-    });
-  }
-});
-
-// Dedicated GeoCam PNG Verification endpoint
-app.post('/verify-geocam-png', upload.single('image'), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No GeoCam PNG file provided' });
-    }
-
-    console.log('🔍 GeoCam PNG Verification Request');
-    console.log('📁 File:', req.file.filename, 'Size:', req.file.size);
-    
-    // Read the uploaded file as buffer
-    const pngBuffer = fs.readFileSync(req.file.path);
-    
-    // Verify it's a PNG file
-    if (!pngBuffer.slice(0, 8).equals(Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]))) {
-      fs.unlink(req.file.path, () => {});
-      return res.status(400).json({ 
-        error: 'File is not a PNG - GeoCam images must be in PNG format',
-        workflow: 'geocam'
-      });
-    }
-    
-    console.log('✅ Valid PNG file - starting GeoCam verification workflow');
-    
-    // Perform GeoCam PNG Verification
-    const verificationResult = await geocamPNGVerifier.verifyGeoCamPNG(pngBuffer);
-    
-    // Clean up temp file
-    fs.unlink(req.file.path, () => {});
-    
-    if (!verificationResult.success) {
-      return res.json({
-        success: false,
-        error: verificationResult.error,
-        verification: verificationResult.verification,
-        workflow: 'geocam'
-      });
-    }
-    
-    // Parse the extracted basic data
-    let parsedBasicData = null;
-    try {
-      parsedBasicData = JSON.parse(verificationResult.extractedData.basicInfo);
-    } catch (parseError) {
-      console.log('⚠️ Basic data is not JSON format');
-      parsedBasicData = {
-        rawData: verificationResult.extractedData.basicInfo,
-        note: 'Data is not in JSON format'
-      };
-    }
-    
-    console.log('🎉 GeoCam PNG verification completed successfully!');
-    console.log('✅ Signature valid:', verificationResult.verification.valid);
-    console.log('📊 Extracted data size:', verificationResult.extractedData.basicInfo.length, 'chars');
-    
-    res.json({
-      success: true,
-      verification: verificationResult.verification,
-      extractedData: {
-        basicInfo: parsedBasicData,
-        signature: verificationResult.extractedData.signatureData
-      },
-      imageInfo: verificationResult.imageInfo,
-      workflow: 'geocam',
-      timestamp: new Date().toISOString()
-    });
-
-  } catch (error) {
-    console.error('❌ GeoCam PNG verification failed:', error);
-    
-    // Clean up temp file if it exists
-    if (req.file) {
-      fs.unlink(req.file.path, () => {});
-    }
-    
-    res.status(500).json({ 
-      error: 'GeoCam PNG verification failed',
-      details: error.message,
-      workflow: 'geocam'
+    console.error('❌ Image processing failed:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message
     });
   }
 });
 
 /**
- * GeoCam RGBA Verification Workflow (NEW)
- * Implements RGBA-based verification that matches the app's new signing method
- * This avoids PNG format compatibility issues entirely
+ * NEW WORKFLOW: Step 2 - Finalize with signature
+ * App sends: sessionId + signature
+ * Backend: embed signature in last row, return final PNG
  */
-class GeoCamRGBAVerifier {
-  constructor() {
-    this.STEG_PARAMS = {
-      codeUnitSize: 16,
-      delimiter: '###END###'
-    };
-  }
-
-  /**
-   * Convert string to binary representation
-   */
-  stringToBinary(str) {
-    let binary = '';
-    for (let i = 0; i < str.length; i++) {
-      const charCode = str.charCodeAt(i);
-      binary += charCode.toString(2).padStart(this.STEG_PARAMS.codeUnitSize, '0');
-    }
-    return binary;
-  }
-
-  /**
-   * Convert binary to string
-   */
-  binaryToString(binary) {
-    let str = '';
-    for (let i = 0; i < binary.length; i += this.STEG_PARAMS.codeUnitSize) {
-      const chunk = binary.substr(i, this.STEG_PARAMS.codeUnitSize);
-      if (chunk.length === this.STEG_PARAMS.codeUnitSize) {
-        str += String.fromCharCode(parseInt(chunk, 2));
-      }
-    }
-    return str;
-  }
-
-  /**
-   * Step 1-2: Parse PNG to extract RGBA data
-   */
-  parsePngToRGBA(pngBuffer) {
-    console.log('📊 Step 1-2: Parsing PNG to extract RGBA data...');
-    
-    return new Promise((resolve, reject) => {
-      const png = new PNG();
-      
-      png.parse(pngBuffer, (error, data) => {
-        if (error) {
-          console.error('❌ PNG parsing failed:', error);
-          reject(error);
-          return;
-        }
-        
-        console.log('✅ PNG parsed successfully');
-        console.log('📊 Image dimensions:', data.width, 'x', data.height);
-        console.log('📊 RGBA data length:', data.data.length);
-        
-        // IMMEDIATE RGBA DEBUGGING: Check raw PNG data before any processing
-        console.log('🔧 DEBUGGING: Raw PNG RGBA values (immediately after parsing):');
-        console.log('🔧 DEBUGGING: First 20 RGBA values from PNG:');
-        for (let i = 0; i < 20; i++) {
-          console.log(`   PNG RGBA[${i}]: ${data.data[i]} (0x${data.data[i].toString(16).padStart(2, '0')})`);
-        }
-        console.log('🔧 DEBUGGING: Last 20 RGBA values from PNG:');
-        const dataLen = data.data.length;
-        for (let i = dataLen - 20; i < dataLen; i++) {
-          console.log(`   PNG RGBA[${i}]: ${data.data[i]} (0x${data.data[i].toString(16).padStart(2, '0')})`);
-        }
-        
-        resolve({
-          width: data.width,
-          height: data.height,
-          rgbaData: data.data // Direct RGBA buffer
-        });
-      });
-    });
-  }
-
-  /**
-   * Step 3: Extract signature package from last row alpha channels
-   */
-  extractSignatureFromLastRowRGBA(rgbaData, width, height) {
-    console.log('🔐 Step 3: Extracting signature from last row alpha channels...');
-    
-    const lastRowStart = (height - 1) * width * 4;
-    let binaryData = '';
-    
-    for (let x = 0; x < width; x++) {
-      const alphaIndex = lastRowStart + (x * 4) + 3;
-      const alphaValue = rgbaData[alphaIndex];
-      
-      // Extract 8 bits from alpha channel
-      for (let bit = 0; bit < 8; bit++) {
-        binaryData += (alphaValue & (1 << (7 - bit))) ? '1' : '0';
-      }
-    }
-    
-    const signaturePackageStr = this.binaryToString(binaryData);
-    
-    // Find the end of JSON by looking for the closing brace
-    let jsonEndIndex = -1;
-    let braceCount = 0;
-    for (let i = 0; i < signaturePackageStr.length; i++) {
-      if (signaturePackageStr[i] === '{') {
-        braceCount++;
-      } else if (signaturePackageStr[i] === '}') {
-        braceCount--;
-        if (braceCount === 0) {
-          jsonEndIndex = i;
-          break;
-        }
-      }
-    }
-    
-    if (jsonEndIndex === -1) {
-      throw new Error('No valid signature package found in last row');
-    }
-    
-    const cleanJsonStr = signaturePackageStr.substring(0, jsonEndIndex + 1);
-    
-    try {
-      const signaturePackage = JSON.parse(cleanJsonStr);
-      
-      console.log('✅ Signature package extracted');
-      console.log('📊 Public key length:', signaturePackage.publicKey ? signaturePackage.publicKey.length : 'N/A');
-      console.log('📊 Signature length:', signaturePackage.signature ? signaturePackage.signature.length : 'N/A');
-      console.log('📊 Package version:', signaturePackage.version);
-      
-      return {
-        publicKey: signaturePackage.publicKey,
-        signature: signaturePackage.signature,
-        timestamp: signaturePackage.timestamp,
-        version: signaturePackage.version
-      };
-    } catch (parseError) {
-      throw new Error(`Failed to parse signature JSON: ${parseError.message}`);
-    }
-  }
-
-  /**
-   * Step 4: Reset last row alpha channels to 255 (remove signature data)
-   */
-  resetLastRowAlphaRGBA(rgbaData, width, height) {
-    console.log('🔄 Step 4: Resetting last row alpha channels...');
-    
-    const lastRowStart = (height - 1) * width * 4;
-    
-    for (let x = 0; x < width; x++) {
-      const alphaIndex = lastRowStart + (x * 4) + 3;
-      rgbaData[alphaIndex] = 255;
-    }
-    
-    console.log('✅ Last row alpha channels reset to 255');
-    return rgbaData;
-  }
-
-  /**
-   * Step 5: Extract Basic Data from alpha channels (excluding last row)
-   */
-  extractBasicDataFromAlphaChannelsRGBA(rgbaData, width, height) {
-    console.log('📝 Step 5: Extracting Basic Data from Alpha channels...');
-    
-    const maxHeight = height - 1; // Exclude last row
-    let binaryData = '';
-    
-    for (let y = 0; y < maxHeight; y++) {
-      for (let x = 0; x < width; x++) {
-        const pixelIndex = (y * width + x) * 4;
-        const alphaIndex = pixelIndex + 3; // Alpha channel only
-        const alphaValue = rgbaData[alphaIndex];
-        
-        // Extract 8 bits from alpha channel
-        for (let bit = 0; bit < 8; bit++) {
-          binaryData += (alphaValue & (1 << (7 - bit))) ? '1' : '0';
-        }
-        
-        // Check if we found the delimiter every 16 bits (codeUnitSize)
-        if (binaryData.length >= this.STEG_PARAMS.codeUnitSize && binaryData.length % this.STEG_PARAMS.codeUnitSize === 0) {
-          const testStr = this.binaryToString(binaryData);
-          if (testStr.includes(this.STEG_PARAMS.delimiter)) {
-            const endIndex = testStr.indexOf(this.STEG_PARAMS.delimiter);
-            const result = testStr.substring(0, endIndex);
-            console.log('✅ Basic Data extracted from Alpha channels (' + result.length + ' chars)');
-            return result;
-          }
-        }
-      }
-    }
-    
-    // Fallback: decode without delimiter
-    const result = this.binaryToString(binaryData);
-    console.log('⚠️ Delimiter not found, returning raw decoded data from Alpha channels');
-    return result;
-  }
-
-  /**
-   * Step 6: Convert RGBA data to base64 (same method as app)
-   */
-  rgbaToBase64(rgbaData) {
-    console.log('🔄 Step 6: Converting RGBA data to base64 for verification...');
-    console.log('🔧 DEBUGGING: Using same base64 method as app...');
-    
-    // CRITICAL FIX: Use same base64 conversion method as app
-    // Convert RGBA buffer to Uint8Array (same as app)
-    const uint8Array = new Uint8Array(rgbaData);
-    
-    // Convert to base64 string using same method as app
-    let binary = '';
-    const chunkSize = 0x8000; // Process in chunks to avoid call stack overflow (same as app)
-    
-    for (let i = 0; i < uint8Array.length; i += chunkSize) {
-      const chunk = uint8Array.subarray(i, i + chunkSize);
-      binary += String.fromCharCode.apply(null, chunk);
-    }
-    
-    // Use Buffer.from(binary, 'binary').toString('base64') to match btoa() behavior
-    const base64String = Buffer.from(binary, 'binary').toString('base64');
-    
-    console.log('✅ RGBA to base64 conversion completed');
-    console.log('📊 RGBA base64 length:', base64String.length, 'characters');
-    console.log('🔧 DEBUGGING: Backend RGBA base64 preview:', base64String.substring(0, 50) + '...');
-    console.log('🎯 This now matches the app base64 conversion method exactly!');
-    
-    return base64String;
-  }
-
-  /**
-   * Re-encode basic info using BackendAlphaSteg logic to match signing state
-   */
-  reEncodeBasicInfo(cleanRgbaData, width, height, basicInfo) {
-    console.log('🔄 Re-encoding basic info to match signing state...');
-    
-    // Use the same BackendAlphaSteg encoding logic
-    const backendSteg = new BackendAlphaSteg();
-    const rgbaWithBasicInfo = backendSteg.encodeBasicInfoIntoRGBA(
-      cleanRgbaData,
-      width,
-      height,
-      basicInfo
-    );
-    
-    console.log('✅ Basic info re-encoded to match signing state');
-    return rgbaWithBasicInfo;
-  }
-
-  /**
-   * Step 7: Compute SHA-512 hash matching backend signing process
-   */
-  computeRGBAHash(rgbaData, basicInfo, width, height) {
-    console.log('🔐 Step 7: Computing SHA-512 hash matching backend signing process...');
-    
-    // Match the exact signing hash generation logic from backend
-    const combinedData = JSON.stringify({
-      basicInfo: basicInfo,
-      rgbaChecksum: rgbaData.slice(0, 1000).join(''),
-      width: width,
-      height: height
-    });
-    
-    const hash = crypto.createHash('sha512').update(combinedData).digest('hex');
-    
-    console.log('✅ SHA-512 hash computed using combined data (' + hash.length + ' chars)');
-    console.log('🔐 Combined data preview:', combinedData.substring(0, 100) + '...');
-    console.log('🔐 Hash preview:', hash.substring(0, 16) + '...');
-    console.log('🎯 This matches the backend signing method exactly!');
-    
-    return hash;
-  }
-
-  /**
-   * Step 8: Verify signature using extracted public key and Noble Ed25519
-   */
-  async verifyRGBASignature(hash, signatureBase64, publicKeyBase64) {
-    console.log('🔍 Step 8: Verifying RGBA-based signature with Noble Ed25519...');
-    
-    try {
-      // Convert hash to bytes for verification (same as app signing)
-      const hashBytes = new TextEncoder().encode(hash);
-      
-      // Convert signature from Base64 to Uint8Array
-      const signatureBytes = new Uint8Array(
-        Buffer.from(signatureBase64, 'base64')
-      );
-      
-      // Convert public key from Base64 to Uint8Array
-      const publicKeyBytes = new Uint8Array(
-        Buffer.from(publicKeyBase64, 'base64')
-      );
-      
-      // Validate key and signature lengths
-      if (publicKeyBytes.length !== 32) {
-        throw new Error(`Invalid public key length: ${publicKeyBytes.length}, expected 32`);
-      }
-      if (signatureBytes.length !== 64) {
-        throw new Error(`Invalid signature length: ${signatureBytes.length}, expected 64`);
-      }
-      
-      console.log('🔑 Public key length:', publicKeyBytes.length);
-      console.log('🔐 Signature length:', signatureBytes.length);
-      console.log('📊 Hash data length:', hashBytes.length);
-      
-      // Verify signature using Noble Ed25519
-      const ed25519 = await import('@noble/ed25519');
-      
-      // Set up SHA-512 using the correct Noble Ed25519 setup method
-      ed25519.etc.sha512Async = async (...messages) => {
-        const concat = ed25519.etc.concatBytes(...messages);
-        const hash = crypto.createHash('sha512').update(concat).digest();
-        return hash;
-      };
-      
-      const isValid = await ed25519.verifyAsync(signatureBytes, hashBytes, publicKeyBytes);
-      
-      console.log(isValid ? '✅ RGBA Signature verification: VALID' : '❌ RGBA Signature verification: INVALID');
-      
-      return {
-        valid: isValid,
-        message: isValid ? 
-          'GeoCam RGBA signature is VALID - Image is authentic and unmodified' : 
-          'GeoCam RGBA signature is INVALID - Image may have been tampered with',
-        details: {
-          publicKeyLength: publicKeyBytes.length,
-          signatureLength: signatureBytes.length,
-          hashLength: hash.length,
-          method: 'RGBA-based verification (NEW)'
-        }
-      };
-      
-    } catch (error) {
-      console.error('❌ RGBA signature verification failed:', error);
-      return {
-        valid: false,
-        message: `RGBA signature verification failed: ${error.message}`,
-        details: { 
-          error: error.message,
-          method: 'RGBA-based verification (NEW) - FAILED'
-        }
-      };
-    }
-  }
-
-  /**
-   * Complete GeoCam RGBA Verification Workflow
-   */
-  async verifyGeoCamRGBA(pngBuffer) {
-    try {
-      console.log('🚀 Starting GeoCam RGBA Verification Workflow (NEW METHOD)...');
-      console.log('🎯 This method avoids PNG format compatibility issues!');
-      
-      // Step 1-2: Parse PNG to get RGBA data
-      const imageData = await this.parsePngToRGBA(pngBuffer);
-      const { width, height, rgbaData } = imageData;
-      
-      // Step 3: Extract signature from last row
-      const signatureData = this.extractSignatureFromLastRowRGBA(rgbaData, width, height);
-      
-      // Step 4: Reset last row alpha channels
-      const cleanedRgbaData = this.resetLastRowAlphaRGBA(rgbaData, width, height);
-      
-      // Step 5: Extract Basic Data
-      const basicDataStr = this.extractBasicDataFromAlphaChannelsRGBA(cleanedRgbaData, width, height);
-      
-      // Step 6: Re-encode basic data to get the same RGBA state as during signing
-      console.log('🔄 Re-encoding basic data to match signing state...');
-      const rgbaWithBasicInfo = await this.reEncodeBasicInfo(cleanedRgbaData, width, height, basicDataStr);
-      
-      // Step 7: Convert RGBA to base64 (keeping for debugging)
-      const rgbaBase64 = this.rgbaToBase64(rgbaWithBasicInfo);
-      
-      // Step 8: Compute RGBA hash matching backend signing process
-      const rgbaHash = this.computeRGBAHash(rgbaWithBasicInfo, basicDataStr, width, height);
-      
-              // Step 9: Verify RGBA signature
-        const verificationResult = await this.verifyRGBASignature(
-          rgbaHash,
-          signatureData.signature,
-          signatureData.publicKey
-        );
-      
-      console.log('🎉 GeoCam RGBA Verification Workflow completed!');
-      
-      return {
-        success: true,
-        verification: verificationResult,
-        extractedData: {
-          basicInfo: basicDataStr,
-          signatureData: {
-            timestamp: signatureData.timestamp,
-            version: signatureData.version,
-            publicKeyLength: signatureData.publicKey ? signatureData.publicKey.length : 0,
-            signatureLength: signatureData.signature ? signatureData.signature.length : 0
-          }
-        },
-        imageInfo: {
-          width,
-          height,
-          originalSize: pngBuffer.length,
-          rgbaSize: rgbaData.length,
-          rgbaBase64Size: rgbaBase64.length
-        },
-        method: 'RGBA-based (NEW)'
-      };
-      
-    } catch (error) {
-      console.error('❌ GeoCam RGBA Verification failed:', error);
-      return {
-        success: false,
-        error: error.message,
-        verification: {
-          valid: false,
-          message: `RGBA verification failed: ${error.message}`
-        },
-        method: 'RGBA-based (NEW) - FAILED'
-      };
-    }
-  }
-}
-
-// Initialize RGBA verifier
-const geocamRGBAVerifier = new GeoCamRGBAVerifier();
-
-// Dedicated GeoCam RGBA Verification endpoint (NEW)
-app.post('/verify-geocam-rgba', upload.single('image'), async (req, res) => {
+app.post('/pure-png-finalize', async (req, res) => {
+  console.log('🎯 === NEW WORKFLOW: Step 2 - Finalize with Signature ===');
+  
   try {
-    // Handle both FormData and JSON requests
-    let pngBuffer, tempFilePath;
+    const { sessionId, signature } = req.body;
     
-    if (req.headers['content-type']?.includes('application/json')) {
-      // JSON request from React Native
-      const { imageBase64 } = req.body;
-      
-      if (!imageBase64) {
-        return res.status(400).json({ 
-          error: 'No imageBase64 provided in JSON request',
-          workflow: 'geocam-rgba'
-        });
-      }
-      
-      console.log('🔍 GeoCam RGBA Verification Request (JSON from React Native)');
-      console.log('📊 Image base64 length:', imageBase64.length);
-      console.log('🎯 Using RGBA-based verification to avoid PNG compatibility issues');
-      
-      // Convert base64 to buffer
-      pngBuffer = Buffer.from(imageBase64, 'base64');
-      
-    } else {
-      // FormData request (for web compatibility)
-      if (!req.file) {
-        return res.status(400).json({ 
-          error: 'No GeoCam PNG file provided in FormData request',
-          workflow: 'geocam-rgba'
-        });
-      }
-      
-      console.log('🔍 GeoCam RGBA Verification Request (FormData)');
-      console.log('📁 File:', req.file.filename, 'Size:', req.file.size);
-      console.log('🎯 Using RGBA-based verification to avoid PNG compatibility issues');
-      
-      // Read the uploaded file as buffer
-      pngBuffer = fs.readFileSync(req.file.path);
-      tempFilePath = req.file.path;
-    }
-    
-    // Verify it's a PNG file
-    if (!pngBuffer.slice(0, 8).equals(Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]))) {
-      if (tempFilePath) {
-        fs.unlink(tempFilePath, () => {});
-      }
-      return res.status(400).json({ 
-        error: 'File is not a PNG - GeoCam images must be in PNG format',
-        workflow: 'geocam-rgba'
-      });
-    }
-    
-    console.log('✅ Valid PNG file - starting GeoCam RGBA verification workflow');
-    
-    // Perform GeoCam RGBA Verification (NEW METHOD)
-    const verificationResult = await geocamRGBAVerifier.verifyGeoCamRGBA(pngBuffer);
-    
-    // Clean up temp file if exists
-    if (tempFilePath) {
-      fs.unlink(tempFilePath, () => {});
-    }
-    
-    if (!verificationResult.success) {
-      return res.json({
+    if (!sessionId || !signature) {
+      return res.status(400).json({
         success: false,
-        error: verificationResult.error,
-        verification: verificationResult.verification,
-        workflow: 'geocam-rgba'
+        error: 'Missing required fields: sessionId, signature'
       });
     }
-    
-    // Parse the extracted basic data
-    let parsedBasicData = null;
-    try {
-      parsedBasicData = JSON.parse(verificationResult.extractedData.basicInfo);
-    } catch (parseError) {
-      console.log('⚠️ Basic data is not JSON format');
-      parsedBasicData = {
-        rawData: verificationResult.extractedData.basicInfo,
-        note: 'Data is not in JSON format'
-      };
+
+    console.log('📊 Session ID:', sessionId);
+    console.log('📊 Signature length:', signature.length);
+
+    // Retrieve cached processing data
+    const processingData = global.processingCache?.[sessionId];
+    if (!processingData) {
+      return res.status(404).json({
+        success: false,
+        error: 'Session not found or expired'
+      });
     }
+
+    console.log('✅ Retrieved cached processing data');
+    const { rgbaWithBasicInfo, width, height, publicKey, basicInfo, hashToSign } = processingData;
+
+    // Create signature package
+    const signaturePackage = {
+      publicKey,
+      signature,
+      timestamp: new Date().toISOString(),
+      version: '3.0-clean-workflow'
+    };
+
+    console.log('🔐 Embedding signature in last row...');
+    const processor = new PurePngProcessor();
+    const finalRgba = await processor.embedSignatureInLastRow(
+      rgbaWithBasicInfo,
+      signaturePackage,
+      width,
+      height
+    );
+    console.log('✅ Signature embedded in last row');
+
+    // Convert to PNG
+    console.log('💾 Converting RGBA to PNG with UPNG.js...');
+    const pngBuffer = UPNG.encode([finalRgba.buffer], width, height, 0);
+    const pngBase64 = Buffer.from(pngBuffer).toString('base64');
+    console.log('✅ PNG created with UPNG.js');
+    console.log('📊 PNG size:', pngBuffer.byteLength, 'bytes');
+    console.log('📊 Base64 length:', pngBase64.length, 'characters');
+
+    // Clean up cache
+    delete global.processingCache[sessionId];
+
+    console.log('🎉 === NEW WORKFLOW COMPLETED SUCCESSFULLY ===');
     
-    console.log('🎉 GeoCam RGBA verification completed successfully!');
-    console.log('✅ Signature valid:', verificationResult.verification.valid);
-    console.log('📊 Extracted data size:', verificationResult.extractedData.basicInfo.length, 'chars');
-    console.log('🎯 RGBA method avoids PNG compatibility issues completely!');
-    
-    res.json({
+    return res.json({
       success: true,
-      verification_result: {
-        signature_valid: verificationResult.verification.valid,
-        decoded_info: parsedBasicData,
-        is_authentic: verificationResult.verification.valid,
-        device_info: verificationResult.extractedData.signatureData,
-        message: verificationResult.verification.valid ? 'Signature is valid' : 'Signature is invalid'
-      },
-      extractedData: {
-        basicInfo: parsedBasicData,
-        signature: verificationResult.extractedData.signatureData
-      },
-      imageInfo: verificationResult.imageInfo,
-      workflow: 'geocam-rgba',
-      method: verificationResult.method,
-      timestamp: new Date().toISOString()
+      pngBase64,
+      stats: {
+        width,
+        height,
+        pngSize: pngBuffer.byteLength,
+        base64Length: pngBase64.length,
+        signatureVersion: '3.0-clean-workflow'
+      }
     });
 
   } catch (error) {
-    console.error('❌ GeoCam RGBA verification failed:', error);
-    
-    // Clean up temp file if it exists
-    if (tempFilePath) {
-      fs.unlink(tempFilePath, () => {});
-    }
-    
-    res.status(500).json({ 
-      error: 'GeoCam RGBA verification failed',
-      details: error.message,
-      workflow: 'geocam-rgba'
+    console.error('❌ Signature finalization failed:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message
     });
   }
 });
 
-// =============================================================================
-// PURE PNG BUFFER WORKFLOW: NO CANVAS - Using pngjs for both signing & verifying
-// =============================================================================
-
-// Add dependencies
-const UPNG = require('upng-js');
-const pngjs = require('pngjs');
-
-// Pure PNG Buffer Processing Class (NO CANVAS - using pngjs only)
-class PurePngProcessor {
-  constructor() {
-    this.STEG_PARAMS = {
-      t: 3,
-      threshold: 1,
-      codeUnitSize: 16,
-      delimiter: '###END###'
-    };
-  }
-
-  /**
-   * Convert Buffer to Uint8Array safely
-   */
-  toUint8Array(data) {
-    return data instanceof Uint8Array ? data : new Uint8Array(data);
-  }
-
-  /**
-   * Step 1: Convert JPEG to PNG with alpha channel (using Sharp)
-   */
-  async jpegToPngWithAlpha(jpegBuffer) {
-    console.log('🔄 Step 1: Converting JPEG to PNG with alpha channel (NO Canvas)...');
-    
-    const sharp = require('sharp');
-    
-    // Get image metadata first
-    const metadata = await sharp(jpegBuffer).metadata();
-    console.log('📊 Image metadata:', {
-      width: metadata.width,
-      height: metadata.height,
-      orientation: metadata.orientation,
-      format: metadata.format
-    });
-    
-    // Process image while preserving orientation
-    const { data, info } = await sharp(jpegBuffer)
-      .rotate() // Auto-rotate based on EXIF
-      .ensureAlpha() // Add alpha channel
-      .raw()
-      .toBuffer({ resolveWithObject: true });
-    
-    console.log('✅ JPEG to RGBA conversion complete');
-    console.log('📊 Dimensions:', info.width, 'x', info.height);
-    
-    return {
-      width: info.width,
-      height: info.height,
-      data: this.toUint8Array(data)
-    };
-  }
-
-  /**
-   * Step 2: Encode info into alpha channels (exclude last row)
-   */
-  encodeInfoIntoAlpha(rgbaData, width, height, info) {
-    console.log('🔐 Step 2: Encoding basic info into alpha channels...');
-    
-    const rgbaArray = this.toUint8Array(rgbaData);
-    const result = new Uint8Array(rgbaArray);
-    
-    const dataWithDelimiter = info + this.STEG_PARAMS.delimiter;
-    const binaryData = this.stringToBinary(dataWithDelimiter);
-    
-    // Exclude last row for signature
-    const maxHeight = height - 1;
-    const maxPixels = width * maxHeight;
-    const maxBits = maxPixels * 8;
-    
-    if (binaryData.length > maxBits) {
-      throw new Error(`Data too large: ${binaryData.length} bits > ${maxBits} bits capacity`);
-    }
-    
-    let bitIndex = 0;
-    
-    for (let y = 0; y < maxHeight && bitIndex < binaryData.length; y++) {
-      for (let x = 0; x < width && bitIndex < binaryData.length; x++) {
-        const pixelIndex = (y * width + x) * 4;
-        const alphaIndex = pixelIndex + 3;
-        
-        // Pack 8 bits into alpha channel
-        let alphaValue = 0;
-        for (let bit = 0; bit < 8 && bitIndex < binaryData.length; bit++) {
-          if (binaryData[bitIndex++] === '1') {
-            alphaValue |= (1 << (7 - bit));
-          }
-        }
-        
-        result[alphaIndex] = alphaValue;
-      }
-    }
-    
-    console.log('✅ Basic info encoded into alpha channels');
-    return result;
-  }
-
-  /**
-   * Step 3: Convert RGBA to PNG (using pngjs)
-   */
-  rgbaToPng(rgbaData, width, height) {
-    console.log('🔄 Converting RGBA to PNG...');
-    
-    const rgbaArray = this.toUint8Array(rgbaData);
-    const png = new pngjs.PNG({ width, height });
-    png.data = Buffer.from(rgbaArray); // pngjs requires Buffer
-    
-    const pngBuffer = pngjs.PNG.sync.write(png);
-    console.log('✅ PNG created:', pngBuffer.length, 'bytes');
-    
-    return pngBuffer;
-  }
-
-  /**
-   * Step 4: Hash PNG buffer
-   */
-  hashPngBuffer(pngBuffer) {
-    console.log('🔐 Step 4: Computing hash of PNG buffer...');
-    
-    const hash = crypto.createHash('sha512')
-      .update(this.toUint8Array(pngBuffer))
-      .digest('hex');
-    
-    console.log('✅ SHA-512 hash computed:', hash.length, 'characters');
-    return hash;
-  }
-
-  /**
-   * Step 5: Sign hash with private key
-   */
-  async signHash(hash, privateKeyBase64) {
-    console.log('🔐 Step 5: Signing hash with private key...');
-    
-    const { secp256k1 } = await import('@noble/curves/secp256k1');
-    
-    // Convert hex hash string to Uint8Array (same as verification)
-    const hashBytes = new Uint8Array(Buffer.from(hash, 'hex'));
-    const privateKeyBytes = this.toUint8Array(Buffer.from(privateKeyBase64, 'base64'));
-    
-    // Log lengths and previews for debugging
-    console.log('📊 Lengths:', {
-      hash: hashBytes.length,
-      privateKey: privateKeyBytes.length
-    });
-    console.log('🔍 Hash bytes preview:', [...hashBytes.slice(0, 4)]);
-    console.log('🔍 Private key bytes preview:', [...privateKeyBytes.slice(0, 4)]);
-    
-    // Sign the hash using secp256k1
-    const signature = secp256k1.sign(hashBytes, privateKeyBytes);
-    
-    // Convert signature to DER format and then to Base64
-    const signatureDER = signature.toDERRawBytes();
-    const signatureBase64 = Buffer.from(signatureDER).toString('base64');
-    console.log('🔍 Signature DER bytes preview:', [...signatureDER.slice(0, 4)]);
-    
-    return signatureBase64;
-  }
-
-  /**
-   * Step 6: Store signature in last row
-   */
-  storeSignatureInLastRow(rgbaData, width, height, publicKey, signature) {
-    console.log('🔐 Step 6: Storing signature in last row...');
-    
-    const rgbaArray = this.toUint8Array(rgbaData);
-    const result = new Uint8Array(rgbaArray);
-    
-    const signaturePackage = JSON.stringify({
-      publicKey: publicKey,
-      signature: signature,
-      timestamp: new Date().toISOString(),
-      version: '4.0'
-    });
-    
-    const binaryData = this.stringToBinary(signaturePackage);
-    console.log('📊 Signature package binary length:', binaryData.length, 'bits');
-    
-    // Use only last row
-    const lastRowPixels = width;
-    const maxBits = lastRowPixels * 8;
-    
-    if (binaryData.length > maxBits) {
-      throw new Error(`Signature too large: ${binaryData.length} bits > ${maxBits} bits capacity`);
-    }
-    
-    let bitIndex = 0;
-    const lastRowY = height - 1;
-    
-    for (let x = 0; x < width && bitIndex < binaryData.length; x++) {
-      const pixelIndex = (lastRowY * width + x) * 4;
-      const alphaIndex = pixelIndex + 3;
-      
-      // Pack 8 bits into alpha channel
-      let alphaValue = 0;
-      for (let bit = 0; bit < 8 && bitIndex < binaryData.length; bit++) {
-        if (binaryData[bitIndex++] === '1') {
-          alphaValue |= (1 << (7 - bit));
-        }
-      }
-      
-      result[alphaIndex] = alphaValue;
-    }
-    
-    console.log('✅ Signature stored in last row');
-    return result;
-  }
-
-  /**
-   * Parse PNG buffer to RGBA (using pngjs)
-   */
-  parsePngToRgba(pngBuffer) {
-    console.log('📖 Parsing PNG to RGBA (using pngjs)...');
-    
-    const png = pngjs.PNG.sync.read(pngBuffer);
-    
-    console.log('✅ PNG parsed:', png.width, 'x', png.height);
-    console.log('📊 RGBA data length:', png.data.length);
-    
-    return {
-      width: png.width,
-      height: png.height,
-      data: this.toUint8Array(png.data)
-    };
-  }
-
-  /**
-   * Extract signature from last row
-   */
-  extractSignatureFromLastRow(rgbaData, width, height) {
-    console.log('🔍 Extracting signature from last row...');
-    
-    const rgbaArray = this.toUint8Array(rgbaData);
-    const lastRowY = height - 1;
-    let binaryString = '';
-    let nullFound = false;
-    let validJsonFound = false;
-    let jsonEndPos = -1;
-    
-    // First pass: collect all binary data
-    for (let x = 0; x < width && !nullFound; x++) {
-      const pixelIndex = (lastRowY * width + x) * 4;
-      const alphaIndex = pixelIndex + 3;
-      const alphaValue = rgbaArray[alphaIndex];
-      
-      // Unpack 8 bits from alpha channel (matching storage order)
-      for (let bit = 0; bit < 8; bit++) {
-        binaryString += ((alphaValue & (1 << (7 - bit))) ? '1' : '0');
-      }
-      
-      // Try to find valid JSON every 16 bits
-      if (binaryString.length >= this.STEG_PARAMS.codeUnitSize && 
-          binaryString.length % this.STEG_PARAMS.codeUnitSize === 0) {
-        const testStr = this.binaryToString(binaryString);
-        
-        try {
-          // Look for complete JSON object
-          let braceCount = 0;
-          let inString = false;
-          let escapeNext = false;
-          
-          for (let i = 0; i < testStr.length; i++) {
-            const char = testStr[i];
-            
-            if (!inString) {
-              if (char === '{') braceCount++;
-              else if (char === '}') {
-                braceCount--;
-                if (braceCount === 0) {
-                  // Found potential JSON end
-                  try {
-                    const jsonStr = testStr.substring(0, i + 1);
-                    JSON.parse(jsonStr); // Test if valid JSON
-                    validJsonFound = true;
-                    jsonEndPos = i + 1;
-                    break;
-                  } catch (e) {
-                    // Not valid JSON yet, continue
-                  }
-                }
-              }
-            }
-            
-            if (char === '"' && !escapeNext) {
-              inString = !inString;
-            }
-            escapeNext = char === '\\' && !escapeNext;
-          }
-          
-          if (validJsonFound) break;
-        } catch (e) {
-          // Continue searching
-        }
-      }
-    }
-    
-    if (!validJsonFound || jsonEndPos === -1) {
-      console.error('❌ No valid JSON found in signature data');
-      throw new Error('Invalid signature format');
-    }
-    
-    // Extract only the valid JSON part
-    const signatureData = this.binaryToString(binaryString).substring(0, jsonEndPos);
-    
-    try {
-      // Add debug logging
-      console.log('📝 Raw binary length:', binaryString.length, 'bits');
-      console.log('📝 Valid JSON length:', jsonEndPos, 'characters');
-      console.log('📝 Raw signature data:', signatureData);
-      
-      const parsed = JSON.parse(signatureData);
-      console.log('✅ Signature extracted:', parsed.version);
-      console.log('📊 Signature package:', {
-        publicKeyLength: parsed.publicKey ? parsed.publicKey.length : 'N/A',
-        signatureLength: parsed.signature ? parsed.signature.length : 'N/A',
-        timestamp: parsed.timestamp,
-        version: parsed.version
-      });
-      return parsed;
-    } catch (error) {
-      console.error('❌ Failed to parse signature data:', error.message);
-      console.error('❌ Raw data preview:', signatureData.substring(0, 100));
-      throw new Error('Invalid signature format');
-    }
-  }
-
-  /**
-   * Reset last row to 255 (clean state)
-   */
-  resetLastRow(rgbaData, width, height) {
-    console.log('🧹 Resetting last row to clean state...');
-    
-    const rgbaArray = this.toUint8Array(rgbaData);
-    const result = new Uint8Array(rgbaArray);
-    const lastRowY = height - 1;
-    
-    for (let x = 0; x < width; x++) {
-      const pixelIndex = (lastRowY * width + x) * 4;
-      const alphaIndex = pixelIndex + 3;
-      result[alphaIndex] = 255; // Reset to opaque
-    }
-    
-    console.log('✅ Last row reset');
-    return result;
-  }
-
-  /**
-   * Extract basic info from alpha channels
-   */
-  extractBasicInfo(rgbaData, width, height) {
-    console.log('🔍 Extracting basic info from alpha channels...');
-    
-    const rgbaArray = this.toUint8Array(rgbaData);
-    const maxHeight = height - 1; // Exclude last row
-    let binaryString = '';
-    
-    for (let y = 0; y < maxHeight; y++) {
-      for (let x = 0; x < width; x++) {
-        const pixelIndex = (y * width + x) * 4;
-        const alphaIndex = pixelIndex + 3;
-        const alphaValue = rgbaArray[alphaIndex];
-        
-        // Unpack 8 bits from alpha channel (matching encoding order)
-        for (let bit = 0; bit < 8; bit++) {
-          binaryString += ((alphaValue & (1 << (7 - bit))) ? '1' : '0');
-        }
-      }
-    }
-    
-    const extractedData = this.binaryToString(binaryString);
-    const delimiterIndex = extractedData.indexOf(this.STEG_PARAMS.delimiter);
-    
-    if (delimiterIndex === -1) {
-      throw new Error('Delimiter not found - invalid steganography data');
-    }
-    
-    const basicInfo = extractedData.substring(0, delimiterIndex);
-    console.log('✅ Basic info extracted:', basicInfo.length, 'characters');
-    
-    return basicInfo;
-  }
-
-  /**
-   * Verify signature
-   */
-  async verifySignature(hash, signatureBase64, publicKeyBase64) {
-    console.log('🔍 Verifying signature...');
-    
-    try {
-      const { secp256k1 } = await import('@noble/curves/secp256k1');
-      
-      // Convert hex hash string to Uint8Array (same as signing)
-      const hashBytes = new Uint8Array(Buffer.from(hash, 'hex'));
-      
-      // Convert signature from Base64 to DER format
-      const signatureDER = this.toUint8Array(Buffer.from(signatureBase64, 'base64'));
-      
-      // Convert public key from Base64 to Uint8Array
-      const publicKeyBytes = this.toUint8Array(Buffer.from(publicKeyBase64, 'base64'));
-      
-      // Log lengths for debugging
-      console.log('📊 Lengths:', {
-        hash: hashBytes.length,
-        signature: signatureDER.length,
-        publicKey: publicKeyBytes.length
-      });
-      
-      // Log first few bytes of each for debugging
-      console.log('🔍 Hash bytes preview:', [...hashBytes.slice(0, 4)]);
-      console.log('🔍 Signature DER bytes preview:', [...signatureDER.slice(0, 4)]);
-      console.log('🔍 Public key bytes preview:', [...publicKeyBytes.slice(0, 4)]);
-      
-      // Convert DER signature to Signature object
-      const signature = secp256k1.Signature.fromDER(signatureDER);
-      
-      // Verify the signature
-      const isValid = secp256k1.verify(
-        signature,        // The Signature object
-        hashBytes,       // The message (hash in this case)
-        publicKeyBytes   // The public key
-      );
-      
-      console.log(isValid ? '✅ Signature verification: VALID' : '❌ Signature verification: INVALID');
-      
-      return {
-        valid: isValid,
-        message: isValid ? 'Signature is valid' : 'Signature is invalid'
-      };
-      
-    } catch (error) {
-      console.error('❌ Signature verification failed:', error);
-      return {
-        valid: false,
-        message: `Signature verification failed: ${error.message}`
-      };
-    }
-  }
-
-  // ==================== UTILITY METHODS ====================
-
-  stringToBinary(str) {
-    let binary = '';
-    for (let i = 0; i < str.length; i++) {
-      const charCode = str.charCodeAt(i);
-      binary += charCode.toString(2).padStart(this.STEG_PARAMS.codeUnitSize, '0');
-    }
-    return binary;
-  }
-
-  binaryToString(binary) {
-    let result = '';
-    for (let i = 0; i < binary.length; i += this.STEG_PARAMS.codeUnitSize) {
-      const chunk = binary.substr(i, this.STEG_PARAMS.codeUnitSize);
-      if (chunk.length === this.STEG_PARAMS.codeUnitSize) {
-        const charCode = parseInt(chunk, 2);
-        if (charCode === 0) break; // Stop at null terminator
-        result += String.fromCharCode(charCode);
-      }
-    }
-    return result;
-  }
-
-  /**
-   * Hash PNG buffer for signing/verification
-   * This method now normalizes the PNG data before hashing to handle encoding variations
-   */
-  hashPngBuffer(pngBuffer) {
-    console.log('🔐 Computing hash of PNG buffer...');
-    
-    return new Promise((resolve, reject) => {
-      // Parse PNG to RGBA to normalize the data
-      const png = new PNG();
-      
-      png.parse(pngBuffer, (error, data) => {
-        if (error) {
-          console.error('❌ PNG parsing failed:', error);
-          reject(error);
-          return;
-        }
-        
-        // Create a normalized buffer that only includes the RGBA data
-        // This eliminates variations in PNG encoding
-        const normalizedBuffer = Buffer.from(data.data);
-        
-        // Hash the normalized buffer
-        const hash = crypto.createHash('sha512')
-          .update(normalizedBuffer)
-          .digest('hex');
-        
-        console.log('✅ SHA-512 hash computed:', hash.length, 'characters');
-        resolve(hash);
-      });
-    });
-  }
-
-  /**
-   * Complete GeoCam PNG Verification Workflow
-   */
-  async verifyGeoCamPNG(pngBuffer) {
-    try {
-      console.log('🚀 Starting GeoCam PNG Verification Workflow...');
-      
-      // Step 1-2: Parse PNG directly from buffer
-      const imageData = await this.parsePngFromBuffer(pngBuffer);
-      const { width, height, data: rgbaData } = imageData;
-      
-      // Step 3: Extract signature from last row
-      const signatureData = this.extractSignatureFromLastRow(rgbaData, width, height);
-      
-      // Step 4: Reset last row alpha channels
-      const cleanedRgbaData = this.resetLastRow(rgbaData, width, height);
-      
-      // Step 5: Extract Basic Data
-      const basicDataStr = this.extractBasicDataFromAlphaChannels(cleanedRgbaData, width, height);
-      
-      // Step 6: Rebuild clean PNG
-      const cleanPngBuffer = await this.rebuildCleanPNG(cleanedRgbaData, width, height);
-      
-      // Step 7: Compute hash
-      const pngHash = await this.hashPngBuffer(cleanPngBuffer);
-      
-      // Step 8: Verify signature
-      const verificationResult = await this.verifySignatureWithExtractedKey(
-        pngHash,
-        signatureData.signature,
-        signatureData.publicKey
-      );
-      
-      console.log('🎉 GeoCam PNG Verification Workflow completed!');
-      
-      return {
-        success: true,
-        verification: verificationResult,
-        extractedData: {
-          basicInfo: basicDataStr,
-          signatureData: {
-            timestamp: signatureData.timestamp,
-            version: signatureData.version,
-            publicKeyLength: signatureData.publicKey ? signatureData.publicKey.length : 0,
-            signatureLength: signatureData.signature ? signatureData.signature.length : 0
-          }
-        },
-        imageInfo: {
-          width,
-          height,
-          originalSize: pngBuffer.length,
-          cleanSize: cleanPngBuffer.length
-        }
-      };
-      
-    } catch (error) {
-      console.error('❌ GeoCam PNG Verification failed:', error);
-      return {
-        success: false,
-        error: error.message,
-        verification: {
-          valid: false,
-          message: `Verification failed: ${error.message}`
-        }
-      };
-    }
-  }
-}
-
-// Backend Alpha Channel Steganography Class (matching frontend logic)
-class BackendAlphaSteg {
-  constructor() {
-    this.STEG_PARAMS = {
-      t: 3,
-      threshold: 1,
-      codeUnitSize: 16,
-      delimiter: '###END###'
-    };
-  }
-
-  stringToBinary(str) {
-    let binary = '';
-    for (let i = 0; i < str.length; i++) {
-      const charCode = str.charCodeAt(i);
-      binary += charCode.toString(2).padStart(this.STEG_PARAMS.codeUnitSize, '0');
-    }
-    return binary;
-  }
-
-  // Encode basic info into RGBA array (Alpha channels only, exclude last row)
-  encodeBasicInfoIntoRGBA(rgbaArray, width, height, basicInfo) {
-    console.log('🔐 Backend: Encoding basic info into RGBA...');
-    console.log('📊 Basic info length:', basicInfo.length);
-    
-    const result = [...rgbaArray];
-    const dataWithDelimiter = basicInfo + this.STEG_PARAMS.delimiter;
-    const binaryData = this.stringToBinary(dataWithDelimiter);
-    
-    console.log('📊 Binary data length:', binaryData.length, 'bits');
-    
-    // Exclude last row for signature
-    const maxHeight = height - 1;
-    const maxPixels = width * maxHeight;
-    const maxBits = maxPixels * 8; // 8 bits per alpha channel
-    
-    if (binaryData.length > maxBits) {
-      throw new Error(`Data too large: ${binaryData.length} bits > ${maxBits} bits capacity`);
-    }
-    
-    let bitIndex = 0;
-    
-    for (let y = 0; y < maxHeight && bitIndex < binaryData.length; y++) {
-      for (let x = 0; x < width && bitIndex < binaryData.length; x++) {
-        const pixelIndex = (y * width + x) * 4;
-        const alphaIndex = pixelIndex + 3;
-        
-        // Pack 8 bits into alpha channel
-        let alphaValue = 0;
-        for (let bit = 0; bit < 8 && bitIndex < binaryData.length; bit++) {
-          if (binaryData[bitIndex++] === '1') {
-            alphaValue |= (1 << (7 - bit));
-          }
-        }
-        
-        result[alphaIndex] = alphaValue;
-      }
-    }
-    
-    console.log('✅ Basic info encoded into Alpha channels');
-    return result;
-  }
-
-  // Store signature in last row (Alpha channels only)
-  storeSignatureInLastRow(rgbaArray, width, height, publicKey, signature) {
-    console.log('🔐 Backend: Storing signature in last row...');
-    
-    const result = [...rgbaArray];
-    
-    const signaturePackage = JSON.stringify({
-      publicKey: publicKey,
-      signature: signature,
-      timestamp: new Date().toISOString(),
-      version: '3.0-backend'
-    });
-    
-    const binaryData = this.stringToBinary(signaturePackage);
-    console.log('📊 Signature package binary length:', binaryData.length, 'bits');
-    
-    // Use only last row
-    const lastRowPixels = width;
-    const maxBits = lastRowPixels * 8;
-    
-    if (binaryData.length > maxBits) {
-      throw new Error(`Signature too large: ${binaryData.length} bits > ${maxBits} bits capacity`);
-    }
-    
-    let bitIndex = 0;
-    const lastRowY = height - 1;
-    
-    for (let x = 0; x < width && bitIndex < binaryData.length; x++) {
-      const pixelIndex = (lastRowY * width + x) * 4;
-      const alphaIndex = pixelIndex + 3;
-      
-      // Pack 8 bits into alpha channel
-      let alphaValue = 0;
-      for (let bit = 0; bit < 8 && bitIndex < binaryData.length; bit++) {
-        if (binaryData[bitIndex++] === '1') {
-          alphaValue |= (1 << (7 - bit));
-        }
-      }
-      
-      result[alphaIndex] = alphaValue;
-    }
-    
-    console.log('✅ Signature stored in last row');
-    return result;
-  }
-}
-
-// Initialize processors
-const backendSteg = new BackendAlphaSteg();
-const purePngProcessor = new PurePngProcessor();
-
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({
-    status: 'OK',
-    service: 'GeoCam Steganography Service',
-    timestamp: new Date().toISOString(),
-    port: PORT,
-    endpoints: [
-      'GET /health - Health check',
-      'POST /pure-png-sign - Image signing endpoint',
-      'POST /pure-png-verify - Image verification endpoint',
-      'POST /decode-image - Legacy decoder',
-      'POST /verify-geocam-png - Legacy PNG verification',
-      'POST /verify-geocam-rgba - RGBA verification'
-    ]
-  });
-});
-
-// =============================================================================
-// PURE PNG WORKFLOW ENDPOINTS (NO CANVAS)
-// =============================================================================
+// ==================== PURE PNG WORKFLOW ENDPOINTS (NO CANVAS) ====================
 
 // PURE PNG SIGNING: Complete signing workflow in one endpoint
 app.post('/pure-png-sign', async (req, res) => {
@@ -2480,7 +1554,7 @@ app.post('/pure-png-sign', async (req, res) => {
     // Process image and prepare for signing
     const { width, height, data: rgbaData } = await purePngProcessor.jpegToPngWithAlpha(jpegBuffer);
     
-    // Encode basic info
+    // Encode basic info into RGBA
     const rgbaWithInfo = purePngProcessor.encodeInfoIntoAlpha(rgbaData, width, height, basicInfo);
     
     // Convert to PNG
@@ -2537,32 +1611,36 @@ app.post('/pure-png-verify', async (req, res) => {
     }
     
     console.log('📊 Processing verification request');
+    console.log('📊 PNG base64 length:', pngBase64.length);
     
     // Convert base64 to buffer
     const pngBuffer = Buffer.from(pngBase64, 'base64');
     
-    // Extract and verify data
-    const { width, height, data: rgbaData } = await purePngProcessor.parsePngToRgba(pngBuffer);
-    const signatureData = purePngProcessor.extractSignatureFromLastRow(rgbaData, width, height);
-    const cleanedRgba = purePngProcessor.resetLastRow(rgbaData, width, height);
-    const basicInfo = purePngProcessor.extractBasicInfo(cleanedRgba, width, height);
-    
-    // Verify signature - using cleanedRgba directly without re-encoding
-    const pngWithInfo = purePngProcessor.rgbaToPng(cleanedRgba, width, height);
-    const hash = await purePngProcessor.hashPngBuffer(pngWithInfo);
-    const verification = await purePngProcessor.verifySignature(hash, signatureData.signature, signatureData.publicKey);
+    // Use GeoCamPNGVerifier for complete verification workflow
+    const verificationResult = await geocamPNGVerifier.verifyGeoCamPNG(pngBuffer);
     
     console.log('✅ Verification completed');
-    console.log('   - Signature valid:', verification.valid);
-    console.log('   - Image dimensions:', width, 'x', height);
+    console.log('   - Success:', verificationResult.success);
+    console.log('   - Signature valid:', verificationResult.verification?.valid);
+    
+    if (!verificationResult.success) {
+      return res.status(200).json({
+        success: false,
+        verification_result: {
+          signature_valid: false,
+          is_authentic: false,
+          message: verificationResult.error || 'Image verification failed'
+        }
+      });
+    }
     
     // Parse basic info
     let parsedBasicInfo = null;
     try {
-      parsedBasicInfo = JSON.parse(basicInfo);
+      parsedBasicInfo = JSON.parse(verificationResult.extractedData.basicInfo);
     } catch (parseError) {
       parsedBasicInfo = {
-        rawData: basicInfo,
+        rawData: verificationResult.extractedData.basicInfo,
         note: 'Data is not in JSON format'
       };
     }
@@ -2570,16 +1648,13 @@ app.post('/pure-png-verify', async (req, res) => {
     return res.json({
       success: true,
       verification_result: {
-        signature_valid: verification.valid,
+        signature_valid: verificationResult.verification.valid,
         decoded_info: parsedBasicInfo,
-        is_authentic: verification.valid,
-        message: verification.valid ? 'Image verification successful' : 'Image verification failed'
+        is_authentic: verificationResult.verification.valid,
+        message: verificationResult.verification.message,
+        method: 'GeoCamPNGVerifier'
       },
-      imageInfo: {
-        width,
-        height,
-        size: pngBuffer.length
-      }
+      imageInfo: verificationResult.imageInfo
     });
     
   } catch (error) {
@@ -2601,9 +1676,11 @@ app.post('/pure-png-verify', async (req, res) => {
 app.post('/process-geocam-image', upload.single('image'), async (req, res) => {
   console.log('🎯 === BACKEND: Full GeoCam Processing Started ===');
   
+  let tempFilePath = null; // Initialize to null
+  
   try {
     // Handle both FormData and JSON requests
-    let jpegBase64, basicInfo, publicKey, tempFilePath;
+    let jpegBase64, basicInfo, publicKey;
     
     if (req.headers['content-type']?.includes('application/json')) {
       // JSON request from React Native
@@ -2667,34 +1744,35 @@ app.post('/process-geocam-image', upload.single('image'), async (req, res) => {
     const img = await loadImage(tempFilePath);
     console.log('✅ JPEG loaded:', img.width, 'x', img.height);
 
-    // Create canvas and get RGBA data
-    const canvas = createCanvas(img.width, img.height);
+    // Get EXIF orientation
+    const exifBuffer = fs.readFileSync(tempFilePath);
+    const orientation = await getImageOrientation(exifBuffer);
+
+    // Create canvas and get RGBA data with correct orientation
+    const canvas = getCanvasWithCorrectOrientation(img, orientation);
     const ctx = canvas.getContext('2d');
     
-    // Ensure correct orientation (fix rotation issue)
-    ctx.imageSmoothingEnabled = true;
-    ctx.drawImage(img, 0, 0, img.width, img.height);
-    
-    const imageData = ctx.getImageData(0, 0, img.width, img.height);
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const rgbaArray = Array.from(imageData.data);
     
-    console.log('✅ JPEG → Canvas → RGBA completed');
+    console.log('✅ JPEG → Canvas → RGBA completed with orientation', orientation);
+    console.log('📊 Final dimensions:', canvas.width, 'x', canvas.height);
     console.log('📊 RGBA array length:', rgbaArray.length);
 
     // Encode basic info into RGBA
-    const rgbaWithBasicInfo = backendSteg.encodeBasicInfoIntoRGBA(
+    const rgbaWithInfo = backendSteg.encodeBasicInfoIntoRGBA(
       rgbaArray,
-      img.width,
-      img.height,
+      canvas.width,
+      canvas.height,
       basicInfo
     );
 
     // Generate hash for signing (matching frontend logic)
     const combinedData = JSON.stringify({
       basicInfo: basicInfo,
-      rgbaChecksum: rgbaWithBasicInfo.slice(0, 1000).join(''),
-      width: img.width,
-      height: img.height
+      rgbaChecksum: rgbaWithInfo.slice(0, 1000).join(''),
+      width: canvas.width,
+      height: canvas.height
     });
 
     const hashToSign = crypto.createHash('sha512').update(combinedData).digest('hex');
@@ -2707,9 +1785,9 @@ app.post('/process-geocam-image', upload.single('image'), async (req, res) => {
     // Store in memory (temporary solution)
     global.processingCache = global.processingCache || {};
     global.processingCache[sessionId] = {
-      rgbaWithBasicInfo,
-      width: img.width,
-      height: img.height,
+      rgbaWithBasicInfo: rgbaWithInfo,
+      width: canvas.width,
+      height: canvas.height,
       publicKey,
       basicInfo,
       timestamp: Date.now()
@@ -2724,12 +1802,12 @@ app.post('/process-geocam-image', upload.single('image'), async (req, res) => {
     
     return res.json({
       success: true,
-      sessionId: sessionId,
-      hashToSign: hashToSign,
+      sessionId,
+      hashToSign,
       imageInfo: {
-        width: img.width,
-        height: img.height,
-        rgbaSize: rgbaWithBasicInfo.length
+        width: canvas.width,
+        height: canvas.height,
+        rgbaLength: rgbaWithInfo.length
       }
     });
 
@@ -2838,8 +1916,9 @@ setInterval(() => {
   }
 }, 5 * 60 * 1000); // Every 5 minutes
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 GeoCam Steganography Service running on port ${PORT}`);
+  console.log(`🌐 Listening on all interfaces (0.0.0.0:${PORT})`);
   console.log(`📋 Available endpoints:`);
   console.log(`   GET  /health - Health check`);
   console.log(`   POST /pure-png-sign - Image signing endpoint`);
@@ -2848,4 +1927,4 @@ app.listen(PORT, () => {
   console.log(`   POST /verify-geocam-png - Legacy PNG verification`);
   console.log(`   POST /verify-geocam-rgba - RGBA verification`);
   console.log(`🔍 Core services initialized`);
-}); 
+});
