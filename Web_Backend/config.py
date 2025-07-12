@@ -21,5 +21,6 @@ class Config:
         "http://localhost:3000", 
         "http://localhost:3002",
         "http://localhost:5173",  # Vue dev server
-        "https://geocam-web-frontend.onrender.com"  # Vue production site
+        "https://geocam-web-frontend.onrender.com",  # Vue production site
+        "https://register-device-production.up.railway.app", # Railway production site
     ] 
