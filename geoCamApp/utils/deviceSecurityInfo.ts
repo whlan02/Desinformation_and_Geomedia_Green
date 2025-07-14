@@ -1,5 +1,5 @@
 import * as Device from 'expo-device';
-import { getSecp256k1KeyPairInfo, hasStoredSecp256k1KeyPair } from './secp256k1Utils';
+import { getSecp256k1KeyPairInfo, hasStoredSecp256k1KeyPair, hasSecureKeys } from './secp256k1Utils';
 
 /**
  * Get hardware security information for secp256k1 crypto system
@@ -56,7 +56,15 @@ export const generateSecuritySummary = async () => {
 export const getDeviceSecurityStatus = async () => {
   try {
     const keyInfo = await getSecp256k1KeyPairInfo();
-    const hasKeys = await hasStoredSecp256k1KeyPair();
+    // Check both old and new key systems
+    const hasOldKeys = await hasStoredSecp256k1KeyPair();
+    const hasNewSecureKeys = await hasSecureKeys();
+    const hasKeys = hasOldKeys || hasNewSecureKeys;
+    
+    console.log('🔑 Device security status check:');
+    console.log('  - Old keys:', hasOldKeys);
+    console.log('  - New secure keys:', hasNewSecureKeys);
+    console.log('  - Has any keys:', hasKeys);
     
     const securityLevel = getSecurityLevelDescription(Device.osName);
     const hardwareInfo = getHardwareSecurityInfo();

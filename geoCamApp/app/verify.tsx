@@ -17,7 +17,7 @@ import {
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import MapView, { Marker, UrlTile } from 'react-native-maps';
+import MapView, { Marker, UrlTile} from 'react-native-maps';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system';
@@ -589,12 +589,8 @@ export default function Verify() {
                         latitudeDelta: 0.01,
                         longitudeDelta: 0.01,
                       }}
-                      mapType="none"
+                      mapType="standard"
                     >
-                      <UrlTile
-                        urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-                        maximumZ={19}
-                      />
                       <Marker
                         coordinate={{
                           latitude: location.latitude,

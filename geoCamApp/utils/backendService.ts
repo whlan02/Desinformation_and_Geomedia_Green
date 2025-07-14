@@ -4,7 +4,7 @@ import * as SecureStore from 'expo-secure-store';
 import * as Crypto from 'expo-crypto';
 import { secp256k1 } from '@noble/curves/secp256k1';
 import { buildApiUrl, buildSteganographyUrl, BACKEND_CONFIG } from './backendConfig';
-import { getStoredSecp256k1KeyPair } from './secp256k1Utils';
+import { getStoredSecp256k1KeyPair, getSecureKeysForRegistration } from './secp256k1Utils';
 
 // Storage key for GeoCam device name
 const GEOCAM_DEVICE_NAME_KEY = 'geocam_device_name';
@@ -102,8 +102,13 @@ export const registerDevice = async () => {
   try {
     console.log('📱 Starting device registration with secp256k1 keys...');
     
-    // Get the stored secp256k1 key pair
-    const keyPair = await getStoredSecp256k1KeyPair();
+    // Try to get secure keys first (new system), then fall back to old system
+    let keyPair = await getSecureKeysForRegistration();
+    if (!keyPair) {
+      console.log('🔍 No secure keys found, checking for old format keys...');
+      keyPair = await getStoredSecp256k1KeyPair();
+    }
+    
     if (!keyPair) {
       console.error('❌ No secp256k1 keys found for registration');
       return {
@@ -111,6 +116,8 @@ export const registerDevice = async () => {
         message: 'No secp256k1 keys available for registration',
       };
     }
+    
+    console.log('✅ Found keys for registration:', keyPair.publicKey.type || 'legacy_format');
 
     // Prepare device registration data with ONLY the necessary public key data
     const registrationData = {
@@ -188,11 +195,19 @@ export const checkDeviceRegistration = async (): Promise<boolean> => {
   try {
     console.log('🔍 Checking device registration status...');
     
-    const keyPair = await getStoredSecp256k1KeyPair();
+    // Try to get secure keys first (new system), then fall back to old system
+    let keyPair = await getSecureKeysForRegistration();
+    if (!keyPair) {
+      console.log('🔍 No secure keys found, checking for old format keys...');
+      keyPair = await getStoredSecp256k1KeyPair();
+    }
+    
     if (!keyPair) {
       console.log('❌ No secp256k1 keys found - device cannot be registered');
       return false;
     }
+    
+    console.log('✅ Found keys for registration check:', keyPair.publicKey.type || 'legacy_format');
 
     // Use the existing DEVICES endpoint to check registration
     const response = await fetch(buildApiUrl(BACKEND_CONFIG.ENDPOINTS.DEVICES), {
@@ -351,17 +366,16 @@ export const performFreshDeviceStart = async (): Promise<{
       throw new Error('Failed to reset local keys and device name');
     }
 
-    // Step 3: Generate new keys
-    console.log('🔐 Step 3: Generating new keys...');
-    const { generateSecp256k1KeyPair, storeSecp256k1KeyPair } = await import('./secp256k1Utils.js');
+    // Step 3: Generate new secure keys
+    console.log('🔐 Step 3: Generating new secure keys...');
+    const { generateSecureKeyPair } = await import('./secp256k1Utils.js');
     
     try {
-      const newKeyPair = await generateSecp256k1KeyPair();
-      await storeSecp256k1KeyPair(newKeyPair.privateKey, newKeyPair.publicKey, newKeyPair.fingerprint);
+      await generateSecureKeyPair(); // This function generates and stores keys automatically
       
       steps.keyGeneration = {
         success: true,
-        message: 'New keys generated and stored'
+        message: 'New secure keys generated and stored'
       };
       console.log('📊 Key generation result:', steps.keyGeneration);
     } catch (keyGenError) {

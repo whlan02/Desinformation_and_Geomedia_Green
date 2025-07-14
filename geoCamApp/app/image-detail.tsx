@@ -491,15 +491,11 @@ export default function ImageDetail() {
                           latitudeDelta: 0.008,
                           longitudeDelta: 0.008,
                         }}
-                        mapType="none"
+                        mapType="standard"
                         zoomEnabled={true}
                         pitchEnabled={true}
                         rotateEnabled={true}
                       >
-                        <UrlTile
-                          urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-                          maximumZ={19}
-                        />
                         <Marker
                           coordinate={{
                             latitude: location.latitude,

@@ -14,14 +14,14 @@ import {
   Modal
 } from 'react-native';
 import { CameraView, CameraType, FlashMode, useCameraPermissions } from 'expo-camera';
-import { useRef, useState, useEffect, useCallback } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import * as MediaLibrary from 'expo-media-library';
 import * as Device from 'expo-device';
 import * as Location from 'expo-location';
 import * as FileSystem from 'expo-file-system';
 import * as Haptics from 'expo-haptics';
 import { saveImageToGallery } from '../utils/galleryStorage';
-import { getStoredSecp256k1KeyPair } from '../utils/secp256k1Utils';
+import { getStoredSecp256k1KeyPair, signHashWithSecp256k1, getSecureKeysForRegistration } from '../utils/secp256k1Utils';
 import { getStoredGeoCamDeviceName, processGeoCamImageBackend, completeGeoCamImageBackend } from '../utils/backendService';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -279,17 +279,30 @@ export default function CameraScreen() {
   const loadExistingKeys = async () => {
     setIsLoadingKeys(true);
     try {
-      // Load existing keys from storage
-      const storedKeyPair = await getStoredSecp256k1KeyPair();
-      if (storedKeyPair) {
-        setKeyPair(storedKeyPair);
-        console.log('🔑 Loaded existing keys from storage');
-        if ('metadata' in storedKeyPair && storedKeyPair.metadata && typeof storedKeyPair.metadata === 'object' && 'fingerprint' in storedKeyPair.metadata) {
-          console.log('🔑 Key fingerprint:', (storedKeyPair.metadata as KeyMetadata).fingerprint);
+      console.log('🔑 Loading keys for camera...');
+      
+      // Try to load secure keys first (new system), then fall back to old system
+      let keyPair = await getSecureKeysForRegistration();
+      if (keyPair) {
+        console.log('✅ Loaded secure keys (new system)');
+        setKeyPair(keyPair);
+        if (keyPair.fingerprint) {
+          console.log('🔑 Key fingerprint:', keyPair.fingerprint);
         }
       } else {
-        console.error('❌ No keys found! Keys should have been generated in main menu.');
-        console.log('🔄 Try returning to main menu to reinitialize keys');
+        console.log('🔍 No secure keys found, checking for old format keys...');
+        // Fall back to old key system
+        const storedKeyPair = await getStoredSecp256k1KeyPair();
+        if (storedKeyPair) {
+          console.log('✅ Loaded old format keys');
+          setKeyPair(storedKeyPair);
+          if ('metadata' in storedKeyPair && storedKeyPair.metadata && typeof storedKeyPair.metadata === 'object' && 'fingerprint' in storedKeyPair.metadata) {
+            console.log('🔑 Key fingerprint:', (storedKeyPair.metadata as KeyMetadata).fingerprint);
+          }
+        } else {
+          console.error('❌ No keys found! Keys should have been generated in main menu.');
+          console.log('🔄 Try returning to main menu to reinitialize keys');
+        }
       }
     } catch (error) {
       console.error('Failed to load keys:', error);
@@ -516,18 +529,10 @@ export default function CameraScreen() {
       
       // Step 2: Sign the hash using mobile app's private key
       console.log('🔐 Step 2: Signing hash with device private key...');
-      const { secp256k1 } = await import('@noble/curves/secp256k1');
-      
-      // Convert HEX hash string to bytes (same as secp256k1Utils.ts)
-      const hashBytes = new Uint8Array(
-        processResult.hashToSign!.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16))
+      const signatureBase64 = await signHashWithSecp256k1(
+        processResult.hashToSign!,
+        keyPair!.privateKey.keyBase64
       );
-      const privateKeyBytes = new Uint8Array(
-        atob(keyPair!.privateKey.keyBase64).split('').map(c => c.charCodeAt(0))
-      );
-      
-      const signature = secp256k1.sign(hashBytes, privateKeyBytes);
-      const signatureBase64 = btoa(String.fromCharCode(...signature.toCompactRawBytes()));
       
       console.log('✅ Signature generated on device');
       console.log('🔐 Signature length:', signatureBase64.length);

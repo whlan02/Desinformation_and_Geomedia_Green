@@ -662,6 +662,387 @@ app.get('/health', (req, res) => {
   });
 });
 
+
+// Backend steganography helper class
+class BackendSteganography {
+  constructor() {
+    this.STEG_PARAMS = {
+      codeUnitSize: 16,
+      delimiter: '###END###'
+    };
+  }
+
+  /**
+   * Convert string to binary representation
+   */
+  stringToBinary(str) {
+    let binary = '';
+    for (let i = 0; i < str.length; i++) {
+      const charCode = str.charCodeAt(i);
+      binary += charCode.toString(2).padStart(this.STEG_PARAMS.codeUnitSize, '0');
+    }
+    return binary;
+  }
+
+  /**
+   * Encode basic info into RGBA array
+   */
+  encodeBasicInfoIntoRGBA(rgbaArray, width, height, basicInfo) {
+    console.log('🔐 Encoding basic info into RGBA array...');
+    
+    const binaryData = this.stringToBinary(basicInfo);
+    console.log('📊 Basic info binary length:', binaryData.length, 'bits');
+    
+    // Create copy of RGBA array
+    const rgbaWithInfo = [...rgbaArray];
+    
+    // Embed in alpha channels (exclude last row)
+    const lastRowStart = (height - 1) * width * 4;
+    let bitIndex = 0;
+    
+    for (let i = 3; i < lastRowStart && bitIndex < binaryData.length; i += 4) {
+      const bit = parseInt(binaryData[bitIndex]);
+      rgbaWithInfo[i] = (rgbaWithInfo[i] & 0xFE) | bit;
+      bitIndex++;
+    }
+    
+    console.log('✅ Basic info encoded into RGBA');
+    return rgbaWithInfo;
+  }
+
+  /**
+   * Store signature in last row (OPTIMIZED - FIXED INDEXING + SIZE CHECK)
+   */
+  storeSignatureInLastRow(rgbaArray, width, height, publicKey, signature) {
+    console.log('🔐 Storing signature in last row...');
+    
+    // Create signature package
+    const signaturePackage = {
+      publicKey,
+      signature,
+      timestamp: new Date().toISOString(),
+      version: '3.0-backend-workflow'
+    };
+    
+    const signatureJson = JSON.stringify(signaturePackage);
+    console.log('📊 Signature JSON length:', signatureJson.length, 'characters');
+    
+    // Check if last row has enough space
+    const maxCharsInLastRow = Math.floor(width / 2); // Each character needs 2 pixels
+    if (signatureJson.length > maxCharsInLastRow) {
+      console.warn('⚠️ Signature too large for last row!');
+      console.warn('📊 Signature needs:', signatureJson.length, 'characters');
+      console.warn('📊 Last row can fit:', maxCharsInLastRow, 'characters');
+      console.warn('📊 Image width:', width, 'pixels');
+      
+      // Truncate or throw error
+      throw new Error(`Signature too large (${signatureJson.length} chars) for image width (${width} pixels, max ${maxCharsInLastRow} chars)`);
+    }
+    
+    // Create copy of RGBA array
+    const finalRgba = [...rgbaArray];
+    
+    // Embed using optimized byte-level approach (FIXED: match extraction logic)
+    const lastRowStart = (height - 1) * width * 4;
+    let charIndex = 0;
+    
+    // Process last row pixels, each character needs 2 alpha channels
+    for (let x = 0; x < width && charIndex < signatureJson.length; x++) {
+      const char = signatureJson[charIndex];
+      const charCode = char.charCodeAt(0);
+      
+      // Split 16-bit character into two 8-bit bytes (MSB first)
+      const highByte = (charCode >> 8) & 0xFF;
+      const lowByte = charCode & 0xFF;
+      
+      // Store in consecutive alpha channels (pixel x and x+1)
+      const alpha1Index = lastRowStart + (x * 4) + 3;
+      const alpha2Index = lastRowStart + ((x + 1) * 4) + 3;
+      
+      if (alpha1Index < finalRgba.length) finalRgba[alpha1Index] = highByte;
+      if (alpha2Index < finalRgba.length) finalRgba[alpha2Index] = lowByte;
+      
+      // Move to next character (we used 2 pixels)
+      x++; // Skip the next pixel since we used it for lowByte
+      charIndex++;
+    }
+    
+    console.log('✅ Signature stored in last row (' + charIndex + ' characters)');
+    return finalRgba;
+  }
+}
+
+// Initialize backend steganography
+const backendSteg = new BackendSteganography();
+
+// STEP 1: Process JPEG and prepare for signing
+app.post('/process-geocam-image', upload.single('image'), async (req, res) => {
+  console.log('🎯 === BACKEND: Full GeoCam Processing Started ===');
+  
+  let tempFilePath = null; // Initialize to null
+  
+  try {
+    // Handle both FormData and JSON requests
+    let jpegBase64, basicInfo, publicKey;
+    
+    if (req.headers['content-type']?.includes('application/json')) {
+      // JSON request from React Native
+      const { jpegBase64: jpeg, basicInfo: info, publicKey: key } = req.body;
+      jpegBase64 = jpeg;
+      basicInfo = info;
+      publicKey = key;
+      
+      if (!jpegBase64 || !basicInfo || !publicKey) {
+        return res.status(400).json({
+          success: false,
+          error: 'Missing jpegBase64, basicInfo, or publicKey in JSON request'
+        });
+      }
+      
+      console.log('📱 Processing JSON request from React Native');
+      console.log('📊 JPEG base64 length:', jpegBase64.length);
+      
+      // Create temporary file from base64
+      const jpegBuffer = Buffer.from(jpegBase64, 'base64');
+      tempFilePath = path.join(__dirname, 'temp_images', `temp_${Date.now()}.jpg`);
+      
+      // Ensure temp directory exists
+      const tempDir = path.dirname(tempFilePath);
+      if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir, { recursive: true });
+      }
+      
+      fs.writeFileSync(tempFilePath, jpegBuffer);
+      console.log('💾 Created temporary file:', tempFilePath);
+      
+    } else {
+      // FormData request (for web compatibility)
+      if (!req.file) {
+        return res.status(400).json({
+          success: false,
+          error: 'No image file provided in FormData request'
+        });
+      }
+      
+      tempFilePath = req.file.path;
+      basicInfo = req.body.basicInfo;
+      publicKey = req.body.publicKey;
+      
+      console.log('🌐 Processing FormData request');
+      console.log('📊 File size:', req.file.size, 'bytes');
+    }
+    
+    if (!basicInfo || !publicKey) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing basicInfo or publicKey'
+      });
+    }
+
+    console.log('📷 Processing JPEG image...');
+    console.log('📝 Basic info length:', basicInfo.length);
+    console.log('🔑 Public key length:', publicKey.length);
+
+    // Load JPEG image using Canvas
+    const img = await loadImage(tempFilePath);
+    console.log('✅ JPEG loaded:', img.width, 'x', img.height);
+
+    // Get EXIF orientation
+    const exifBuffer = fs.readFileSync(tempFilePath);
+    const orientation = await getImageOrientation(exifBuffer);
+
+    // Create canvas and get RGBA data with correct orientation
+    const canvas = getCanvasWithCorrectOrientation(img, orientation);
+    const ctx = canvas.getContext('2d');
+    
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    let rgbaArray = Array.from(imageData.data);
+    let finalWidth = canvas.width;
+    let finalHeight = canvas.height;
+    
+    console.log('✅ JPEG → Canvas → RGBA completed with orientation', orientation);
+    console.log('📊 Canvas dimensions:', canvas.width, 'x', canvas.height);
+    
+    // if width is greater than height, rotate to portrait
+    if (finalWidth > finalHeight) {
+      console.log('🔄 Image is landscape, rotating to portrait...');
+      
+      // rotate 90 degrees anti-clockwise
+      const rotatedWidth = finalHeight;
+      const rotatedHeight = finalWidth;
+      const rotatedArray = new Array(rgbaArray.length);
+      
+      for (let y = 0; y < finalHeight; y++) {
+        for (let x = 0; x < finalWidth; x++) {
+          const srcIndex = (y * finalWidth + x) * 4;
+          // 90 degrees anti-clockwise rotation: new_x = height - 1 - old_y, new_y = old_x
+          const newX = rotatedWidth - 1 - y;
+          const newY = x;
+          const destIndex = (newY * rotatedWidth + newX) * 4;
+          
+          rotatedArray[destIndex] = rgbaArray[srcIndex];         // R
+          rotatedArray[destIndex + 1] = rgbaArray[srcIndex + 1]; // G
+          rotatedArray[destIndex + 2] = rgbaArray[srcIndex + 2]; // B
+          rotatedArray[destIndex + 3] = rgbaArray[srcIndex + 3]; // A
+        }
+      }
+      
+      rgbaArray = rotatedArray;
+      finalWidth = rotatedWidth;
+      finalHeight = rotatedHeight;
+      
+      console.log('✅ Image rotated to portrait');
+    }
+    
+    console.log('📊 Final dimensions:', finalWidth, 'x', finalHeight);
+    console.log('📊 RGBA array length:', rgbaArray.length);
+
+    // Encode basic info into RGBA
+    const rgbaWithInfo = backendSteg.encodeBasicInfoIntoRGBA(
+      rgbaArray,
+      finalWidth,
+      finalHeight,
+      basicInfo
+    );
+
+    // Generate hash for signing (matching frontend logic)
+    const combinedData = JSON.stringify({
+      basicInfo: basicInfo,
+      rgbaChecksum: rgbaWithInfo.slice(0, 1000).join(''),
+      width: finalWidth,
+      height: finalHeight
+    });
+
+    const hashToSign = crypto.createHash('sha512').update(combinedData).digest('hex');
+    console.log('🔐 Generated hash for signing:', hashToSign.length, 'characters');
+    console.log('🔐 Hash preview:', hashToSign.substring(0, 16) + '...');
+
+    // Store processed data temporarily (in production, use Redis or similar)
+    const sessionId = crypto.randomBytes(16).toString('hex');
+    
+    // Store in memory (temporary solution)
+    global.processingCache = global.processingCache || {};
+    global.processingCache[sessionId] = {
+      rgbaWithBasicInfo: rgbaWithInfo,
+      width: finalWidth,
+      height: finalHeight,
+      publicKey,
+      basicInfo,
+      originalOrientation: orientation,
+      originalDimensions: { width: img.width, height: img.height },
+      timestamp: Date.now()
+    };
+
+    // Cleanup temp file
+    if (fs.existsSync(tempFilePath)) {
+      fs.unlinkSync(tempFilePath);
+    }
+
+    console.log('✅ Step 1 completed: Image processed, ready for signing');
+    
+    return res.json({
+      success: true,
+      sessionId,
+      hashToSign,
+      imageInfo: {
+        width: finalWidth,
+        height: finalHeight,
+        rgbaLength: rgbaWithInfo.length
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Backend processing failed:', error);
+    
+    // Cleanup temp file if exists
+    if (tempFilePath && fs.existsSync(tempFilePath)) {
+      fs.unlinkSync(tempFilePath);
+    }
+    
+    return res.status(500).json({
+      success: false,
+      error: 'Backend processing failed',
+      details: error.message
+    });
+  }
+});
+
+
+// STEP 2: Complete processing with signature
+app.post('/complete-geocam-image', async (req, res) => {
+  console.log('🎯 === BACKEND: Completing GeoCam Processing ===');
+  
+  try {
+    const { sessionId, signature } = req.body;
+    
+    if (!sessionId || !signature) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing sessionId or signature'
+      });
+    }
+
+    // Retrieve cached data
+    const cached = global.processingCache?.[sessionId];
+    if (!cached) {
+      return res.status(404).json({
+        success: false,
+        error: 'Session not found or expired'
+      });
+    }
+
+    console.log('✅ Retrieved cached processing data');
+    console.log('📊 Signature length:', signature.length);
+
+    // Store signature in last row
+    const finalRgba = backendSteg.storeSignatureInLastRow(
+      cached.rgbaWithBasicInfo,
+      cached.width,
+      cached.height,
+      cached.publicKey,
+      signature
+    );
+
+    // Convert RGBA to PNG using UPNG.js (NO Canvas re-encoding!)
+    console.log('💾 Converting RGBA to PNG with UPNG.js...');
+    const uint8Array = new Uint8Array(finalRgba);
+    const pngBuffer = UPNG.encode([uint8Array.buffer], cached.width, cached.height, 0);
+    const pngBase64 = Buffer.from(pngBuffer).toString('base64');
+
+    console.log('✅ PNG created with UPNG.js');
+    console.log('📊 PNG size:', pngBuffer.byteLength, 'bytes');
+    console.log('📊 Base64 length:', pngBase64.length, 'characters');
+
+    // Cleanup cache
+    delete global.processingCache[sessionId];
+
+    console.log('🎉 === BACKEND PROCESSING COMPLETED SUCCESSFULLY ===');
+    console.log('✅ All steps completed in backend');
+    console.log('✅ No Canvas re-encoding, signature integrity preserved');
+
+    return res.json({
+      success: true,
+      pngBase64: pngBase64,
+      stats: {
+        originalSize: finalRgba.length,
+        pngSize: pngBuffer.byteLength,
+        dimensions: { width: cached.width, height: cached.height },
+        compressionRatio: ((finalRgba.length - pngBuffer.byteLength) / finalRgba.length * 100).toFixed(1) + '%'
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Backend completion failed:', error);
+    
+    return res.status(500).json({
+      success: false,
+      error: 'Backend completion failed',
+      details: error.message
+    });
+  }
+});
+
+
 // Image verification endpoint
 app.post('/pure-png-verify', async (req, res) => {
   console.log('🔍 Starting image verification process');
@@ -744,5 +1125,7 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`📋 Available endpoints:`);
   console.log(`   GET  /health - Health check`);
   console.log(`   POST /pure-png-verify - Image verification endpoint`);
+  console.log(`   POST /complete-geocam-image - Image completion endpoint`);
+  console.log(`   POST /process-geocam-image - Image processing endpoint`);
   console.log(`🔍 Core services initialized`);
 });

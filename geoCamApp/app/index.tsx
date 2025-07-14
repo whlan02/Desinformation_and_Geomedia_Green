@@ -8,6 +8,9 @@ import { initializeSecureKeys, getStoredSecp256k1KeyPair, hasStoredSecp256k1KeyP
 import { useTheme } from '../contexts/ThemeContext';
 import { ensureDeviceRegistration } from '../utils/backendService';
 
+// Debug mode: Skip registration for offline testing
+const OFFLINE_MODE = false; // Set to true to skip backend registration and allow offline key generation
+
 // Define SVG strings directly
 const cameraIconXml = `<svg fill="none" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><g stroke="#fff" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="m6.23319 5.83404.44526-2.22627c.18697-.93485 1.0078-1.60777 1.96116-1.60777h6.72079c.9534 0 1.7742.67292 1.9612 1.60777l.4452 2.22627c.1424.71201.6823 1.27824 1.3867 1.45435 1.6729.41822 2.8465 1.9213 2.8465 3.64571v7.0659c0 2.2091-1.7909 4-4 4h-12c-2.20914 0-4-1.7909-4-4v-7.0659c0-1.72441 1.17357-3.22749 2.84645-3.64571.70443-.17611 1.24434-.74234 1.38674-1.45435z"/><circle cx="12" cy="14" r="4"/><path d="m11 6h2"/></g></svg>`;
 
@@ -28,10 +31,12 @@ export default function MainMenu() {
     isRegistered: boolean;
     isChecking: boolean;
     message: string;
+    keysReady: boolean;
   }>({
     isRegistered: false,
     isChecking: false,
     message: 'Keys not initialized',
+    keysReady: false,
   });
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const buttonPressAnim = useRef(new Animated.Value(1)).current;
@@ -46,7 +51,7 @@ export default function MainMenu() {
     initializeAppKeys();
     
     // Start animations for camera button
-    if (!isInitializingKeys && keysInitialized && registrationStatus.isRegistered) {
+    if (!isInitializingKeys && keysInitialized && registrationStatus.keysReady) {
       // Pulsing animation
       Animated.loop(
         Animated.sequence([
@@ -63,21 +68,31 @@ export default function MainMenu() {
         ])
       ).start();
     }
-  }, [isInitializingKeys, keysInitialized, registrationStatus.isRegistered]);
+  }, [isInitializingKeys, keysInitialized, registrationStatus.keysReady]);
 
   const initializeAppKeys = async () => {
     try {
       console.log('🔐 Checking app key initialization status...');
       
+      // First, attempt to initialize keys (separate from registration)
+      setRegistrationStatus(prev => ({
+        ...prev,
+        isChecking: true,
+        message: 'Initializing keys...'
+      }));
+      
       // Check if secure keys already exist (new system)
       const hasNewKeys = await hasSecureKeys();
       console.log('🔑 Has new secure keys:', hasNewKeys);
       
-      let needsRegistration = true;
-      
       if (hasNewKeys) {
         console.log('✅ Secure keys already initialized');
         setKeysInitialized(true);
+        setRegistrationStatus(prev => ({
+          ...prev,
+          keysReady: true,
+          message: 'Keys ready'
+        }));
       } else {
         // Check if old keys exist (for backwards compatibility)
         const hasOldKeys = await hasStoredSecp256k1KeyPair();
@@ -90,6 +105,11 @@ export default function MainMenu() {
           if (keyPair) {
             console.log('✅ Key validation successful');
             setKeysInitialized(true);
+            setRegistrationStatus(prev => ({
+              ...prev,
+              keysReady: true,
+              message: 'Keys ready'
+            }));
           } else {
             console.warn('⚠️ Keys flag exists but keys not loadable - initializing secure keys...');
             await initializeSecureKeysForApp();
@@ -100,23 +120,61 @@ export default function MainMenu() {
         }
       }
 
-      // Always ensure device registration after key initialization
-      console.log('🔄 Ensuring device registration...');
-      const registrationResult = await ensureDeviceRegistration();
+      // Check current key status after potential generation
+      const currentKeysInitialized = keysInitialized;
+      const hasNewKeysNow = await hasSecureKeys();
+      const hasOldKeysNow = await hasStoredSecp256k1KeyPair();
+      const actuallyHasKeys = hasNewKeysNow || hasOldKeysNow;
       
-      if (registrationResult.success) {
-        console.log('✅ Device registration successful:', registrationResult.geocamName);
-        setRegistrationStatus({
-          isRegistered: true,
-          isChecking: false,
-          message: `Device registered as ${registrationResult.geocamName}`,
-        });
+      console.log('🔑 Final key status check:');
+      console.log('  - keysInitialized state:', currentKeysInitialized);
+      console.log('  - hasSecureKeys():', hasNewKeysNow);
+      console.log('  - hasStoredSecp256k1KeyPair():', hasOldKeysNow);
+      console.log('  - actuallyHasKeys:', actuallyHasKeys);
+      
+      // Only proceed with registration if keys are actually present
+      if (actuallyHasKeys) {
+        if (OFFLINE_MODE) {
+          console.log('🔄 Offline mode enabled - skipping registration');
+          setRegistrationStatus({
+            isRegistered: false,
+            isChecking: false,
+            message: 'Keys ready (offline mode)',
+            keysReady: true,
+          });
+        } else {
+          console.log('🔄 Ensuring device registration...');
+          setRegistrationStatus(prev => ({
+            ...prev,
+            message: 'Registering device...'
+          }));
+          
+          const registrationResult = await ensureDeviceRegistration();
+          
+          if (registrationResult.success) {
+            console.log('✅ Device registration successful:', registrationResult.geocamName);
+            setRegistrationStatus({
+              isRegistered: true,
+              isChecking: false,
+              message: `Device registered as ${registrationResult.geocamName}`,
+              keysReady: true,
+            });
+          } else {
+            console.error('❌ Device registration failed:', registrationResult.message);
+            setRegistrationStatus({
+              isRegistered: false,
+              isChecking: false,
+              message: `Registration failed: ${registrationResult.message}`,
+              keysReady: true, // Keys are still ready even if registration failed
+            });
+          }
+        }
       } else {
-        console.error('❌ Device registration failed:', registrationResult.message);
         setRegistrationStatus({
           isRegistered: false,
           isChecking: false,
-          message: `Registration failed: ${registrationResult.message}`,
+          message: 'Key initialization failed',
+          keysReady: false,
         });
       }
       
@@ -127,6 +185,7 @@ export default function MainMenu() {
         isRegistered: false,
         isChecking: false,
         message: 'Key initialization failed',
+        keysReady: true,
       });
     } finally {
       // Always set isInitializingKeys to false when done
@@ -144,9 +203,10 @@ export default function MainMenu() {
         console.log('✅ Secure keys initialized successfully');
         setKeysInitialized(true);
         setRegistrationStatus({
-          isRegistered: true,
+          isRegistered: false, // Will be determined later during registration
           isChecking: false,
           message: 'Keys ready for signing',
+          keysReady: true,
         });
         console.log('🔐 Secure keys initialization complete');
       } else {
@@ -159,6 +219,7 @@ export default function MainMenu() {
         isRegistered: false,
         isChecking: false,
         message: 'Key initialization failed',
+        keysReady: false,
       });
       throw error;
     }
@@ -236,14 +297,14 @@ export default function MainMenu() {
               {/* Status Indicator */}
               <View style={styles.statusContainer}>
                 <View style={[styles.statusDot, { 
-                  backgroundColor: keysInitialized && registrationStatus.isRegistered ? '#4CAF50' : 
+                  backgroundColor: registrationStatus.keysReady ? '#4CAF50' : 
                                   isInitializingKeys || registrationStatus.isChecking ? '#FF9800' : '#F44336' 
                 }]} />
                 <Text style={styles.statusText}>
                   {isInitializingKeys ? 'Initializing...' :
                    registrationStatus.isChecking ? 'Setting up keys...' :
-                   !keysInitialized ? 'Key setup failed' :
-                   !registrationStatus.isRegistered ? 'Keys not ready' :
+                   !registrationStatus.keysReady ? 'Key setup failed' :
+                   !registrationStatus.isRegistered ? 'Keys ready (registration pending)' :
                    'Ready to capture'}
                 </Text>
               </View>
@@ -251,9 +312,9 @@ export default function MainMenu() {
             
             <View style={styles.mainButtonContainer}>
               <TouchableOpacity 
-                style={[styles.mainButton, (!keysInitialized || isInitializingKeys || !registrationStatus.isRegistered || registrationStatus.isChecking) && styles.disabledMainButton]}
+                style={[styles.mainButton, (!registrationStatus.keysReady || isInitializingKeys || registrationStatus.isChecking) && styles.disabledMainButton]}
                 onPress={handleCameraPress}
-                disabled={!keysInitialized || isInitializingKeys || !registrationStatus.isRegistered || registrationStatus.isChecking}
+                disabled={!registrationStatus.keysReady || isInitializingKeys || registrationStatus.isChecking}
                 activeOpacity={0.8}
               >
                 <Animated.View style={[styles.mainButtonInner, { transform: [{ scale: pulseAnim }] }]}>
@@ -323,9 +384,9 @@ export default function MainMenu() {
             
             <View style={styles.landscapeRightSection}>
               <View style={styles.landscapeCameraSection}>              <TouchableOpacity 
-                style={[styles.mainButton, (!keysInitialized || isInitializingKeys || !registrationStatus.isRegistered || registrationStatus.isChecking) && styles.disabledMainButton]}
+                style={[styles.mainButton, (!registrationStatus.keysReady || isInitializingKeys || registrationStatus.isChecking) && styles.disabledMainButton]}
                 onPress={handleCameraPress}
-                disabled={!keysInitialized || isInitializingKeys || !registrationStatus.isRegistered || registrationStatus.isChecking}
+                disabled={!registrationStatus.keysReady || isInitializingKeys || registrationStatus.isChecking}
                 activeOpacity={0.8}
               >
                 <Animated.View style={[styles.mainButtonInner, { 
