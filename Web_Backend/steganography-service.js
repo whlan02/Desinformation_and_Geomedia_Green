@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { PNG } = require('pngjs');
-const { createCanvas, loadImage } = require('canvas');
+const sharp = require('sharp');
 const UPNG = require('upng-js');
 const EXIF = require('exif-js');
 
@@ -61,14 +61,14 @@ const corsOptions = {
 
 // Middleware
 app.use(cors(corsOptions));
-app.use(bodyParser.json({ limit: '25mb' }));
-app.use(bodyParser.urlencoded({ limit: '25mb', extended: true }));
+app.use(bodyParser.json({ limit: '50mb' }));
+app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
 
 // Configure multer for temporary file uploads
 const upload = multer({
   dest: 'temp_images/',
   limits: {
-    fileSize: 20 * 1024 * 1024 // 20MB limit
+    fileSize: 50 * 1024 * 1024 // 50MB limit
   }
 });
 
@@ -783,16 +783,12 @@ app.post('/process-geocam-image', upload.single('image'), async (req, res) => {
   
   try {
     // Handle both FormData and JSON requests
-    let jpegBase64, basicInfo, publicKey;
+    let jpegBuffer, basicInfo, publicKey;
     
     if (req.headers['content-type']?.includes('application/json')) {
       // JSON request from React Native
       const { jpegBase64: jpeg, basicInfo: info, publicKey: key } = req.body;
-      jpegBase64 = jpeg;
-      basicInfo = info;
-      publicKey = key;
-      
-      if (!jpegBase64 || !basicInfo || !publicKey) {
+      if (!jpeg || !info || !key) {
         return res.status(400).json({
           success: false,
           error: 'Missing jpegBase64, basicInfo, or publicKey in JSON request'
@@ -800,20 +796,11 @@ app.post('/process-geocam-image', upload.single('image'), async (req, res) => {
       }
       
       console.log('📱 Processing JSON request from React Native');
-      console.log('📊 JPEG base64 length:', jpegBase64.length);
+      console.log('📊 JPEG base64 length:', jpeg.length);
       
-      // Create temporary file from base64
-      const jpegBuffer = Buffer.from(jpegBase64, 'base64');
-      tempFilePath = path.join(__dirname, 'temp_images', `temp_${Date.now()}.jpg`);
-      
-      // Ensure temp directory exists
-      const tempDir = path.dirname(tempFilePath);
-      if (!fs.existsSync(tempDir)) {
-        fs.mkdirSync(tempDir, { recursive: true });
-      }
-      
-      fs.writeFileSync(tempFilePath, jpegBuffer);
-      console.log('💾 Created temporary file:', tempFilePath);
+      jpegBuffer = Buffer.from(jpeg, 'base64');
+      basicInfo = info;
+      publicKey = key;
       
     } else {
       // FormData request (for web compatibility)
@@ -824,14 +811,15 @@ app.post('/process-geocam-image', upload.single('image'), async (req, res) => {
         });
       }
       
-      tempFilePath = req.file.path;
+      jpegBuffer = fs.readFileSync(req.file.path);
       basicInfo = req.body.basicInfo;
       publicKey = req.body.publicKey;
+      tempFilePath = req.file.path;
       
       console.log('🌐 Processing FormData request');
-      console.log('📊 File size:', req.file.size, 'bytes');
+      console.log('📊 File size:', jpegBuffer.length, 'bytes');
     }
-    
+
     if (!basicInfo || !publicKey) {
       return res.status(400).json({
         success: false,
@@ -843,63 +831,60 @@ app.post('/process-geocam-image', upload.single('image'), async (req, res) => {
     console.log('📝 Basic info length:', basicInfo.length);
     console.log('🔑 Public key length:', publicKey.length);
 
-    // Load JPEG image using Canvas
-    const img = await loadImage(tempFilePath);
-    console.log('✅ JPEG loaded:', img.width, 'x', img.height);
+    // Process image using Sharp
+    let sharpImage = sharp(jpegBuffer);
+    
+    // Get image metadata including orientation
+    const metadata = await sharpImage.metadata();
+    console.log('📊 Original dimensions:', metadata.width, 'x', metadata.height);
+    console.log('📊 Orientation:', metadata.orientation);
 
-    // Get EXIF orientation
-    const exifBuffer = fs.readFileSync(tempFilePath);
-    const orientation = await getImageOrientation(exifBuffer);
+    // Normalize orientation
+    sharpImage = sharpImage.rotate(); // Auto-rotate based on EXIF
 
-    // Create canvas and get RGBA data with correct orientation
-    const canvas = getCanvasWithCorrectOrientation(img, orientation);
-    const ctx = canvas.getContext('2d');
-    
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    let rgbaArray = Array.from(imageData.data);
-    let finalWidth = canvas.width;
-    let finalHeight = canvas.height;
-    
-    console.log('✅ JPEG → Canvas → RGBA completed with orientation', orientation);
-    console.log('📊 Canvas dimensions:', canvas.width, 'x', canvas.height);
-    
-    // if width is greater than height, rotate to portrait
+    // Convert to raw RGBA pixels
+    const { data: rgbaArray, info } = await sharpImage
+      .ensureAlpha() // Ensure alpha channel exists
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+
+    console.log('✅ Image processed with Sharp');
+    console.log('📊 Processed dimensions:', info.width, 'x', info.height);
+
+    let finalWidth = info.width;
+    let finalHeight = info.height;
+    let finalRgbaArray = new Uint8Array(rgbaArray);
+
+    // If width is greater than height, rotate to portrait
     if (finalWidth > finalHeight) {
       console.log('🔄 Image is landscape, rotating to portrait...');
       
-      // rotate 90 degrees anti-clockwise
-      const rotatedWidth = finalHeight;
-      const rotatedHeight = finalWidth;
-      const rotatedArray = new Array(rgbaArray.length);
-      
-      for (let y = 0; y < finalHeight; y++) {
-        for (let x = 0; x < finalWidth; x++) {
-          const srcIndex = (y * finalWidth + x) * 4;
-          // 90 degrees anti-clockwise rotation: new_x = height - 1 - old_y, new_y = old_x
-          const newX = rotatedWidth - 1 - y;
-          const newY = x;
-          const destIndex = (newY * rotatedWidth + newX) * 4;
-          
-          rotatedArray[destIndex] = rgbaArray[srcIndex];         // R
-          rotatedArray[destIndex + 1] = rgbaArray[srcIndex + 1]; // G
-          rotatedArray[destIndex + 2] = rgbaArray[srcIndex + 2]; // B
-          rotatedArray[destIndex + 3] = rgbaArray[srcIndex + 3]; // A
+      // Use Sharp to rotate 90 degrees CCW
+      const rotated = await sharp(Buffer.from(rgbaArray), {
+        raw: {
+          width: finalWidth,
+          height: finalHeight,
+          channels: 4
         }
-      }
-      
-      rgbaArray = rotatedArray;
-      finalWidth = rotatedWidth;
-      finalHeight = rotatedHeight;
+      })
+      .rotate(90)
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+
+      finalRgbaArray = new Uint8Array(rotated.data);
+      finalWidth = rotated.info.width;
+      finalHeight = rotated.info.height;
       
       console.log('✅ Image rotated to portrait');
+      console.log('📊 Final dimensions:', finalWidth, 'x', finalHeight);
     }
-    
-    console.log('📊 Final dimensions:', finalWidth, 'x', finalHeight);
-    console.log('📊 RGBA array length:', rgbaArray.length);
+
+    // Convert Uint8Array to regular array for compatibility with existing code
+    const rgbaArrayForEncoding = Array.from(finalRgbaArray);
 
     // Encode basic info into RGBA
     const rgbaWithInfo = backendSteg.encodeBasicInfoIntoRGBA(
-      rgbaArray,
+      rgbaArrayForEncoding,
       finalWidth,
       finalHeight,
       basicInfo
@@ -917,10 +902,9 @@ app.post('/process-geocam-image', upload.single('image'), async (req, res) => {
     console.log('🔐 Generated hash for signing:', hashToSign.length, 'characters');
     console.log('🔐 Hash preview:', hashToSign.substring(0, 16) + '...');
 
-    // Store processed data temporarily (in production, use Redis or similar)
+    // Store processed data temporarily
     const sessionId = crypto.randomBytes(16).toString('hex');
     
-    // Store in memory (temporary solution)
     global.processingCache = global.processingCache || {};
     global.processingCache[sessionId] = {
       rgbaWithBasicInfo: rgbaWithInfo,
@@ -928,13 +912,13 @@ app.post('/process-geocam-image', upload.single('image'), async (req, res) => {
       height: finalHeight,
       publicKey,
       basicInfo,
-      originalOrientation: orientation,
-      originalDimensions: { width: img.width, height: img.height },
+      originalOrientation: metadata.orientation,
+      originalDimensions: { width: metadata.width, height: metadata.height },
       timestamp: Date.now()
     };
 
-    // Cleanup temp file
-    if (fs.existsSync(tempFilePath)) {
+    // Cleanup temp file if exists
+    if (tempFilePath && fs.existsSync(tempFilePath)) {
       fs.unlinkSync(tempFilePath);
     }
 
@@ -1003,13 +987,26 @@ app.post('/complete-geocam-image', async (req, res) => {
       signature
     );
 
-    // Convert RGBA to PNG using UPNG.js (NO Canvas re-encoding!)
-    console.log('💾 Converting RGBA to PNG with UPNG.js...');
-    const uint8Array = new Uint8Array(finalRgba);
-    const pngBuffer = UPNG.encode([uint8Array.buffer], cached.width, cached.height, 0);
-    const pngBase64 = Buffer.from(pngBuffer).toString('base64');
+    // Convert RGBA to PNG using Sharp (faster than UPNG.js)
+    console.log('💾 Converting RGBA to PNG with Sharp...');
+    
+    const pngBuffer = await sharp(Buffer.from(finalRgba), {
+      raw: {
+        width: cached.width,
+        height: cached.height,
+        channels: 4
+      }
+    })
+    .png({
+      compressionLevel: 6, // Balanced between speed and size
+      effort: 7,          // Higher effort = better compression but slower
+      palette: false      // Keep full color information
+    })
+    .toBuffer();
 
-    console.log('✅ PNG created with UPNG.js');
+    const pngBase64 = pngBuffer.toString('base64');
+
+    console.log('✅ PNG created with Sharp');
     console.log('📊 PNG size:', pngBuffer.byteLength, 'bytes');
     console.log('📊 Base64 length:', pngBase64.length, 'characters');
 
@@ -1018,7 +1015,7 @@ app.post('/complete-geocam-image', async (req, res) => {
 
     console.log('🎉 === BACKEND PROCESSING COMPLETED SUCCESSFULLY ===');
     console.log('✅ All steps completed in backend');
-    console.log('✅ No Canvas re-encoding, signature integrity preserved');
+    console.log('✅ Using Sharp for fast PNG encoding');
 
     return res.json({
       success: true,

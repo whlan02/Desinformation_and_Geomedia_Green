@@ -8,8 +8,8 @@ const PRODUCTION_BASE_URL = 'https://register-device-production.up.railway.app';
 const PRODUCTION_STEG_URL = 'https://desinformationandgeomediagreen-production.up.railway.app';
 
 // Development URLs - Updated for secure backend testing
-const DEV_BASE_URL = Platform.OS === 'web' ? 'http://localhost:5001' : 'http://192.168.178.52:5001';
-const DEV_STEG_URL = Platform.OS === 'web' ? 'http://localhost:3001' : 'http://192.168.178.52:3001';
+const DEV_BASE_URL = Platform.OS === 'web' ? 'http://localhost:5001' : 'http://10.67.84.8:5001';
+const DEV_STEG_URL = Platform.OS === 'web' ? 'http://localhost:3001' : 'http://10.67.84.8:3001';
 
 // HYBRID TESTING MODE: Use production for API, local for steganography
 const USE_LOCAL_FOR_TESTING = false;  // Changed to true for secure backend testing

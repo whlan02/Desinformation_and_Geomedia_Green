@@ -456,7 +456,7 @@ export default function CameraScreen() {
     ]).start();
 
     setIsEncoding(true);
-    startFakeProgress(6000); // 6 seconds fake progress
+    startFakeProgress(10000); // 10 seconds fake progress
     
     try {
       console.log('🎯 Starting GeoCam image capture and signing...');
@@ -841,7 +841,7 @@ export default function CameraScreen() {
           <CircularProgress 
             progress={progress} 
             acceleratedCompletion={accelerateProgress}
-            estimatedDuration={6000}
+            estimatedDuration={10000}
             showPercentage={true}
             showTimeRemaining={true}
             message="Capturing..."

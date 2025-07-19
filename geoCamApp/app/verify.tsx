@@ -228,7 +228,7 @@ export default function Verify() {
     setDecodedInfo(null);
     setLocation(null);
     
-    startFakeProgress(25000); // 25 seconds fake progress
+    startFakeProgress(10000); // 10 seconds fake progress 
 
     try {
       console.log('🔍 Starting verification for image:', uri);
@@ -440,7 +440,7 @@ export default function Verify() {
           <CircularProgress 
             progress={progress}
             acceleratedCompletion={accelerateProgress}
-            estimatedDuration={20000}
+            estimatedDuration={10000}
             showPercentage={true}
             showTimeRemaining={true}
             message="Authenticating..."
