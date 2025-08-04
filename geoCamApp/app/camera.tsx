@@ -21,7 +21,7 @@ import * as Location from 'expo-location';
 import * as FileSystem from 'expo-file-system';
 import * as Haptics from 'expo-haptics';
 import { saveImageToGallery } from '../utils/galleryStorage';
-import { getStoredSecp256k1KeyPair, signHashWithSecp256k1, getSecureKeysForRegistration } from '../utils/secp256k1Utils';
+import { signHashWithSecp256k1, getSecureKeysForRegistration } from '../utils/secp256k1Utils';
 import { getStoredGeoCamDeviceName, processGeoCamImageBackend, completeGeoCamImageBackend } from '../utils/backendService';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -290,19 +290,8 @@ export default function CameraScreen() {
           console.log('🔑 Key fingerprint:', keyPair.fingerprint);
         }
       } else {
-        console.log('🔍 No secure keys found, checking for old format keys...');
-        // Fall back to old key system
-        const storedKeyPair = await getStoredSecp256k1KeyPair();
-        if (storedKeyPair) {
-          console.log('✅ Loaded old format keys');
-          setKeyPair(storedKeyPair);
-          if ('metadata' in storedKeyPair && storedKeyPair.metadata && typeof storedKeyPair.metadata === 'object' && 'fingerprint' in storedKeyPair.metadata) {
-            console.log('🔑 Key fingerprint:', (storedKeyPair.metadata as KeyMetadata).fingerprint);
-          }
-        } else {
-          console.error('❌ No keys found! Keys should have been generated in main menu.');
-          console.log('🔄 Try returning to main menu to reinitialize keys');
-        }
+        console.error('❌ No secure keys found! Keys should have been generated in main menu.');
+        console.log('🔄 Try returning to main menu to reinitialize keys');
       }
     } catch (error) {
       console.error('Failed to load keys:', error);

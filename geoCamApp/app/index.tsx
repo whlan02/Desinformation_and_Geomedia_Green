@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { ImageBackground } from 'react-native';
 import { SvgXml } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { initializeSecureKeys, getStoredSecp256k1KeyPair, hasStoredSecp256k1KeyPair, hasSecureKeys } from '../utils/secp256k1Utils';
+import { initializeSecureKeys, hasSecureKeys } from '../utils/secp256k1Utils';
 import { useTheme } from '../contexts/ThemeContext';
 import { ensureDeviceRegistration } from '../utils/backendService';
 
@@ -94,46 +94,20 @@ export default function MainMenu() {
           message: 'Keys ready'
         }));
       } else {
-        // Check if old keys exist (for backwards compatibility)
-        const hasOldKeys = await hasStoredSecp256k1KeyPair();
-        console.log('🔑 Has old keys:', hasOldKeys);
-        
-        if (hasOldKeys) {
-          console.log('✅ Old keys found - converting to secure keys');
-          // Double-check by trying to load them
-          const keyPair = await getStoredSecp256k1KeyPair();
-          if (keyPair) {
-            console.log('✅ Key validation successful');
-            setKeysInitialized(true);
-            setRegistrationStatus(prev => ({
-              ...prev,
-              keysReady: true,
-              message: 'Keys ready'
-            }));
-          } else {
-            console.warn('⚠️ Keys flag exists but keys not loadable - initializing secure keys...');
-            await initializeSecureKeysForApp();
-          }
-        } else {
-          console.log('🔑 No keys found - initializing secure keys for app installation...');
-          await initializeSecureKeysForApp();
-        }
+        console.log('🔑 No secure keys found - initializing secure keys for app installation...');
+        await initializeSecureKeysForApp();
       }
 
       // Check current key status after potential generation
       const currentKeysInitialized = keysInitialized;
-      const hasNewKeysNow = await hasSecureKeys();
-      const hasOldKeysNow = await hasStoredSecp256k1KeyPair();
-      const actuallyHasKeys = hasNewKeysNow || hasOldKeysNow;
+      const hasKeysNow = await hasSecureKeys();
       
       console.log('🔑 Final key status check:');
       console.log('  - keysInitialized state:', currentKeysInitialized);
-      console.log('  - hasSecureKeys():', hasNewKeysNow);
-      console.log('  - hasStoredSecp256k1KeyPair():', hasOldKeysNow);
-      console.log('  - actuallyHasKeys:', actuallyHasKeys);
+      console.log('  - hasSecureKeys():', hasKeysNow);
       
       // Only proceed with registration if keys are actually present
-      if (actuallyHasKeys) {
+      if (hasKeysNow) {
         if (OFFLINE_MODE) {
           console.log('🔄 Offline mode enabled - skipping registration');
           setRegistrationStatus({
@@ -196,11 +170,28 @@ export default function MainMenu() {
 
   const initializeSecureKeysForApp = async () => {
     try {
-      console.log('🔐 Initializing secure keys...');
+      console.log('🔐 Initializing secure keys for app...');
+      
+      // Check if we have secure keys (V2 system only)
+      const hasNewKeys = await hasSecureKeys();
+      if (hasNewKeys) {
+        console.log('✅ Secure keys already exist');
+        setKeysInitialized(true);
+        setRegistrationStatus({
+          isRegistered: false, // Will be determined later during registration
+          isChecking: false,
+          message: 'Keys ready for signing',
+          keysReady: true,
+        });
+        return;
+      }
+      
+      // Initialize new secure keys if none exist
+      console.log('🔑 No keys found, initializing new secure keys...');
       const initResult = await initializeSecureKeys();
       
       if (initResult.success) {
-        console.log('✅ Secure keys initialized successfully');
+        console.log('✅ New secure keys initialized successfully');
         setKeysInitialized(true);
         setRegistrationStatus({
           isRegistered: false, // Will be determined later during registration

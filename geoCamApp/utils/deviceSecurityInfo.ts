@@ -1,5 +1,5 @@
 import * as Device from 'expo-device';
-import { getSecp256k1KeyPairInfo, hasStoredSecp256k1KeyPair, hasSecureKeys } from './secp256k1Utils';
+import { hasSecureKeys } from './secp256k1Utils';
 
 /**
  * Get hardware security information for secp256k1 crypto system
@@ -42,9 +42,7 @@ export const generateSecuritySummary = async () => {
     `Security Level: ${status.securityLevel?.level || 'Unknown'}`,
     `Key Storage: ${hardwareInfo.hardwareFeatures.keyStorage}`,
     `Algorithm: ${hardwareInfo.hardwareFeatures.algorithm}`,
-    `Key Status: ${status.hasKeys ? '✅ Keys Present' : '❌ No Keys'}`,
-    status.keyInfo ? `Key ID: ${status.keyInfo.keyId}` : '',
-    status.keyInfo ? `Generated: ${status.keyInfo.generatedAt}` : ''
+    `Key Status: ${status.hasKeys ? '✅ Secure Keys Present (V2)' : '❌ No Keys'}`
   ].filter(Boolean).join('\n');
   
   return summary;
@@ -55,16 +53,11 @@ export const generateSecuritySummary = async () => {
  */
 export const getDeviceSecurityStatus = async () => {
   try {
-    const keyInfo = await getSecp256k1KeyPairInfo();
-    // Check both old and new key systems
-    const hasOldKeys = await hasStoredSecp256k1KeyPair();
-    const hasNewSecureKeys = await hasSecureKeys();
-    const hasKeys = hasOldKeys || hasNewSecureKeys;
+    // Check secure keys (V2 system only)
+    const hasKeys = await hasSecureKeys();
     
     console.log('🔑 Device security status check:');
-    console.log('  - Old keys:', hasOldKeys);
-    console.log('  - New secure keys:', hasNewSecureKeys);
-    console.log('  - Has any keys:', hasKeys);
+    console.log('  - Secure keys (V2):', hasKeys);
     
     const securityLevel = getSecurityLevelDescription(Device.osName);
     const hardwareInfo = getHardwareSecurityInfo();
@@ -72,7 +65,6 @@ export const getDeviceSecurityStatus = async () => {
     
     return {
       hasKeys,
-      keyInfo,
       securityLevel,
       hardwareInfo,
       recommendations,
@@ -175,4 +167,4 @@ export const getSecurityRecommendations = () => {
   );
   
   return recommendations;
-}; 
+};

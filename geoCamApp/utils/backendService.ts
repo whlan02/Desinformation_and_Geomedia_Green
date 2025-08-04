@@ -4,7 +4,7 @@ import * as SecureStore from 'expo-secure-store';
 import * as Crypto from 'expo-crypto';
 import { secp256k1 } from '@noble/curves/secp256k1';
 import { buildApiUrl, buildSteganographyUrl, BACKEND_CONFIG } from './backendConfig';
-import { getStoredSecp256k1KeyPair, getSecureKeysForRegistration } from './secp256k1Utils';
+import { getSecureKeysForRegistration } from './secp256k1Utils';
 
 // Storage key for GeoCam device name
 const GEOCAM_DEVICE_NAME_KEY = 'geocam_device_name';
@@ -102,22 +102,18 @@ export const registerDevice = async () => {
   try {
     console.log('📱 Starting device registration with secp256k1 keys...');
     
-    // Try to get secure keys first (new system), then fall back to old system
-    let keyPair = await getSecureKeysForRegistration();
-    if (!keyPair) {
-      console.log('🔍 No secure keys found, checking for old format keys...');
-      keyPair = await getStoredSecp256k1KeyPair();
-    }
+    // Get secure keys (V2 system only)
+    const keyPair = await getSecureKeysForRegistration();
     
     if (!keyPair) {
-      console.error('❌ No secp256k1 keys found for registration');
+      console.error('❌ No secure keys found for registration');
       return {
         success: false,
-        message: 'No secp256k1 keys available for registration',
+        message: 'No secure keys available for registration',
       };
     }
     
-    console.log('✅ Found keys for registration:', keyPair.publicKey.type || 'legacy_format');
+    console.log('✅ Found secure keys for registration:', keyPair.publicKey.type);
 
     // Prepare device registration data with ONLY the necessary public key data
     const registrationData = {
@@ -196,18 +192,14 @@ export const checkDeviceRegistration = async (): Promise<boolean> => {
     console.log('🔍 Checking device registration status...');
     
     // Try to get secure keys first (new system), then fall back to old system
-    let keyPair = await getSecureKeysForRegistration();
-    if (!keyPair) {
-      console.log('🔍 No secure keys found, checking for old format keys...');
-      keyPair = await getStoredSecp256k1KeyPair();
-    }
+    const keyPair = await getSecureKeysForRegistration();
     
     if (!keyPair) {
-      console.log('❌ No secp256k1 keys found - device cannot be registered');
+      console.log('❌ No secure keys found - device cannot be registered');
       return false;
     }
     
-    console.log('✅ Found keys for registration check:', keyPair.publicKey.type || 'legacy_format');
+    console.log('✅ Found secure keys for registration check:', keyPair.publicKey.type);
 
     // Use the existing DEVICES endpoint to check registration
     const response = await fetch(buildApiUrl(BACKEND_CONFIG.ENDPOINTS.DEVICES), {
@@ -349,16 +341,15 @@ export const performFreshDeviceStart = async (): Promise<{
 
     // Step 2: Reset local keys and device name
     console.log('🔑 Step 2: Resetting local keys and device name...');
-    const { deleteSecp256k1Keys, deleteSecureKeys } = await import('./secp256k1Utils.js');
-    const keyResetSuccess = await deleteSecp256k1Keys();
+    const { deleteSecureKeys } = await import('./secp256k1Utils.js');
     const secureKeyResetSuccess = await deleteSecureKeys();
     const deviceNameClearSuccess = await clearGeoCamDeviceName();
     
     steps.keyReset = {
-      success: keyResetSuccess && secureKeyResetSuccess && deviceNameClearSuccess,
-      message: keyResetSuccess && secureKeyResetSuccess && deviceNameClearSuccess ? 
-        'Keys and device name cleared' : 
-        'Failed to clear keys or device name'
+      success: secureKeyResetSuccess && deviceNameClearSuccess,
+      message: secureKeyResetSuccess && deviceNameClearSuccess ? 
+        'Secure keys and device name cleared' : 
+        'Failed to clear secure keys or device name'
     };
     console.log('📊 Key reset result:', steps.keyReset);
 
@@ -430,12 +421,12 @@ export const deleteCurrentDeviceFromDatabase = async (): Promise<{
   try {
     console.log('🗑️ Deleting current device from database...');
     
-    const keyPair = await getStoredSecp256k1KeyPair();
+    const keyPair = await getSecureKeysForRegistration();
     if (!keyPair) {
-      console.log('❌ No keys found - cannot identify device for deletion');
+      console.log('❌ No secure keys found - cannot identify device for deletion');
       return {
         success: false,
-        message: 'No device keys found to identify device for deletion',
+        message: 'No secure keys found to identify device for deletion',
       };
     }
 
@@ -774,4 +765,4 @@ export const verifyImageSecure = async (
       error: String(error)
     };
   }
-}; 
+};

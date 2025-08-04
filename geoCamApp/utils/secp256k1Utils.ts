@@ -4,12 +4,7 @@ import * as Device from 'expo-device';
 import * as Crypto from 'expo-crypto';
 import { secp256k1 } from '@noble/curves/secp256k1';
 
-// Base64 encoding/decoding utilities using built-in functions
-const base64Encode = (uint8Array: Uint8Array): string => {
-  const binaryString = Array.from(uint8Array).map(byte => String.fromCharCode(byte)).join('');
-  return btoa(binaryString);
-};
-
+// Base64 decoding utility using built-in functions
 const base64Decode = (base64: string): Uint8Array => {
   const binaryString = atob(base64);
   const bytes = new Uint8Array(binaryString.length);
@@ -19,71 +14,11 @@ const base64Decode = (base64: string): Uint8Array => {
   return bytes;
 };
 
-// Key name for device-specific key storage (kept for backward compatibility)
-const DEVICE_KEY_PREFIX = 'device_secp256k1_key_';
-const KEY_GENERATION_FLAG = 'secp256k1_keys_generated';
-const APP_INSTALLATION_ID = 'app_installation_id';
+// Legacy V1 constants removed - now using V2 secure key system only
 
-// Device secure storage configuration options (kept for backward compatibility)
-const SECURE_STORE_OPTIONS: SecureStore.SecureStoreOptions = {
-  requireAuthentication: false,
-  keychainService: 'GeoCamApp_Secp256k1Keys',
-};
+// Legacy getOrCreateInstallationId function removed - V2 system uses device fingerprinting
 
-/**
- * Generate a unique application installation identifier
- * (Kept for backward compatibility with old key system)
- */
-const getOrCreateInstallationId = async (): Promise<string> => {
-  try {
-    let installationId = await SecureStore.getItemAsync(APP_INSTALLATION_ID, SECURE_STORE_OPTIONS);
-    
-    if (!installationId) {
-      const timestamp = Date.now().toString(36);
-      const randomBytes = Crypto.getRandomBytes(8);
-      const randomPart = Array.from(randomBytes).map(b => b.toString(36)).join('');
-      installationId = `install_${timestamp}_${randomPart}`;
-      
-      await SecureStore.setItemAsync(
-        APP_INSTALLATION_ID, 
-        installationId, 
-        SECURE_STORE_OPTIONS
-      );
-      console.log('🆔 Generated new installation ID:', installationId);
-    } else {
-      console.log('🆔 Using existing installation ID:', installationId);
-    }
-    
-    return installationId;
-  } catch (error: unknown) {
-    console.error('Failed to get/create installation ID:', error);
-    const deviceInfo = `${Device.modelName}_${Device.osVersion}_${Date.now()}`;
-    const hash = await Crypto.digestStringAsync(
-      Crypto.CryptoDigestAlgorithm.SHA256,
-      deviceInfo,
-      { encoding: Crypto.CryptoEncoding.HEX }
-    );
-    return `fallback_${hash.substring(0, 16)}`;
-  }
-};
-
-/**
- * Get device and installation-specific storage key names
- * (Kept for backward compatibility with old key system)
- */
-const getDeviceSpecificKeyNames = async () => {
-  const installationId = await getOrCreateInstallationId();
-  const deviceId = `${Device.osName}_${Device.modelName}`.replace(/[^a-zA-Z0-9]/g, '_');
-  
-  const keyPrefix = `${DEVICE_KEY_PREFIX}${deviceId}_${installationId}`;
-  
-  return {
-    privateKey: `${keyPrefix}_private`,
-    publicKey: `${keyPrefix}_public`,
-    generationFlag: `${KEY_GENERATION_FLAG}_${installationId}`,
-    keyMetadata: `${keyPrefix}_metadata`,
-  };
-};
+// Legacy getDeviceSpecificKeyNames function removed - V2 system uses fixed key names
 
 // Legacy key generation function removed - now using generateSecureKeyPair() instead
 
@@ -128,111 +63,13 @@ export const signHashWithSecp256k1 = async (hashHex: string, privateKeyBase64: s
   }
 };
 
-/**
- * Get stored secp256k1 key pair
- */
-export const getStoredSecp256k1KeyPair = async () => {
-  try {
-    const keyNames = await getDeviceSpecificKeyNames();
-    
-    const privateKeyStr = await SecureStore.getItemAsync(keyNames.privateKey, SECURE_STORE_OPTIONS);
-    const publicKeyStr = await SecureStore.getItemAsync(keyNames.publicKey, SECURE_STORE_OPTIONS);
-    
-    if (!privateKeyStr || !publicKeyStr) {
-      console.log('📱 No stored secp256k1 key pair found');
-      return null;
-    }
-    
-    const privateKey = JSON.parse(privateKeyStr);
-    const publicKey = JSON.parse(publicKeyStr);
-    
-    // Restore keyBytes from Base64 to Uint8Array
-    if (privateKey.keyBase64) {
-      privateKey.keyBytes = base64Decode(privateKey.keyBase64);
-    }
-    if (publicKey.keyBase64) {
-      publicKey.keyBytes = base64Decode(publicKey.keyBase64);
-    }
-    
-    console.log('✅ Retrieved stored secp256k1 key pair');
-    console.log('🔑 Key type:', privateKey.type);
-    console.log('🔑 Key ID:', privateKey.keyId);
-    console.log('🔑 Private key bytes length:', privateKey.keyBytes?.length);
-    console.log('🔑 Public key bytes length:', publicKey.keyBytes?.length);
-    
-    return {
-      privateKey,
-      publicKey,
-      fingerprint: privateKey.fingerprint || publicKey.fingerprint
-    };
-    
-  } catch (error: unknown) {
-    console.error('❌ Failed to retrieve secp256k1 key pair:', error);
-    return null;
-  }
-};
+// Legacy getStoredSecp256k1KeyPair function removed - use getSecureKeysForRegistration() instead
 
-/**
- * Check if secp256k1 key pair exists
- */
-export const hasStoredSecp256k1KeyPair = async (): Promise<boolean> => {
-  try {
-    const keyNames = await getDeviceSpecificKeyNames();
-    const hasFlag = await SecureStore.getItemAsync(keyNames.generationFlag, SECURE_STORE_OPTIONS);
-    return hasFlag === 'true';
-  } catch (error: unknown) {
-    console.error('❌ Failed to check secp256k1 key pair existence:', error);
-    return false;
-  }
-};
+// Legacy hasStoredSecp256k1KeyPair function removed - use hasSecureKeys() instead
 
-/**
- * Get secp256k1 key pair information
- */
-export const getSecp256k1KeyPairInfo = async () => {
-  try {
-    const keyNames = await getDeviceSpecificKeyNames();
-    const metadataStr = await SecureStore.getItemAsync(keyNames.keyMetadata, SECURE_STORE_OPTIONS);
-    
-    if (!metadataStr) {
-      return null;
-    }
-    
-    const metadata = JSON.parse(metadataStr);
-    const installationId = await getOrCreateInstallationId();
-    
-    return {
-      ...metadata,
-      installationId,
-      hasKeys: await hasStoredSecp256k1KeyPair(),
-    };
-    
-  } catch (error: unknown) {
-    console.error('❌ Failed to get secp256k1 key pair info:', error);
-    return null;
-  }
-};
+// Legacy getSecp256k1KeyPairInfo function removed - key info now included in SecureKeyPair interface
 
-/**
- * Delete stored secp256k1 key pair
- */
-export const deleteSecp256k1Keys = async (): Promise<boolean> => {
-  try {
-    console.log('🗑️ Deleting stored secp256k1 key pair...');
-    
-    const keyNames = await getDeviceSpecificKeyNames();
-    
-    await SecureStore.deleteItemAsync(keyNames.privateKey, SECURE_STORE_OPTIONS);
-    await SecureStore.deleteItemAsync(keyNames.publicKey, SECURE_STORE_OPTIONS);
-    
-    console.log('✅ Successfully deleted secp256k1 key pair');
-    return true;
-    
-  } catch (error: unknown) {
-    console.error('❌ Failed to delete secp256k1 key pair:', error);
-    return false;
-  }
-}; 
+// Legacy deleteSecp256k1Keys function removed - use deleteSecureKeys() instead 
 
 // =============================================================================
 // MIGRATED FUNCTIONS FROM secureKeyManager.ts (Key Management Functions)
@@ -519,14 +356,10 @@ export const getSecureKeysForRegistration = async () => {
     const publicKey = JSON.parse(publicKeyData);
     const metadata = JSON.parse(metadataData);
     
-    // Get installation ID for compatibility
-    const installationId = await getOrCreateInstallationId();
-    
-    // Format keys to match the old registration format
+    // Format keys for registration (V2 format)
     const registrationKeyPair = {
       privateKey: {
         ...privateKey,
-        installationId, // Add installation ID for registration
       },
       publicKey: {
         ...publicKey,
@@ -539,7 +372,7 @@ export const getSecureKeysForRegistration = async () => {
     console.log('✅ Secure keys formatted for registration:');
     console.log('🔑 Key ID:', registrationKeyPair.publicKey.keyId);
     console.log('🔑 Fingerprint:', registrationKeyPair.fingerprint);
-    console.log('🔑 Installation ID:', installationId);
+    console.log('🔑 Device Fingerprint:', registrationKeyPair.privateKey.deviceFingerprint);
     
     return registrationKeyPair;
     
@@ -547,4 +380,4 @@ export const getSecureKeysForRegistration = async () => {
     console.error('❌ Failed to get secure keys for registration:', error);
     return null;
   }
-}; 
+};

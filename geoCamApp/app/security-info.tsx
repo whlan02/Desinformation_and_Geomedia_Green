@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { generateSecuritySummary, getSecurityRecommendations, supportsHardwareSecurity } from '../utils/deviceSecurityInfo';
-import { deleteSecp256k1Keys, hasStoredSecp256k1KeyPair } from '../utils/secp256k1Utils';
+// Legacy V1 imports removed - now using V2 secure key system only
 import { testAllServices } from '../utils/backendConfig';
 import { getStoredGeoCamDeviceName, performFreshDeviceStart } from '../utils/backendService';
 import { hasSecureKeys, deleteSecureKeys } from '../utils/secp256k1Utils';
@@ -30,15 +30,13 @@ export default function SecurityInfo() {
 
   const checkKeys = async () => {
     try {
-      // Check for both old and new key systems
-      const hasOldKeys = await hasStoredSecp256k1KeyPair();
+      // Check for secure keys (V2 system only)
       const hasNewKeys = await hasSecureKeys();
       
       console.log('🔑 Key status check:');
-      console.log('  - Old keys:', hasOldKeys);
-      console.log('  - New secure keys:', hasNewKeys);
+      console.log('  - Secure keys (V2):', hasNewKeys);
       
-      setKeysInitialized(hasOldKeys || hasNewKeys);
+      setKeysInitialized(hasNewKeys);
     } catch (error) {
       console.error('Failed to check keys status:', error);
       setKeysInitialized(false);
@@ -103,11 +101,10 @@ export default function SecurityInfo() {
             setGeocamDeviceName(null);
             
             try {
-              // Delete both old and new secure keys
-              console.log('🔑 Deleting all keys (old and new)...');
-              await deleteSecp256k1Keys();
+              // Delete secure keys (V2 system only)
+              console.log('🔑 Deleting secure keys...');
               await deleteSecureKeys();
-              console.log('✅ All keys deleted');
+              console.log('✅ Secure keys deleted');
               
               const result = await performFreshDeviceStart();
               
@@ -404,4 +401,4 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     marginVertical: 2,
   },
-}); 
+});
