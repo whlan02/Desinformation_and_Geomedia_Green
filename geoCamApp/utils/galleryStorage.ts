@@ -48,11 +48,3 @@ export const deleteImageFromGallery = async (imageId: string): Promise<void> => 
   }
 };
 
-export const clearGallery = async (): Promise<void> => {
-  try {
-    await AsyncStorage.removeItem(GALLERY_STORAGE_KEY);
-  } catch (error) {
-    console.error('Error clearing gallery:', error);
-    throw error;
-  }
-}; 
