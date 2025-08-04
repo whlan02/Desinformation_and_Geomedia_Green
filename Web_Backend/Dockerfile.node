@@ -1,14 +1,7 @@
-FROM node:18-alpine
+FROM node:22-alpine3.20
 
-# Install canvas dependencies
+# Install build dependencies for native modules
 RUN apk add --no-cache \
-    cairo-dev \
-    jpeg-dev \
-    pango-dev \
-    giflib-dev \
-    librsvg-dev \
-    pixman-dev \
-    pkgconfig \
     python3 \
     make \
     g++
@@ -35,4 +28,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD curl -f http://localhost:3001/health || exit 1
 
 # Start the service
-CMD ["npm", "start"] 
+CMD ["npm", "start"]

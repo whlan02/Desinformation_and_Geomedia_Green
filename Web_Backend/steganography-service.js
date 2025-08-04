@@ -7,7 +7,6 @@ const path = require('path');
 const crypto = require('crypto');
 const { PNG } = require('pngjs');
 const sharp = require('sharp');
-const UPNG = require('upng-js');
 const EXIF = require('exif-js');
 
 // Logging utility for consistent formatting
@@ -77,73 +76,7 @@ if (!fs.existsSync('temp_images')) {
   fs.mkdirSync('temp_images');
 }
 
-// Helper function to handle EXIF orientation
-function getCanvasWithCorrectOrientation(img, orientation) {
-  const canvas = createCanvas(img.width, img.height);
-  const ctx = canvas.getContext('2d');
-  
-  // Default case - no rotation needed
-  if (!orientation || orientation === 1) {
-    ctx.drawImage(img, 0, 0);
-    return canvas;
-  }
-  
-  // Handle different EXIF orientations
-  switch (orientation) {
-    case 2:
-      // Flip horizontal
-      ctx.translate(img.width, 0);
-      ctx.scale(-1, 1);
-      ctx.drawImage(img, 0, 0);
-      break;
-    case 3:
-      // Rotate 180°
-      ctx.translate(img.width, img.height);
-      ctx.rotate(Math.PI);
-      ctx.drawImage(img, 0, 0);
-      break;
-    case 4:
-      // Flip vertical
-      ctx.translate(0, img.height);
-      ctx.scale(1, -1);
-      ctx.drawImage(img, 0, 0);
-      break;
-    case 5:
-      // Rotate 90° CCW + flip horizontal
-      canvas.width = img.height;
-      canvas.height = img.width;
-      ctx.rotate(-Math.PI / 2);
-      ctx.scale(-1, 1);
-      ctx.drawImage(img, -img.height, 0);
-      break;
-    case 6:
-      // Rotate 90° CW
-      canvas.width = img.height;
-      canvas.height = img.width;
-      ctx.rotate(Math.PI / 2);
-      ctx.drawImage(img, 0, -img.height);
-      break;
-    case 7:
-      // Rotate 90° CW + flip horizontal
-      canvas.width = img.height;
-      canvas.height = img.width;
-      ctx.rotate(Math.PI / 2);
-      ctx.scale(-1, 1);
-      ctx.drawImage(img, -img.width, -img.height);
-      break;
-    case 8:
-      // Rotate 90° CCW
-      canvas.width = img.height;
-      canvas.height = img.width;
-      ctx.rotate(-Math.PI / 2);
-      ctx.drawImage(img, -img.height, 0);
-      break;
-    default:
-      ctx.drawImage(img, 0, 0);
-  }
-  
-  return canvas;
-}
+
 
 // Helper function to extract EXIF orientation from image buffer
 function getImageOrientation(buffer) {
