@@ -5,12 +5,7 @@ import {
   View, 
   TouchableOpacity, 
   Image, 
-  ActivityIndicator, 
   Animated, 
-  Platform,
-  BackHandler,
-  NativeEventSubscription,
-  Vibration,
   Modal
 } from 'react-native';
 import { CameraView, CameraType, FlashMode, useCameraPermissions } from 'expo-camera';

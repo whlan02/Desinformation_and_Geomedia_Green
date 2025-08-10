@@ -80,149 +80,32 @@ GeoCam combines multiple security layers:
 - **Image Processing**: Multi-format support
 - **Verification Engine**: Cryptographic validation
 
-## 🏗️ Architecture
+## 🔐 GeoCam Signing and Verification Process
 
-```mermaid
-graph TB
-    subgraph "Mobile App (React Native)"
-        A[Camera Interface] --> B[Crypto Engine]
-        B --> C[GPS Service]
-        C --> D[Local Storage]
-    end
-    
-    subgraph "Backend Services"
-        E[Python Flask API] --> F[SQLite Database]
-        G[Node.js Steganography] --> H[Image Processing]
-    end
-    
-    subgraph "Web Frontend (Vue.js)"
-        I[Admin Dashboard] --> J[Verification Portal]
-        K[Architecture Viewer] --> L[Statistics]
-    end
-    
-    D --> E
-    E --> G
-    G --> I
-    H --> J
-```
+### 📸 Image Signing Process
 
-## 🔍 Image Verification Flow
+![Signing Process](asset/Signing.png)
 
-The GeoCam platform implements a comprehensive image verification system that ensures authenticity through cryptographic signatures and steganographic metadata embedding. Below is the complete verification flow:
+**Signing Process Description:**
 
-### **Complete Verification Process**
+1. **Image Capture**: User takes a photo through the GeoCam application
+2. **Metadata Collection**: System automatically collects GPS location, timestamp, device information and other metadata
+3. **Cryptographic Signing**: Uses secp256k1 private key generated on device to digitally sign the image and metadata
+4. **Steganographic Embedding**: Embeds the signature and metadata into PNG image pixel data using steganography techniques
+5. **Secure Storage**: Signed image is saved to device local gallery, while public key information is uploaded to backend server
 
-```mermaid
-graph TB
-    %% User Actions
-    A[User Opens Verify Screen] --> B{Image Selected?}
-    B -->|No| C[Show Empty State]
-    C --> D[User Taps 'Browse Images']
-    D --> E[Show Bottom Sheet Modal]
-    
-    %% Image Selection Options
-    E --> F[Phone Gallery Option]
-    E --> G[GeoCam Gallery Option]
-    
-    F --> H[Launch Image Picker]
-    G --> I[Navigate to Gallery with Select Mode]
-    
-    H --> J[User Selects Image]
-    I --> K[User Selects from GeoCam Gallery]
-    
-    J --> L[Set Selected Image URI]
-    K --> M[Store URI in AsyncStorage]
-    M --> N[Navigate Back to Verify Screen]
-    N --> O[Read URI from AsyncStorage]
-    O --> L
-    
-    %% Start Verification Process
-    L --> P[Start Verification Process]
-    P --> Q[Show Progress Animation]
-    P --> R[Convert Image to Base64]
-    
-    %% Steganography Extraction
-    R --> S[Call Steganography Service]
-    S --> T[Extract Hidden Metadata]
-    T --> U{Metadata Found?}
-    
-    U -->|Yes| V[Parse Decoded Data]
-    U -->|No| W[Set Empty Metadata]
-    
-    %% Signature Verification Process
-    V --> X{Signature & Public Key ID Found?}
-    X -->|Yes| Y[Call Secure Backend Service]
-    X -->|No| Z[Skip Signature Verification]
-    
-    Y --> AA[Backend Retrieves Public Key]
-    AA --> BB[Verify Signature with Public Key]
-    BB --> CC{Signature Valid?}
-    
-    CC -->|Yes| DD[Mark as Authentic]
-    CC -->|No| EE[Mark as Not Authentic]
-    
-    %% Process Results
-    DD --> FF[Combine Results]
-    EE --> FF
-    Z --> FF
-    W --> FF
-    
-    FF --> GG[Update UI with Results]
-    GG --> HH[Show Verification Status]
-    HH --> II[Display Metadata Items]
-    II --> JJ{Location Data Available?}
-    
-    JJ -->|Yes| KK[Show Map with Location]
-    JJ -->|No| LL[Skip Map Display]
-    
-    KK --> MM[Show Action Button]
-    LL --> MM
-    
-    %% Key Management (Background Process)
-    subgraph "Key Management (Device Only)"
-        S1[Private Key Generated on Device]
-        S2[Private Key Stored in Secure Store]
-        S3[Public Key Derived from Private Key]
-        S4[Public Key Sent to Backend]
-        S5[Backend Stores Public Key with Device ID]
-        
-        S1 --> S2
-        S1 --> S3
-        S3 --> S4
-        S4 --> S5
-    end
-    
-    %% Backend Services
-    subgraph "Backend Services"
-        B1[Steganography Service<br/>Port 3001]
-        B2[Secure Backend Service<br/>Port 5001]
-        B3[Public Key Storage]
-        B4[Signature Verification]
-        
-        B1 --> B2
-        B2 --> B3
-        B2 --> B4
-    end
-    
-    %% Connect flows
-    S --> B1
-    Y --> B2
-    AA --> B3
-    BB --> B4
+### 🔍 Image Verification Process
 
-    %% Styling
-    classDef userAction fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
-    classDef process fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
-    classDef decision fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
-    classDef security fill:#ffebee,stroke:#c62828,stroke-width:2px
-    classDef backend fill:#e8f5e8,stroke:#2e7d32,stroke-width:2px
-    
-    class A,C,D,F,G,H,I,J,K userAction
-    class P,Q,R,S,T,V,FF,GG,HH,II,MM process
-    class B,U,X,CC,JJ decision
-    class S1,S2,S3,S4,S5 security
-    class B1,B2,B3,B4 backend
-```
+![Verification Process](asset/Verifiying.png)
+
+**Verification Process Description:**
+
+1. **Image Selection**: User selects the image file to be verified
+2. **Steganographic Extraction**: System extracts hidden metadata and digital signature from the image
+3. **Public Key Retrieval**: Retrieves corresponding public key from backend server based on device ID
+4. **Signature Verification**: Uses public key to verify the validity of the digital signature
+5. **Integrity Check**: Verifies whether the image has been tampered with, ensuring data integrity
+6. **Result Display**: Shows verification results, including authenticity status, metadata information and location map
 
 ### **Key Security Principles**
 
