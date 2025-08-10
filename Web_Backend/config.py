@@ -8,7 +8,7 @@ class Config:
     DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://geocam:geocam@localhost:5432/geocam_db')
     
     # Service URLs
-    STEGANOGRAPHY_SERVICE_URL = os.getenv('STEGANOGRAPHY_SERVICE_URL', 'https://geocam-steganography.onrender.com')
+    STEGANOGRAPHY_SERVICE_URL = os.getenv('STEGANOGRAPHY_SERVICE_URL', 'http://steganography-service:3001')
     
     # Flask configuration
     SECRET_KEY = os.getenv('SECRET_KEY', 'your-secret-key-here')
@@ -23,4 +23,4 @@ class Config:
         "http://localhost:5173",  # Vue dev server
         "https://geocam-web-frontend.onrender.com",  # Vue production site
         "https://register-device-production.up.railway.app", # Railway production site
-    ] 
+    ]

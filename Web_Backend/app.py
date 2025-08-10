@@ -39,7 +39,7 @@ def call_steganography_service(image_data: bytes):
     """Call the Node.js steganography service to verify and extract signature from image"""
     try:
         # Steganography service URL
-        steg_url = "http://localhost:3001/pure-png-verify"
+        steg_url = f"{Config.STEGANOGRAPHY_SERVICE_URL}/pure-png-verify"
         
         # Convert image to base64 for the Node.js service
         image_base64 = base64.b64encode(image_data).decode('utf-8')

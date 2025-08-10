@@ -2,10 +2,10 @@
   "name": "geocam-steganography-service",
   "version": "1.0.0",
   "description": "Node.js service for steganography encoding/decoding",
-  "main": "dist/steganography-service.js",
+  "main": "steganography-service.js",
   "scripts": {
     "build": "tsc",
-    "start": "node dist/steganography-service.js",
+    "start": "node steganography-service.js",
     "dev": "ts-node steganography-service.ts",
     "dev:watch": "nodemon --exec ts-node steganography-service.ts",
     "test-verification": "ts-node test-verification.ts"

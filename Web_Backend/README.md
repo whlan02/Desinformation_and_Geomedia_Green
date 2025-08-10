@@ -23,10 +23,15 @@ This backend consists of two microservices:
 ## Setup Instructions
 
 ### Prerequisites
-- Docker and Docker Compose
-- Node.js 18+ (for local development)
-- Python 3.11+ (for local development)
-- PostgreSQL 15+ (for local development)
+
+#### For Docker Deployment (Recommended)
+- Docker 20.10+
+- Docker Compose 2.0+
+
+#### For Local Development
+- Node.js 18+
+- Python 3.11+
+- PostgreSQL 15+
 
 ### Quick Start with Docker
 
@@ -35,18 +40,43 @@ This backend consists of two microservices:
    cd Web_Backend
    ```
 
-2. **Start all services:**
+2. **Configure environment (optional):**
    ```bash
-   docker-compose up -d
+   # Copy example environment file
+   cp .env.example .env
+   
+   # Edit .env file with your preferred settings
+   # For production, change SECRET_KEY and database passwords
    ```
 
-3. **Check service health:**
+3. **Start all services:**
+   ```bash
+   # Build and start all services in detached mode
+   docker-compose up --build -d
+   
+   # Or start with logs visible
+   docker-compose up --build
+   ```
+
+4. **Check service health:**
    ```bash
    # Check API service
-   curl http://localhost:5001/health
+   curl http://localhost:5001/api/health
    
    # Check steganography service
    curl http://localhost:3001/health
+   
+   # Check all services status
+   docker-compose ps
+   ```
+
+5. **Stop services:**
+   ```bash
+   # Stop all services
+   docker-compose down
+   
+   # Stop and remove volumes (WARNING: This will delete database data)
+   docker-compose down -v
    ```
 
 ### Local Development Setup
@@ -82,45 +112,7 @@ export STEGANOGRAPHY_SERVICE_URL="http://localhost:3001"
 python app.py
 ```
 
-## API Endpoints
 
-### Python Flask API (Port 5001)
-
-#### Device Registration
-- **POST** `/api/register-device`
-  ```json
-  {
-    "installation_id": "install_abc123_def456",
-    "device_model": "iPhone 14 Pro",
-    "os_name": "iOS",
-    "os_version": "17.0",
-    "public_key_data": { ... }
-  }
-  ```
-
-#### Get All Devices
-- **GET** `/api/devices`
-
-#### Image Verification
-- **POST** `/api/verify-image`
-  - Form data with `image` file
-  - Optional `installation_id` parameter
-
-#### Device Info
-- **GET** `/api/device/{installation_id}`
-
-#### System Statistics
-- **GET** `/api/stats`
-
-### Node.js Steganography Service (Port 3001)
-
-#### Decode Image
-- **POST** `/decode-image`
-  - Form data with `image` file
-
-#### Encode Image (for future use)
-- **POST** `/encode-image`
-  - Form data with `image` file and `message`
 
 ## Database Schema
 
@@ -148,86 +140,43 @@ python app.py
 
 ## Configuration
 
-Environment variables:
+### Environment Variables
+
+The following environment variables can be configured:
+
+#### Database Configuration
 - `DATABASE_URL` - PostgreSQL connection string
-- `STEGANOGRAPHY_SERVICE_URL` - Node.js service URL
-- `SECRET_KEY` - Flask secret key
-- `DEBUG` - Enable debug mode
+  - Docker default: `postgresql://geocam:geocam@postgres:5432/geocam_db`
+  - Local default: `postgresql://geocam:geocam@localhost:5432/geocam_db`
 
-## Security Features
+#### Service URLs
+- `STEGANOGRAPHY_SERVICE_URL` - Node.js steganography service URL
+  - Docker default: `http://steganography-service:3001`
+  - Local default: `http://localhost:3001`
 
-- **Hardware-backed Key Storage**: Uses device secure storage
-- **Digital Signatures**: SHA256-based signature verification
-- **Steganography**: Hidden data in images using LSB technique
-- **Activity Logging**: All verification attempts are logged
+#### Flask Configuration
+- `SECRET_KEY` - Flask secret key (⚠️ **Change in production!**)
+- `DEBUG` - Enable debug mode (`true`/`false`)
+- `PORT` - API service port (default: `5001`)
 
-## Troubleshooting
+#### Node.js Configuration
+- `NODE_ENV` - Node environment (`development`/`production`)
 
-### Common Issues
+### Docker Environment
 
-1. **Canvas installation fails on Node.js**:
+When using Docker Compose, environment variables are automatically configured in `docker-compose.yml`. You can override them by:
+
+1. **Using .env file** (recommended):
    ```bash
-   # On Ubuntu/Debian:
-   sudo apt-get install build-essential libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev
-   
-   # On macOS:
-   brew install pkg-config cairo pango libpng jpeg giflib librsvg
+   cp .env.example .env
+   # Edit .env with your values
    ```
 
-2. **PostgreSQL connection fails**:
-   - Check if PostgreSQL is running
-   - Verify database credentials
-   - Ensure database exists
-
-3. **Steganography service unreachable**:
-   - Check if Node.js service is running on port 3001
-   - Verify STEGANOGRAPHY_SERVICE_URL in Python service
-
-### Logs
-
-```bash
-# View Docker logs
-docker-compose logs -f api-service
-docker-compose logs -f steganography-service
-
-# View individual service logs
-docker logs geocam-api-service
-docker logs geocam-steganography-service
-```
-
-## Development
-
-### Adding New Endpoints
-
-1. **Python API**: Add routes in `app.py`
-2. **Database**: Add functions in `database.py`
-3. **Node.js**: Add routes in `steganography-service.js`
-
-### Database Migrations
-
-The system automatically creates tables on startup. For schema changes:
-
-1. Update `database.py`
-2. Add migration logic if needed
-3. Restart services
-
-## Testing
-
-```bash
-# Test device registration
-curl -X POST http://localhost:5001/api/register-device \
-  -H "Content-Type: application/json" \
-  -d '{
-    "installation_id": "test_install_123",
-    "device_model": "Test Device",
-    "os_name": "TestOS",
-    "os_version": "1.0"
-  }'
-
-# Test image verification
-curl -X POST http://localhost:5001/api/verify-image \
-  -F "image=@test_image.jpg"
-```
+2. **Direct environment variables**:
+   ```bash
+   export SECRET_KEY="your-secure-key"
+   docker-compose up
+   ```
 
 ## Local Testing Guide (Hybrid Mode, under the same wifi)
 
@@ -340,4 +289,4 @@ To switch back to full production environment:
    - In `Web_Backend/config.py`:
      ```python
      STEGANOGRAPHY_SERVICE_URL = os.getenv('STEGANOGRAPHY_SERVICE_URL', 'https://geocam-steganography.onrender.com')
-     ``` 
+     ```
