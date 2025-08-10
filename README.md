@@ -20,14 +20,12 @@
 - [Key Features](#-key-features)
 - [Work Flow](#-work-flow)
 - [Technology Stack](#-technology-stack)
-- [Installation](#-installation)
-- [Usage](#-usage)
+- [Installation & Usage](#-installation--usage)
 - [API Documentation](#-api-documentation)
 - [Security Implementation](#-security-implementation)
 - [Contributing](#-contributing)
 - [License](#-license)
 - [Team](#-team)
-- [Latest Updates & Enhancements](#-latest-updates--enhancements)
 
 ## 📖 About the Project
 
@@ -205,70 +203,235 @@ For a complete technical overview of the verification process, see the [detailed
 - **Package Management**: npm/yarn
 - **Build Tools**: Expo CLI, TypeScript, Babel
 
-## 🚀 Installation
+## 🚀 Installation & Usage
 
 ### **Prerequisites**
-- Node.js 18+ and npm/yarn
-- Python 3.8+
-- Expo CLI
-- Android Studio (for Android development)
-- Xcode (for iOS development, macOS only)
-- Docker & Docker Compose (optional)
+Before getting started, ensure you have the following installed on your system:
 
-### **Quick Start with Docker**
+- **Node.js 18+** and **npm/yarn** - [Download Node.js](https://nodejs.org/)
+- **Python 3.8+** - [Download Python](https://www.python.org/downloads/)
+- **Git** - [Download Git](https://git-scm.com/downloads)
+- **Expo CLI** - Install globally: `npm install -g @expo/cli`
+- **Android Studio** (for Android development) - [Download Android Studio](https://developer.android.com/studio)
+- **Xcode** (for iOS development, macOS only) - [Download from App Store](https://apps.apple.com/app/xcode/id497799835)
+- **Docker & Docker Compose** (optional, for containerized deployment) - [Download Docker](https://www.docker.com/get-started)
+
+### **🚀 Quick Start (Recommended)**
+
+The fastest way to get GeoCam running is using Docker Compose:
+
 ```bash
-# Clone the repository
-git clone https://github.com/whlan02/Desinformation_and_Geomedia_Green
-cd geocam-platform
+# 1. Clone the repository
+git clone https://github.com/whlan02/Desinformation_and_Geomedia_Green.git
+cd Desinformation_and_Geomedia_Green
 
-# Start all services
+# 2. Start all services with Docker
+cd Web_Backend
 docker-compose up -d
 
-# Access the applications
+# 3. Access the applications
 # Web Frontend: http://localhost:3000
-# Backend API: http://localhost:5000
-# Steganography Service: http://localhost:3001
+# Python Backend API: http://localhost:5000
+# Node.js Steganography Service: http://localhost:3001
 ```
 
-### **Manual Installation**
+### **📱 Manual Installation & Setup**
 
-#### **1. Backend Services**
+#### **Step 1: Clone and Setup Repository**
 ```bash
-# Python Backend
+# Clone the repository
+git clone https://github.com/whlan02/Desinformation_and_Geomedia_Green.git
+cd Desinformation_and_Geomedia_Green
+```
+
+#### **Step 2: Backend Services Setup**
+
+**Python Backend (Flask API):**
+```bash
+# Navigate to backend directory
 cd Web_Backend
+
+# Create virtual environment (recommended)
+python -m venv venv
+
+# Activate virtual environment
+# On Windows:
+venv\Scripts\activate
+# On macOS/Linux:
+source venv/bin/activate
+
+# Install Python dependencies
 pip install -r requirements.txt
+
+# Create environment file
+cp .env.example .env
+# Edit .env file with your configuration if needed
+
+# Start Python backend
 python app.py
+# Backend will run on http://localhost:5000
+```
 
-# Node.js Steganography Service
+**Node.js Steganography Service:**
+```bash
+# In a new terminal, navigate to backend directory
+cd Web_Backend
+
+# Install Node.js dependencies
 npm install
+
+# Build the TypeScript service
 npm run build
+
+# Start the steganography service
 npm start
+# Service will run on http://localhost:3001
 ```
 
-#### **2. Web Frontend**
+#### **Step 3: Web Frontend Setup**
 ```bash
+# In a new terminal, navigate to frontend directory
 cd Web_Frontend
+
+# Install dependencies
 npm install
+
+# Start development server
 npm run dev
-# Access at http://localhost:3000
+# Frontend will run on http://localhost:3000
 ```
 
-#### **3. Mobile Application**
+#### **Step 4: Mobile Application Setup**
 ```bash
+# In a new terminal, navigate to mobile app directory
 cd geoCamApp
+
+# Install dependencies
 npm install
 
-# For iOS
-npm run ios
-
-# For Android
-npm run android
-
-# For development
+# Start Expo development server
 npm start
+# or
+expo start
 ```
 
+**For iOS Development:**
+```bash
+# Run on iOS simulator (macOS only)
+npm run ios
+# or
+expo run:ios
+```
 
+**For Android Development:**
+```bash
+# Run on Android emulator or device
+npm run android
+# or
+expo run:android
+```
+
+### **📋 Usage Guide**
+
+#### **🌐 Web Application Usage**
+
+1. **Access the Web Dashboard:**
+   - Open your browser and navigate to `http://localhost:3000`
+   - The dashboard provides device management and image verification features
+
+2. **Device Registration:**
+   - Use the web interface to view registered devices
+   - Monitor device activity and statistics
+
+3. **Image Verification:**
+   - Upload images through the web portal to verify their authenticity
+   - View detailed verification results and metadata
+
+#### **📱 Mobile Application Usage**
+
+1. **Install the Mobile App:**
+   - Use Expo Go app to scan the QR code from `expo start`
+   - Or build and install the app directly on your device
+
+2. **First Time Setup:**
+   - Open the GeoCam app
+   - The app will automatically generate cryptographic keys
+   - Grant location and camera permissions when prompted
+
+3. **Taking Secure Photos:**
+   - Tap the camera icon to open the camera interface
+   - Take photos with automatic GPS location embedding
+   - Photos are cryptographically signed and stored securely
+
+4. **Viewing Gallery:**
+   - Access your secure photo gallery
+   - View metadata including location, timestamp, and verification status
+
+5. **Verifying Images:**
+   - Select any image from your gallery or device
+   - Tap "Verify" to check authenticity
+   - View detailed verification results
+
+### **🔧 Configuration**
+
+#### **Backend Configuration**
+Edit `Web_Backend/.env` file:
+```env
+# Database configuration
+DATABASE_URL=sqlite:///geocam.db
+
+# API configuration
+FLASK_ENV=development
+FLASK_DEBUG=True
+
+# CORS settings
+CORS_ORIGINS=http://localhost:3000
+```
+
+#### **Mobile App Configuration**
+Edit `geoCamApp/utils/backendConfig.ts`:
+```typescript
+export const BACKEND_CONFIG = {
+  PYTHON_API_URL: 'http://localhost:5000',
+  STEGANOGRAPHY_API_URL: 'http://localhost:3001',
+  // For physical device testing, use your computer's IP:
+  // PYTHON_API_URL: 'http://192.168.1.100:5000',
+  // STEGANOGRAPHY_API_URL: 'http://192.168.1.100:3001',
+};
+```
+
+### **🧪 Testing the Setup**
+
+1. **Verify Backend Services:**
+   ```bash
+   # Test Python API
+   curl http://localhost:5000/api/health
+   
+   # Test Node.js service
+   curl http://localhost:3001/health
+   ```
+
+2. **Test Web Frontend:**
+   - Navigate to `http://localhost:3000`
+   - Check that the dashboard loads correctly
+
+3. **Test Mobile App:**
+   - Open the app in Expo Go or on device
+   - Try taking a photo and verifying it
+
+### **🚨 Troubleshooting**
+
+**Common Issues:**
+
+- **Port conflicts:** If ports 3000, 3001, or 5000 are in use, modify the port configurations in the respective service files
+- **CORS errors:** Ensure the backend CORS settings include your frontend URL
+- **Mobile app connection issues:** Use your computer's IP address instead of localhost when testing on physical devices
+- **Permission errors:** Ensure camera and location permissions are granted on mobile devices
+
+**Getting Help:**
+- Check the individual component READMEs for detailed troubleshooting
+- Review the API documentation below for endpoint details
+- Open an issue on GitHub if you encounter persistent problems
 
 ## 📚 API Documentation
 
