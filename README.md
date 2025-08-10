@@ -268,195 +268,29 @@ npm run android
 npm start
 ```
 
-### **Environment Configuration**
 
-#### **Backend (.env)**
-```env
-DATABASE_URL=sqlite:///geocam.db
-SECRET_KEY=your-secret-key
-API_PORT=5000
-STEGANOGRAPHY_SERVICE_URL=http://localhost:3001
-```
-
-#### **Mobile App (app.json)**
-```json
-{
-  "expo": {
-    "name": "GeoCam",
-    "slug": "geocam-app",
-    "platforms": ["ios", "android"],
-    "permissions": [
-      "CAMERA",
-      "LOCATION",
-      "WRITE_EXTERNAL_STORAGE"
-    ]
-  }
-}
-```
-
-## 📖 Usage
-
-### **Mobile App Workflow**
-
-1. **Initial Setup**
-   ```
-   Launch App → Key Generation → Device Registration → Ready to Capture
-   ```
-
-2. **Taking Secure Photos**
-   ```
-   Camera Interface → Configure Settings → Use Gesture Controls → Capture Photo → 
-   GPS + Metadata → Cryptographic Signing → Steganographic Embedding → Save
-   ```
-
-3. **Camera Features**
-   ```
-   Settings Modal → Grid Lines/Quality/Aspect Ratio → 
-   Timer Setup → Focus Gestures → Zoom Controls → Volume Button Capture
-   ```
-
-3. **Viewing Gallery**
-   ```
-   Gallery View → Select Photo → View Detailed Metadata → 
-   Verify Authenticity → Check Location Data → Share/Export
-   ```
-
-4. **Advanced Verification**
-   ```
-   Verify Tab → Select/Import Image → Steganographic Analysis → 
-   Signature Validation → Device Lookup → Comprehensive Results Display
-   ```
-
-### **Web Dashboard**
-
-1. **Admin Access**
-   ```
-   Navigate to /admin → View Devices → Manage Photos → System Statistics
-   ```
-
-2. **Public Verification**
-   ```
-   Upload Image → Extraction Process → Verification Results → Download Report
-   ```
-
-### **API Integration**
-
-#### **Device Registration**
-```javascript
-POST /api/devices/register
-{
-  "publicKey": "04a1b2c3...",
-  "deviceInfo": {...},
-  "fingerprint": "abc123..."
-}
-```
-
-#### **Photo Upload**
-```javascript
-POST /api/photos/upload
-{
-  "image": "base64-encoded-image",
-  "metadata": {...},
-  "signature": "signature-string"
-}
-```
-
-#### **Verification**
-```javascript
-POST /api/verify
-{
-  "image": "base64-encoded-image"
-}
-```
 
 ## 📚 API Documentation
 
-### **Core Endpoints**
+### **Core Endpoints (Python Flask Service - Port 5001)**
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `POST` | `/api/devices/register` | Register new device |
-| `GET` | `/api/devices` | List registered devices |
-| `POST` | `/api/photos/upload` | Upload signed photo |
-| `GET` | `/api/photos` | List photos |
-| `POST` | `/api/verify` | Verify photo authenticity |
+| `POST` | `/api/register-device-secure` | Register new device with secp256k1 keys |
+| `GET` | `/api/devices-secure` | List registered devices |
+| `POST` | `/api/verify-image-secure` | Verify image authenticity |
+| `GET` | `/api/health` | API service health check |
 | `GET` | `/api/stats` | System statistics |
 
-### **Authentication**
-```javascript
-// Device authentication using public key signatures
-Headers: {
-  'X-Device-ID': 'device-fingerprint',
-  'X-Signature': 'request-signature',
-  'Content-Type': 'application/json'
-}
-```
+### **Steganography Endpoints (Node.js Service - Port 3001)**
 
-### **Response Format**
-```javascript
-{
-  "success": true,
-  "data": {...},
-  "message": "Operation completed successfully",
-  "timestamp": "2025-06-29T10:30:00Z"
-}
-```
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/process-geocam-image` | Process JPEG image and get hash to sign |
+| `POST` | `/complete-geocam-image` | Complete processing with signature |
+| `POST` | `/pure-png-verify` | Verify PNG image with embedded signature |
+| `GET` | `/health` | Steganography service health check |
 
-## 🔐 Security Implementation
-
-### **Cryptographic Foundation**
-- **Elliptic Curve**: secp256k1 (Bitcoin/Ethereum standard)
-- **Key Generation**: Cryptographically secure random generation
-- **Signature Algorithm**: ECDSA with SHA-256
-- **Key Storage**: Hardware-backed secure enclaves when available
-
-### **Steganography Technique**
-```javascript
-// Metadata embedding in PNG least significant bits
-const embeddedData = {
-  signature: "ecdsa-signature",
-  location: { lat: 52.520008, lng: 13.404954 },
-  timestamp: 1719659400000,
-  deviceId: "device-fingerprint",
-  hash: "image-hash"
-};
-```
-
-### **Verification Process**
-1. **Steganographic Extraction**: Hidden metadata retrieval
-2. **Signature Validation**: ECDSA verification
-3. **Device Lookup**: Public key validation
-4. **Integrity Check**: Image hash verification
-5. **Timestamp Validation**: Chronological verification
-
-### **Security Considerations**
-- **Key Rotation**: Periodic key updates
-- **Device Revocation**: Compromised device handling
-- **Replay Attacks**: Timestamp-based protection
-- **Man-in-the-middle**: Certificate pinning
-- **Local Storage**: Encrypted secure storage
-
-## 🧪 Testing
-
-### **Mobile App Testing**
-```bash
-cd geoCamApp
-npm test
-npm run test:e2e
-```
-
-### **Backend Testing**
-```bash
-cd Web_Backend
-python -m pytest tests/
-npm run test  # Node.js service
-```
-
-### **Integration Testing**
-```bash
-# Full system test
-docker-compose -f docker-compose.test.yml up --abort-on-container-exit
-```
 
 ## 🤝 Contributing
 
