@@ -18,7 +18,7 @@
 
 - [About the Project](#-about-the-project)
 - [Key Features](#-key-features)
-- [Architecture](#-architecture)
+- [Work Flow](#-GeoCam Signing and Verification Process)
 - [Technology Stack](#-technology-stack)
 - [Installation](#-installation)
 - [Usage](#-usage)
@@ -80,32 +80,38 @@ GeoCam combines multiple security layers:
 - **Image Processing**: Multi-format support
 - **Verification Engine**: Cryptographic validation
 
-## 🔐 GeoCam Signing and Verification Process
+## 🔐 Work Flow
 
 ### 📸 Image Signing Process
 
 ![Signing Process](asset/Signing.png)
 
-**Signing Process Description:**
+**Signing Process:**
 
-1. **Image Capture**: User takes a photo through the GeoCam application
+1. **Image Capture**: User takes a photo through the GeoCam mobile application
 2. **Metadata Collection**: System automatically collects GPS location, timestamp, device information and other metadata
-3. **Cryptographic Signing**: Uses secp256k1 private key generated on device to digitally sign the image and metadata
-4. **Steganographic Embedding**: Embeds the signature and metadata into PNG image pixel data using steganography techniques
-5. **Secure Storage**: Signed image is saved to device local gallery, while public key information is uploaded to backend server
+3. **Backend Initial Processing**: Mobile app sends JPEG image, metadata, and public key to backend
+   - Turning the Jpeg image into PNG image by adding an alpha channel
+   - Encodes basic metadata into alpha channels using LSB steganography(excluding last row)
+   - Generates hash from the image
+4. **Device Signing**: Mobile app receives hash from backend, then signs hash using private key stored in device
+5. **Backend Final Assembly**: Mobile app sends signature  back to backend, then backend embeds signature and public key into last row of alpha channels using LSB steganography
+6. **Secure Storage**: Final signed PNG is returned to mobile app and saved to device local gallery
+
 
 ### 🔍 Image Verification Process
 
 ![Verification Process](asset/Verifiying.png)
 
-**Verification Process Description:**
+**Verification Process:**
 
-1. **Image Selection**: User selects the image file to be verified
-2. **Steganographic Extraction**: System extracts hidden metadata and digital signature from the image
-3. **Public Key Retrieval**: Retrieves corresponding public key from backend server based on device ID
-4. **Signature Verification**: Uses public key to verify the validity of the digital signature
-5. **Integrity Check**: Verifies whether the image has been tampered with, ensuring data integrity
-6. **Result Display**: Shows verification results, including authenticity status, metadata information and location map
+1. **Image Upload**: Mobile app sends PNG image to backend verification service
+2. **Steganographic Extraction**: Backend extracts metadata, public key, and signature from image using steganography
+3. **Signature Removal**: Backend removes public key and signature from the last row of the alpha channel
+4. **Hash Generation**: Backend computes hash of the cleaned image
+5. **Cryptographic Verification**: Backend uses extracted hash, public key, and signature to verify image authenticity
+6. **Result Response**: Backend sends verification results back to mobile app with authenticity status and metadata
+
 
 ### **Key Security Principles**
 
