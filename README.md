@@ -18,7 +18,7 @@
 
 - [About the Project](#-about-the-project)
 - [Key Features](#-key-features)
-- [Work Flow](#-GeoCam Signing and Verification Process)
+- [Work Flow](#-work-flow)
 - [Technology Stack](#-technology-stack)
 - [Installation](#-installation)
 - [Usage](#-usage)
