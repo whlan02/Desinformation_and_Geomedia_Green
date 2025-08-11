@@ -119,54 +119,6 @@ GeoCam combines multiple security layers:
 4. **🛡️ Secure Storage**: Private keys are protected by device secure storage (Android Keystore/iOS Keychain)
 5. **🚫 No Key Transmission**: The verification process never requires transmitting private keys
 
-### **Verification Process Steps**
-
-1. **📱 Image Selection**: User selects image from phone gallery or GeoCam gallery
-2. **🔍 Steganography Extraction**: Hidden metadata is extracted from the image
-3. **🔐 Signature Verification**: If signature is present, backend verifies it using stored public key
-4. **📊 Result Processing**: Combines steganographic and cryptographic verification results
-5. **📋 UI Display**: Shows verification status, metadata, and location data if available
-
-### **Security Architecture**
-
-```mermaid
-graph TB
-    subgraph "Device Security Boundary"
-        PK[Private Key<br/>🔒 Secure Storage]
-        SIG[Sign Image<br/>🔐 Private Key]
-        META[Embed Metadata<br/>📊 Steganography]
-    end
-    
-    subgraph "Network Layer"
-        PUB[Public Key<br/>📤 Transmitted]
-        IMG[Signed Image<br/>📸 With Metadata]
-    end
-    
-    subgraph "Backend Verification"
-        STORE[Public Key Storage<br/>🗃️ Database]
-        VERIFY[Signature Verification<br/>✅ Public Key]
-        RESULT[Verification Result<br/>📋 Authentic/Invalid]
-    end
-    
-    PK --> SIG
-    SIG --> META
-    META --> IMG
-    PK --> PUB
-    PUB --> STORE
-    IMG --> VERIFY
-    STORE --> VERIFY
-    VERIFY --> RESULT
-    
-    classDef secure fill:#ffcdd2,stroke:#d32f2f,stroke-width:3px
-    classDef network fill:#e1f5fe,stroke:#1976d2,stroke-width:2px
-    classDef backend fill:#e8f5e8,stroke:#2e7d32,stroke-width:2px
-    
-    class PK,SIG,META secure
-    class PUB,IMG network
-    class STORE,VERIFY,RESULT backend
-```
-
-For a complete technical overview of the verification process, see the [detailed flow diagram](./GeoCam_Verification_Flow_Diagram.md).
 
 ## 💻 Technology Stack
 
@@ -508,14 +460,12 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 For questions, issues, or contributions:
 - **🐛 Bug Reports**: [GitHub Issues](https://github.com/whlan02/Desinformation_and_Geomedia_Green/issues)
 - **💬 Discussions**: [GitHub Discussions](https://github.com/whlan02/Desinformation_and_Geomedia_Green/discussions)
-- **📧 Contact**: geocam-support@university.edu
 - **📚 Documentation**: Check the individual component READMEs for detailed guides
 
 ### **Project Links**
 - **📱 Mobile App**: [GeoCam App Documentation](./geoCamApp/README.md)
 - **🌐 Web Frontend**: [Frontend Documentation](./Web_Frontend/README.md)
 - **⚙️ Backend Services**: [Backend Documentation](./Web_Backend/README.md)
-- **🔍 Verification Flow**: [Complete Verification Flow Diagram](./GeoCam_Verification_Flow_Diagram.md)
 
 ### **Research Context**
 This project is part of the **Desinformation and Geomedia** research initiative, exploring technological solutions to combat misinformation through verifiable digital media and secure authentication systems.
