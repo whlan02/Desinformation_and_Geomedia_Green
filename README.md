@@ -22,8 +22,8 @@
 - [Technology Stack](#-technology-stack)
 - [Installation & Usage](#-installation--usage)
 - [API Documentation](#-api-documentation)
-- [Contributing](#-contributing)
 - [License](#-license)
+- [Contributing](#-contributing)
 - [Team](#-team)
 
 ## 📖 About the Project
