@@ -22,7 +22,6 @@
 - [Technology Stack](#-technology-stack)
 - [Installation & Usage](#-installation--usage)
 - [API Documentation](#-api-documentation)
-- [Security Implementation](#-security-implementation)
 - [Contributing](#-contributing)
 - [License](#-license)
 - [Team](#-team)
@@ -73,7 +72,7 @@ GeoCam combines multiple security layers:
 ### ⚙️ **Backend Services (Node.js/Python)**
 - **RESTful API**: Comprehensive endpoint coverage
 - **Steganography Engine**: Advanced metadata embedding
-- **Database Management**: SQLite with migration support
+- **Database Management**: PostgreSQL with migration support
 - **Device Registration**: Secure device onboarding
 - **Image Processing**: Multi-format support
 - **Verification Engine**: Cryptographic validation
@@ -130,15 +129,15 @@ GeoCam combines multiple security layers:
 - **Device Integration**: expo-location, expo-camera, expo-haptics
 - **Storage**: expo-secure-store for keys, AsyncStorage for app data
 - **UI/UX**: @expo/vector-icons, react-native-gesture-handler, react-native-safe-area-context
-- **Maps & Visualization**: react-native-maps, react-native-svg
+- **Maps & Visualization**: react-native-maps (mobile), react-native-svg
 - **Theme System**: Custom context-based theme management
 
 ### **Backend Services**
-- **Python Backend**: Flask + SQLite
+- **Python Backend**: Flask 3.0.3 + PostgreSQL
 - **Node.js Service**: Express + TypeScript
-- **Image Processing**: Sharp, Canvas, PNGJS
-- **Cryptography**: @noble/curves, @noble/ed25519
-- **Database**: SQLite with migrations
+- **Image Processing**: Sharp, PNGJS
+- **Cryptography**: @noble/curves (secp256k1)
+- **Database**: PostgreSQL with migrations
 - **API Documentation**: RESTful endpoints
 
 ### **Web Frontend**
@@ -147,7 +146,7 @@ GeoCam combines multiple security layers:
 - **State Management**: Pinia 3.0.3
 - **Routing**: Vue Router 4.5.1
 - **HTTP Client**: Axios 1.10.0
-- **Visualization**: D3.js 7.9.0
+- **Visualization**: D3.js 7.9.0, OpenLayers 10.6.1
 
 ### **DevOps & Deployment**
 - **Containerization**: Docker + Docker Compose
@@ -330,7 +329,7 @@ expo run:android
 Edit `Web_Backend/.env` file:
 ```env
 # Database configuration
-DATABASE_URL=sqlite:///geocam.db
+DATABASE_URL=postgresql://username:password@localhost:5432/geocam_db
 
 # API configuration
 FLASK_ENV=development
