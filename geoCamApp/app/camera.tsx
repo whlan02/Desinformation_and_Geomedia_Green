@@ -9,7 +9,7 @@ import {
   Modal
 } from 'react-native';
 import { CameraView, CameraType, FlashMode, useCameraPermissions } from 'expo-camera';
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect, useCallback } from 'react';
 import * as MediaLibrary from 'expo-media-library';
 import * as Device from 'expo-device';
 import * as Location from 'expo-location';
@@ -17,9 +17,9 @@ import * as FileSystem from 'expo-file-system';
 import * as Haptics from 'expo-haptics';
 import { saveImageToGallery } from '../utils/galleryStorage';
 import { signHashWithSecp256k1, getSecureKeysForRegistration } from '../utils/secp256k1Utils';
-import { getStoredGeoCamDeviceName, processGeoCamImageBackend, completeGeoCamImageBackend } from '../utils/backendService';
+import { getStoredGeoCamDeviceName, processGeoCamImageBackend, completeGeoCamImageBackend, checkDeviceRegistration } from '../utils/backendService';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import CircularProgress from '../components/CircularProgress';
 import { useTheme } from '../contexts/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -54,6 +54,7 @@ export default function CameraScreen() {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   
   const [isEncoding, setIsEncoding] = useState(false);
+  const [cachedGeoCamDeviceName, setCachedGeoCamDeviceName] = useState<string | null>(null);
   
   type KeyMetadata = {
     fingerprint?: string;
@@ -252,10 +253,19 @@ export default function CameraScreen() {
     })();
   }, [permission, mediaPermission, locationPermission]);
 
-  // Separate useEffect for loading keys - only runs once on mount
+  // Separate useEffect for loading keys and device name - only runs once on mount
   useEffect(() => {
     loadExistingKeys();
+    loadGeoCamDeviceName();
   }, []); // Empty dependency array means it only runs once on mount
+
+  // Refresh device name when screen comes into focus (e.g., after Fresh Start)
+  useFocusEffect(
+    useCallback(() => {
+      console.log('📱 Camera screen focused, refreshing device name...');
+      loadGeoCamDeviceName();
+    }, [])
+  );
 
   // Hardware Button Camera Control
   /**
@@ -270,6 +280,35 @@ export default function CameraScreen() {
    * 
    * No UI hints are shown for this functionality since it requires native code.
    */
+
+  const loadGeoCamDeviceName = async () => {
+    try {
+      console.log('📱 Camera: Refreshing GeoCam device name from backend...');
+      
+      // First try to refresh from backend (like app startup does)
+      const registrationCheck = await checkDeviceRegistration();
+      if (registrationCheck) {
+        console.log('✅ Camera: Device registration check successful');
+      } else {
+        console.log('⚠️ Camera: Device registration check failed, using stored name');
+      }
+      
+      // Then get the (potentially updated) stored name
+      const deviceName = await getStoredGeoCamDeviceName();
+      setCachedGeoCamDeviceName(deviceName);
+      console.log('📱 Camera: Final GeoCam device name:', deviceName);
+    } catch (error) {
+      console.error('❌ Camera: Failed to refresh GeoCam device name:', error);
+      // Fallback: try to get stored name
+      try {
+        const storedName = await getStoredGeoCamDeviceName();
+        setCachedGeoCamDeviceName(storedName);
+        console.log('📱 Camera: Fallback to stored name:', storedName);
+      } catch {
+        setCachedGeoCamDeviceName(null);
+      }
+    }
+  };
 
   const loadExistingKeys = async () => {
     setIsLoadingKeys(true);
@@ -473,9 +512,13 @@ export default function CameraScreen() {
         console.log('Location permission not granted');
       }
 
-      // Get GeoCam device name
-      const geocamDeviceName = await getStoredGeoCamDeviceName();
-      console.log('📱 Retrieved GeoCam device name:', geocamDeviceName);
+      // Get GeoCam device name - use cached value first, fallback to storage if needed
+      let geocamDeviceName = cachedGeoCamDeviceName;
+      if (!geocamDeviceName) {
+        geocamDeviceName = await getStoredGeoCamDeviceName();
+        setCachedGeoCamDeviceName(geocamDeviceName); // Update cache for next time
+      }
+      console.log('📱 Using GeoCam device name for photo:', geocamDeviceName);
 
       // Prepare the basic data
       const basicData = {

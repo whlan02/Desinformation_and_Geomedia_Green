@@ -109,6 +109,12 @@ export default function SecurityInfo() {
               console.log('📊 Fresh Start Result:', result);
               
               if (result.success) {
+                // Immediately update the UI with the new device name from Fresh Start result
+                if (result.geocamName) {
+                  console.log('🔄 Immediately updating UI with new GeoCam name:', result.geocamName);
+                  setGeocamDeviceName(result.geocamName);
+                }
+                
                 // Count successful steps
                 const successCount = Object.values(result.steps).filter(step => step.success).length;
                 const totalSteps = Object.keys(result.steps).length;
