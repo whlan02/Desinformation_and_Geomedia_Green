@@ -99,52 +99,66 @@ export default function SecurityInfo() {
           onPress: async () => {
             // Show loading state
             setGeocamDeviceName(null);
+            setIsLoading(true);
             
             try {
-              // Delete secure keys (V2 system only)
-              console.log('🔑 Deleting secure keys...');
-              await deleteSecureKeys();
-              console.log('✅ Secure keys deleted');
+              console.log('🔄 === FRESH START INITIATED FROM UI ===');
               
               const result = await performFreshDeviceStart();
               
+              console.log('📊 Fresh Start Result:', result);
+              
               if (result.success) {
+                // Count successful steps
+                const successCount = Object.values(result.steps).filter(step => step.success).length;
+                const totalSteps = Object.keys(result.steps).length;
+                
                 Alert.alert(
                   '✅ Fresh Start Complete', 
-                  `${result.message}\n\nSteps completed:\n${
+                  `${result.message}\n\nSteps completed (${successCount}/${totalSteps}):\n${
                     result.steps.databaseDeletion.success ? '✅' : '❌'
-                  } Database deletion\n${
+                  } Database deletion: ${result.steps.databaseDeletion.message}\n${
                     result.steps.keyReset.success ? '✅' : '❌'
-                  } Key reset\n${
+                  } Key reset: ${result.steps.keyReset.message}\n${
                     result.steps.keyGeneration.success ? '✅' : '❌'
-                  } New key generation`
+                  } New key generation: ${result.steps.keyGeneration.message}\n${
+                    result.steps.registration.success ? '✅' : '❌'
+                  } Registration: ${result.steps.registration.message}`
                 );
-                
-                // Refresh all UI states
-                loadSecurityInfo();
-                checkKeys();
-                loadGeoCamDeviceName();
               } else {
+                // Show detailed error information
+                const errorSteps = Object.entries(result.steps)
+                  .filter(([_, step]) => !step.success)
+                  .map(([name, step]) => `• ${name}: ${step.message}`)
+                  .join('\n');
+                
                 Alert.alert(
                   '❌ Fresh Start Failed', 
-                  `${result.message}\n\nPlease check the logs and try again.`
+                  `${result.message}\n\nFailed steps:\n${errorSteps}\n\nPlease check the logs and try again.`
                 );
-                
-                // Still refresh UI to show current state
-                loadSecurityInfo();
-                checkKeys();
-                loadGeoCamDeviceName();
               }
-            } catch (error) {
-              Alert.alert(
-                '❌ Fresh Start Error', 
-                `Unexpected error: ${error instanceof Error ? error.message : String(error)}`
-              );
               
-              // Refresh UI
+              // Refresh all UI states regardless of success/failure
+              console.log('🔄 Refreshing UI state after Fresh Start...');
               loadSecurityInfo();
               checkKeys();
               loadGeoCamDeviceName();
+              testBackendConnectivity();
+              
+            } catch (error) {
+              console.error('❌ Fresh Start UI Error:', error);
+              Alert.alert(
+                '❌ Fresh Start Error', 
+                `Unexpected error: ${error instanceof Error ? error.message : String(error)}\n\nPlease check the logs for more details.`
+              );
+              
+              // Refresh UI even on error
+              loadSecurityInfo();
+              checkKeys();
+              loadGeoCamDeviceName();
+              testBackendConnectivity();
+            } finally {
+              setIsLoading(false);
             }
           },
         },

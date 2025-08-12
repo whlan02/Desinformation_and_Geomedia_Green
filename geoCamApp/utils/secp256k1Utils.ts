@@ -269,11 +269,55 @@ export const hasSecureKeys = async (): Promise<boolean> => {
  */
 export const deleteSecureKeys = async (): Promise<boolean> => {
   try {
-    await SecureStore.deleteItemAsync(PRIVATE_KEY_STORAGE_KEY_V2, SECURE_STORE_OPTIONS_V2);
-    await SecureStore.deleteItemAsync(PUBLIC_KEY_STORAGE_KEY_V2);
-    await SecureStore.deleteItemAsync(KEY_METADATA_STORAGE_KEY_V2);
+    console.log('🗑️ Starting secure keys deletion...');
     
-    console.log('✅ Secure keys deleted successfully');
+    // Delete all V2 secure keys
+    try {
+      await SecureStore.deleteItemAsync(PRIVATE_KEY_STORAGE_KEY_V2, SECURE_STORE_OPTIONS_V2);
+      console.log('✅ Private key deleted');
+    } catch (error) {
+      console.log('ℹ️ Private key not found or already deleted');
+    }
+    
+    try {
+      await SecureStore.deleteItemAsync(PUBLIC_KEY_STORAGE_KEY_V2);
+      console.log('✅ Public key deleted');
+    } catch (error) {
+      console.log('ℹ️ Public key not found or already deleted');
+    }
+    
+    try {
+      await SecureStore.deleteItemAsync(KEY_METADATA_STORAGE_KEY_V2);
+      console.log('✅ Key metadata deleted');
+    } catch (error) {
+      console.log('ℹ️ Key metadata not found or already deleted');
+    }
+    
+    try {
+      await SecureStore.deleteItemAsync(DEVICE_FINGERPRINT_KEY_V2);
+      console.log('✅ Device fingerprint deleted');
+    } catch (error) {
+      console.log('ℹ️ Device fingerprint not found or already deleted');
+    }
+    
+    // Also clear any legacy V1 keys that might still exist
+    const legacyKeys = [
+      'geocam_private_key',
+      'geocam_public_key', 
+      'geocam_installation_id',
+      'geocam_device_fingerprint'
+    ];
+    
+    for (const key of legacyKeys) {
+      try {
+        await SecureStore.deleteItemAsync(key);
+        console.log(`✅ Legacy key ${key} deleted`);
+      } catch (error) {
+        console.log(`ℹ️ Legacy key ${key} not found`);
+      }
+    }
+    
+    console.log('✅ All secure keys and fingerprints deleted successfully');
     return true;
   } catch (error) {
     console.error('❌ Failed to delete secure keys:', error);
@@ -360,6 +404,7 @@ export const getSecureKeysForRegistration = async () => {
     const registrationKeyPair = {
       privateKey: {
         ...privateKey,
+        installationId: privateKey.deviceFingerprint, // Use deviceFingerprint as installationId for V2 compatibility
       },
       publicKey: {
         ...publicKey,

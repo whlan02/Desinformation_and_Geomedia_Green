@@ -11,7 +11,8 @@ import os
 from config import Config
 from database import (
     create_tables, register_device, get_all_devices, 
-    get_device_by_installation_id, update_device_activity, log_verification
+    get_device_by_installation_id, update_device_activity, log_verification,
+    delete_device_by_installation_id, delete_device_by_fingerprint
 )
 
 # Configure logging
@@ -344,6 +345,59 @@ def get_devices_secure():
     except Exception as e:
         logger.error(f"❌ Failed to get devices (secure): {e}")
         return jsonify({'error': 'Failed to get devices', 'details': str(e)}), 500
+
+@app.route('/api/delete-device', methods=['DELETE'])
+def delete_device():
+    """Delete device from database (for fresh start/reset)"""
+    try:
+        logger.info("🗑️ Device deletion request received")
+        
+        request_data = request.get_json()
+        
+        if not request_data:
+            logger.error("❌ No JSON data in delete request")
+            return jsonify({'error': 'No JSON data provided'}), 400
+        
+        installation_id = request_data.get('installation_id')
+        key_fingerprint = request_data.get('key_fingerprint')
+        
+        if not installation_id and not key_fingerprint:
+            logger.error("❌ Missing installation_id or key_fingerprint")
+            return jsonify({'error': 'Either installation_id or key_fingerprint required'}), 400
+        
+        # Try deletion by installation_id first, then by fingerprint
+        if installation_id:
+            logger.info(f"🗑️ Deleting device by installation_id: {installation_id}")
+            result = delete_device_by_installation_id(installation_id)
+        else:
+            logger.info(f"🗑️ Deleting device by fingerprint: {key_fingerprint}")
+            result = delete_device_by_fingerprint(key_fingerprint)
+        
+        if result['found'] and result['deleted']:
+            geocam_name = f"GeoCam{result['geocam_sequence']}" if result['geocam_sequence'] else "Unknown"
+            message = f"Device {geocam_name} deleted successfully"
+            logger.info(f"✅ {message}")
+            return jsonify({
+                'success': True,
+                'message': message,
+                'geocam_sequence': result['geocam_sequence'],
+                'deleted_verifications': result.get('deleted_verifications', 0)
+            })
+        elif result['found'] and not result['deleted']:
+            logger.error("❌ Device found but deletion failed")
+            return jsonify({'error': 'Device found but deletion failed'}), 500
+        else:
+            # Device not found - this is OK for fresh start purposes
+            logger.info("ℹ️ Device not found in database (already deleted or never registered)")
+            return jsonify({
+                'success': True,
+                'message': 'Device was not in database (already deleted or never registered)',
+                'geocam_sequence': None
+            })
+        
+    except Exception as e:
+        logger.error(f"❌ Device deletion failed: {e}")
+        return jsonify({'error': 'Device deletion failed', 'details': str(e)}), 500
 
 # Removed unused /api/verification-stats endpoint - use /api/stats instead
 

@@ -235,6 +235,81 @@ def update_device_activity(installation_id):
     finally:
         db.close()
 
+def delete_device_by_installation_id(installation_id):
+    """Delete device by installation ID (for fresh start/reset)"""
+    db = Database()
+    cursor = db.get_cursor()
+    
+    try:
+        # First check if device exists
+        cursor.execute("SELECT id, geocam_sequence FROM geocam_devices WHERE installation_id = %s", (installation_id,))
+        device = cursor.fetchone()
+        
+        if not device:
+            logger.info(f"ℹ️ Device {installation_id} not found in database")
+            return {'found': False, 'deleted': False, 'geocam_sequence': None}
+        
+        device_id = device['id']
+        geocam_sequence = device['geocam_sequence']
+        
+        # Delete verification history first (foreign key constraint)
+        cursor.execute("DELETE FROM verification_history WHERE device_id = %s", (device_id,))
+        deleted_verifications = cursor.rowcount
+        
+        # Delete the device
+        cursor.execute("DELETE FROM geocam_devices WHERE installation_id = %s", (installation_id,))
+        deleted_devices = cursor.rowcount
+        
+        db.commit()
+        
+        logger.info(f"✅ Device deleted: {installation_id} (GeoCam{geocam_sequence}), {deleted_verifications} verification records")
+        return {
+            'found': True, 
+            'deleted': True, 
+            'geocam_sequence': geocam_sequence,
+            'deleted_verifications': deleted_verifications
+        }
+        
+    except Exception as e:
+        db.rollback()
+        logger.error(f"❌ Failed to delete device {installation_id}: {e}")
+        raise
+    finally:
+        db.close()
+
+def delete_device_by_fingerprint(key_fingerprint):
+    """Delete device by public key fingerprint (alternative identifier)"""
+    db = Database()
+    cursor = db.get_cursor()
+    
+    try:
+        # Search for device by fingerprint in public_key_data
+        cursor.execute("""
+            SELECT id, installation_id, geocam_sequence 
+            FROM geocam_devices 
+            WHERE public_key_data->>'hash' = %s 
+               OR public_key_data->>'fingerprint' = %s
+        """, (key_fingerprint, key_fingerprint))
+        
+        device = cursor.fetchone()
+        
+        if not device:
+            logger.info(f"ℹ️ Device with fingerprint {key_fingerprint} not found")
+            return {'found': False, 'deleted': False, 'installation_id': None}
+        
+        # Use the installation_id to delete (reuse existing function)
+        installation_id = device['installation_id']
+        result = delete_device_by_installation_id(installation_id)
+        result['installation_id'] = installation_id
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to delete device by fingerprint {key_fingerprint}: {e}")
+        raise
+    finally:
+        db.close()
+
 def log_verification(device_id, image_hash, verification_result, verification_message, signature_data=None):
     """Log verification attempt"""
     db = Database()

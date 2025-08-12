@@ -4,7 +4,7 @@ import * as SecureStore from 'expo-secure-store';
 import * as Crypto from 'expo-crypto';
 import { secp256k1 } from '@noble/curves/secp256k1';
 import { buildApiUrl, buildSteganographyUrl, BACKEND_CONFIG } from './backendConfig';
-import { getSecureKeysForRegistration } from './secp256k1Utils';
+import { getSecureKeysForRegistration, deleteSecureKeys, generateSecureKeyPair } from './secp256k1Utils';
 
 // Storage key for GeoCam device name
 const GEOCAM_DEVICE_NAME_KEY = 'geocam_device_name';
@@ -341,7 +341,6 @@ export const performFreshDeviceStart = async (): Promise<{
 
     // Step 2: Reset local keys and device name
     console.log('🔑 Step 2: Resetting local keys and device name...');
-    const { deleteSecureKeys } = await import('./secp256k1Utils.js');
     const secureKeyResetSuccess = await deleteSecureKeys();
     const deviceNameClearSuccess = await clearGeoCamDeviceName();
     
@@ -359,7 +358,6 @@ export const performFreshDeviceStart = async (): Promise<{
 
     // Step 3: Generate new secure keys
     console.log('🔐 Step 3: Generating new secure keys...');
-    const { generateSecureKeyPair } = await import('./secp256k1Utils.js');
     
     try {
       await generateSecureKeyPair(); // This function generates and stores keys automatically
@@ -423,10 +421,10 @@ export const deleteCurrentDeviceFromDatabase = async (): Promise<{
     
     const keyPair = await getSecureKeysForRegistration();
     if (!keyPair) {
-      console.log('❌ No secure keys found - cannot identify device for deletion');
+      console.log('ℹ️ No secure keys found - device was likely already reset or never registered');
       return {
-        success: false,
-        message: 'No secure keys found to identify device for deletion',
+        success: true,
+        message: 'No device keys found to delete (likely already reset)',
       };
     }
 
