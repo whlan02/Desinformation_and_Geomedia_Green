@@ -112,6 +112,33 @@ class GeoCamPNGVerifier {
   }
 
   /**
+   * Compute SHA-512 hex hash over the full "clean" RGBA byte sequence.
+   *
+   * "Clean" means:
+   * - basicInfo may be embedded in alpha LSBs (excluding last row)
+   * - last-row alpha must already be reset to 255 (signature removed / not yet written)
+   *
+   * Versioning/metadata is stored in the steganography JSON package.
+   */
+  computeFullRgbaHash(cleanRgba) {
+    log('INFO', 'Computing SHA-512 hash over full clean RGBA bytes');
+
+    const rgbaBytes =
+      cleanRgba instanceof Uint8Array
+        ? cleanRgba
+        : Uint8Array.from(cleanRgba);
+
+    const hash = crypto.createHash('sha512').update(Buffer.from(rgbaBytes)).digest('hex');
+
+    log('SUCCESS', 'SHA-512 full-RGBA hash computed', {
+      length: hash.length,
+      preview: hash.substring(0, 16)
+    });
+
+    return hash;
+  }
+
+  /**
    * Convert string to binary representation
    */
   stringToBinary(str) {
@@ -374,27 +401,11 @@ class GeoCamPNGVerifier {
   }
 
   /**
-   * Step 7: Compute SHA-512 hash of the clean PNG - MATCHING SIGNING PROCESS
+   * Step 7: Compute SHA-512 hash of the clean image+info (FULL RGBA) - MATCHING SIGNING PROCESS
    */
-  computePngHash(cleanedRgbaData, width, height, basicInfo) {
-    log('INFO', 'Computing SHA-512 hash matching signing process');
-    
-    // Generate hash the same way as during signing
-    const combinedData = JSON.stringify({
-      basicInfo: basicInfo,
-      rgbaChecksum: cleanedRgbaData.slice(0, 1000).join(''),
-      width: width,
-      height: height
-    });
-    
-    const hash = crypto.createHash('sha512').update(combinedData).digest('hex');
-    
-    log('SUCCESS', 'SHA-512 hash computed (matching signing process)', {
-      length: hash.length,
-      preview: hash.substring(0, 16)
-    });
-    
-    return hash;
+  computePngHash(cleanedRgbaData) {
+    // Backward compatibility intentionally removed: always use full clean RGBA hash
+    return this.computeFullRgbaHash(cleanedRgbaData);
   }
 
   /**
@@ -489,14 +500,11 @@ class GeoCamPNGVerifier {
       
       // Step 5: Extract Basic Data
       const basicDataStr = this.extractBasicDataFromAlphaChannels(cleanedRgbaData, width, height);
+
+      // Step 6: Compute hash over full clean RGBA bytes (matching signing process)
+      const pngHash = this.computePngHash(cleanedRgbaData);
       
-      // Step 6: Convert cleaned RGBA to Array for hash computation
-      const cleanedRgbaArray = Array.from(cleanedRgbaData);
-      
-      // Step 7: Compute hash (matching signing process)
-      const pngHash = this.computePngHash(cleanedRgbaArray, width, height, basicDataStr);
-      
-      // Step 8: Verify signature
+      // Step 7: Verify signature
       const verificationResult = await this.verifySignature(
         pngHash,
         signatureData.signature,
@@ -654,7 +662,7 @@ class BackendSteganography {
       publicKey,
       signature,
       timestamp: new Date().toISOString(),
-      version: '3.0-backend-workflow'
+      version: '4.0-full-rgba-sha512'
     };
     
     const signatureJson = JSON.stringify(signaturePackage);
@@ -823,15 +831,16 @@ app.post('/process-geocam-image', upload.single('image'), async (req, res) => {
       basicInfo
     );
 
-    // Generate hash for signing (matching frontend logic)
-    const combinedData = JSON.stringify({
-      basicInfo: basicInfo,
-      rgbaChecksum: rgbaWithInfo.slice(0, 1000).join(''),
-      width: finalWidth,
-      height: finalHeight
-    });
+    // Ensure the signature row is "empty" for hashing/signing.
+    // Protocol: last-row alpha must be 255 when computing the image+info hash.
+    const lastRowStart = (finalHeight - 1) * finalWidth * 4;
+    for (let x = 0; x < finalWidth; x++) {
+      const alphaIndex = lastRowStart + (x * 4) + 3;
+      rgbaWithInfo[alphaIndex] = 255;
+    }
 
-    const hashToSign = crypto.createHash('sha512').update(combinedData).digest('hex');
+    // Generate hash for signing: FULL clean RGBA bytes (image+embedded info, signature row empty)
+    const hashToSign = geocamPNGVerifier.computeFullRgbaHash(rgbaWithInfo);
     console.log('🔐 Generated hash for signing:', hashToSign.length, 'characters');
     console.log('🔐 Hash preview:', hashToSign.substring(0, 16) + '...');
 
